@@ -1,0 +1,15 @@
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.lock.json
+appsettings.Development.json
+*.log
+verify_price_update.ps1
+test_precios.ps1
+tempbuild/
+build_errors.txt
+build_errors_utf8.txt
+build_output.txt
+build_verbose.txt
