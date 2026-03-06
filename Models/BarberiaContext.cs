@@ -345,6 +345,7 @@ public partial class BarberiaContext : DbContext
 
             entity.HasOne(d => d.Usuario).WithMany(p => p.Ventas).HasForeignKey(d => d.UsuarioId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(d => d.Cliente).WithMany(p => p.Venta).HasForeignKey(d => d.ClienteId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(d => d.Barbero).WithMany(p => p.Venta).HasForeignKey(d => d.BarberoId).OnDelete(DeleteBehavior.SetNull);
         });
 
 

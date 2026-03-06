@@ -11,6 +11,8 @@ public partial class Venta
 
     public int? ClienteId { get; set; }
 
+    public int? BarberoId { get; set; }
+
     public DateTime? Fecha { get; set; }
 
     public decimal Subtotal { get; set; }
@@ -28,6 +30,8 @@ public partial class Venta
     public decimal? SaldoAFavorUsado { get; set; }
 
     public virtual Cliente? Cliente { get; set; }
+
+    public virtual Barbero? Barbero { get; set; }
 
     public virtual Usuario Usuario { get; set; } = null!;
 

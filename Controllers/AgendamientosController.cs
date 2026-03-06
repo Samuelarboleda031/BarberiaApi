@@ -344,10 +344,32 @@ namespace BarberiaApi.Controllers
                             ? agendamiento.Servicio.Precio
                             : (agendamiento.Paquete != null ? agendamiento.Paquete.Precio : 0m));
 
+                    var ventaExistente = await _context.Ventas
+                        .Include(v => v.DetalleVenta)
+                        .Where(v => v.ClienteId == agendamiento.ClienteId
+                                    && v.UsuarioId == usuarioId
+                                    && v.Estado != "Anulada"
+                                    && v.Fecha == agendamiento.FechaHora)
+                        .Where(v => v.DetalleVenta.Any(d =>
+                            (agendamiento.ServicioId.HasValue && d.ServicioId == agendamiento.ServicioId) ||
+                            (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
+                        .FirstOrDefaultAsync();
+                    if (ventaExistente != null)
+                    {
+                        await tx.CommitAsync();
+                        return Ok(new {
+                            message = "Estado actualizado. Venta ya existente no duplicada",
+                            estadoActual = input.estado,
+                            agendamientoId = id,
+                            ventaId = ventaExistente.Id
+                        });
+                    }
+
                     var venta = new Venta
                     {
                         UsuarioId = usuarioId,
                         ClienteId = agendamiento.ClienteId,
+                        BarberoId = agendamiento.BarberoId,
                         Fecha = agendamiento.FechaHora,
                         Subtotal = precio,
                         IVA = 0m,

@@ -27,6 +27,7 @@ namespace BarberiaApi.Controllers
             return await _context.Ventas
                 .Include(v => v.Cliente)
                 .Include(v => v.Usuario)
+                .Include(v => v.Barbero)
                 .OrderByDescending(v => v.Fecha)
                 .ToListAsync();
         }
@@ -37,6 +38,7 @@ namespace BarberiaApi.Controllers
             var venta = await _context.Ventas
                 .Include(v => v.Cliente)
                 .Include(v => v.Usuario)
+                .Include(v => v.Barbero)
                 .Include(v => v.DetalleVenta)
                     .ThenInclude(d => d.Producto)
                 .Include(v => v.DetalleVenta)
@@ -58,7 +60,25 @@ namespace BarberiaApi.Controllers
             using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
             try
             {
+                bool tieneServicioDirecto = input.Detalles.Any(d => d.ServicioId.HasValue);
+                bool paqueteConServicio = false;
+                var paqueteIds = input.Detalles.Where(d => d.PaqueteId.HasValue).Select(d => d.PaqueteId!.Value).Distinct().ToList();
+                if (paqueteIds.Count > 0)
+                {
+                    paqueteConServicio = await _context.DetallePaquetes.AnyAsync(dp => paqueteIds.Contains(dp.PaqueteId) && dp.ServicioId != null);
+                }
+                bool requiereBarbero = tieneServicioDirecto || paqueteConServicio;
+                if (requiereBarbero && !input.BarberoId.HasValue)
+                    return BadRequest("Se requiere BarberoId cuando la venta incluye servicios");
+
                 int usuarioId = input.UsuarioId;
+                if (requiereBarbero)
+                {
+                    var barberoExistente = await _context.Barberos.FirstOrDefaultAsync(b => b.Id == input.BarberoId!.Value);
+                    if (barberoExistente == null)
+                        return BadRequest("El barbero especificado no existe");
+                }
+
                 if (usuarioId == 0 && input.BarberoId.HasValue)
                 {
                     var barbero = await _context.Barberos.FirstOrDefaultAsync(b => b.Id == input.BarberoId.Value);
@@ -82,6 +102,7 @@ namespace BarberiaApi.Controllers
                 {
                     UsuarioId = usuarioId,
                     ClienteId = input.ClienteId,
+                    BarberoId = input.BarberoId,
                     Fecha = DateTime.Now,
                     MetodoPago = input.MetodoPago ?? "Efectivo",
                     Descuento = input.Descuento ?? 0,
@@ -162,6 +183,7 @@ namespace BarberiaApi.Controllers
                 var ventaCompleta = await _context.Ventas
                     .Include(v => v.Cliente)
                     .Include(v => v.Usuario)
+                    .Include(v => v.Barbero)
                     .Include(v => v.DetalleVenta)
                         .ThenInclude(d => d.Producto)
                     .Include(v => v.DetalleVenta)
