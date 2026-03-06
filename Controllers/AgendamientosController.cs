@@ -348,7 +348,6 @@ namespace BarberiaApi.Controllers
                         .Include(v => v.DetalleVenta)
                         .Where(v => v.ClienteId == agendamiento.ClienteId
                                     && v.UsuarioId == usuarioId
-                                    && v.Estado != "Anulada"
                                     && v.Fecha == agendamiento.FechaHora)
                         .Where(v => v.DetalleVenta.Any(d =>
                             (agendamiento.ServicioId.HasValue && d.ServicioId == agendamiento.ServicioId) ||
@@ -356,13 +355,45 @@ namespace BarberiaApi.Controllers
                         .FirstOrDefaultAsync();
                     if (ventaExistente != null)
                     {
-                        await tx.CommitAsync();
-                        return Ok(new {
-                            message = "Estado actualizado. Venta ya existente no duplicada",
-                            estadoActual = input.estado,
-                            agendamientoId = id,
-                            ventaId = ventaExistente.Id
-                        });
+                        if (string.Equals(ventaExistente.Estado, "Anulada", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ventaExistente.Estado = "Completada";
+                            if (!ventaExistente.BarberoId.HasValue || ventaExistente.BarberoId.Value <= 0)
+                            {
+                                ventaExistente.BarberoId = agendamiento.BarberoId;
+                            }
+                            // Asegurar detalle mínimo si no existe por algún motivo
+                            if (!ventaExistente.DetalleVenta.Any())
+                            {
+                                var detalleReactivado = new DetalleVenta
+                                {
+                                    VentaId = ventaExistente.Id,
+                                    ServicioId = agendamiento.ServicioId,
+                                    PaqueteId = agendamiento.PaqueteId,
+                                    Cantidad = 1,
+                                    PrecioUnitario = precio
+                                };
+                                _context.DetalleVentas.Add(detalleReactivado);
+                            }
+                            await _context.SaveChangesAsync();
+                            await tx.CommitAsync();
+                            return Ok(new {
+                                message = "Estado actualizado. Venta existente reactivada",
+                                estadoActual = input.estado,
+                                agendamientoId = id,
+                                ventaId = ventaExistente.Id
+                            });
+                        }
+                        else
+                        {
+                            await tx.CommitAsync();
+                            return Ok(new {
+                                message = "Estado actualizado. Venta ya existente no duplicada",
+                                estadoActual = input.estado,
+                                agendamientoId = id,
+                                ventaId = ventaExistente.Id
+                            });
+                        }
                     }
 
                     var venta = new Venta
@@ -394,6 +425,26 @@ namespace BarberiaApi.Controllers
 
                     _context.DetalleVentas.Add(detalle);
                     await _context.SaveChangesAsync();
+                }
+                if (string.Equals(input.estado, "Cancelada", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(estadoAnterior, "Cancelada", StringComparison.OrdinalIgnoreCase))
+                {
+                    var usuarioId = agendamiento.Barbero?.UsuarioId ?? 0;
+                    var ventaRelacionada = await _context.Ventas
+                        .Include(v => v.DetalleVenta)
+                        .Where(v => v.ClienteId == agendamiento.ClienteId
+                                    && v.UsuarioId == usuarioId
+                                    && v.Estado != "Anulada"
+                                    && v.Fecha == agendamiento.FechaHora)
+                        .Where(v => v.DetalleVenta.Any(d =>
+                            (agendamiento.ServicioId.HasValue && d.ServicioId == agendamiento.ServicioId) ||
+                            (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
+                        .FirstOrDefaultAsync();
+                    if (ventaRelacionada != null)
+                    {
+                        ventaRelacionada.Estado = "Anulada";
+                        await _context.SaveChangesAsync();
+                    }
                 }
 
                 await tx.CommitAsync();
