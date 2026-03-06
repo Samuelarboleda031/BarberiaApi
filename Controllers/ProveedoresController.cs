@@ -60,16 +60,10 @@ namespace BarberiaApi.Controllers
             if (input == null)
                 return BadRequest("El objeto proveedor natural es requerido");
 
-            if (string.IsNullOrWhiteSpace(input.Nombre))
-                return BadRequest("El nombre es requerido");
-
-
-            // Validar NIT unico si se proporciona
-            if (!string.IsNullOrWhiteSpace(input.NIT))
-            {
-                if (await _context.Proveedores.AnyAsync(p => p.NIT == input.NIT))
-                    return BadRequest("Ya existe un proveedor con ese NIT");
-            }
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+            if (await _context.Proveedores.AnyAsync(p => p.NIT == input.NIT))
+                return BadRequest("Ya existe un proveedor con ese NIT");
 
             var proveedor = new Proveedor
             {
@@ -81,6 +75,8 @@ namespace BarberiaApi.Controllers
                 Telefono = input.Telefono,
                 Direccion = input.Direccion,
                 NIT = input.NIT,
+                CorreoContacto = input.CorreoContacto,
+                TelefonoContacto = input.TelefonoContacto,
                 TipoProveedor = "Natural",
                 Estado = true
             };
@@ -97,32 +93,24 @@ namespace BarberiaApi.Controllers
             if (input == null)
                 return BadRequest("El objeto proveedor jurídico es requerido");
 
-            if (string.IsNullOrWhiteSpace(input.Nombre))
-                return BadRequest("El nombre de la empresa es requerido");
-
-            if (string.IsNullOrWhiteSpace(input.RazonSocial))
-                return BadRequest("La razón social es requerida para persona jurídica");
-
-            if (string.IsNullOrWhiteSpace(input.NIT))
-                return BadRequest("El NIT es requerido para persona jurídica");
-
             // Validar NIT unico
             if (await _context.Proveedores.AnyAsync(p => p.NIT == input.NIT))
                 return BadRequest("Ya existe un proveedor con ese NIT");
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
             var proveedor = new Proveedor
             {
                 Nombre = input.Nombre,
-                RazonSocial = input.RazonSocial,
                 NIT = input.NIT,
-                RepresentanteLegal = input.RepresentanteLegal,
-                NumeroIdentificacionRepLegal = input.NumeroIdentificacionRepLegal,
-                CargoRepLegal = input.CargoRepLegal,
                 Correo = input.Correo,
                 Telefono = input.Telefono,
                 Direccion = input.Direccion,
-                Ciudad = input.Ciudad,
-                Departamento = input.Departamento,
+                Contacto = input.Contacto,
+                NumeroIdentificacion = input.NumeroIdentificacion,
+                TipoIdentificacion = input.TipoIdentificacion,
+                CorreoContacto = input.CorreoContacto,
+                TelefonoContacto = input.TelefonoContacto,
                 TipoProveedor = "Juridico",
                 Estado = true
             };
@@ -130,6 +118,42 @@ namespace BarberiaApi.Controllers
             _context.Proveedores.Add(proveedor);
             await _context.SaveChangesAsync();
 
+            return CreatedAtAction(nameof(GetById), new { id = proveedor.Id }, proveedor);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<Proveedor>> Create([FromBody] ProveedorCreateInput input)
+        {
+            if (input == null)
+                return BadRequest("El objeto proveedor es requerido");
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+            var tipo = (input.TipoProveedor ?? string.Empty).Trim();
+            if (tipo != "Natural" && tipo != "Juridico")
+                return BadRequest("TipoProveedor debe ser 'Natural' o 'Juridico'");
+            if (await _context.Proveedores.AnyAsync(p => p.NIT == input.NIT))
+                return BadRequest("Ya existe un proveedor con ese NIT");
+
+            var proveedor = new Proveedor
+            {
+                Nombre = input.Nombre,
+                NIT = input.NIT,
+                Correo = input.Correo,
+                Telefono = input.Telefono,
+                Direccion = input.Direccion,
+                Contacto = input.Contacto,
+                NumeroIdentificacion = input.NumeroIdentificacion,
+                TipoIdentificacion = string.IsNullOrWhiteSpace(input.TipoIdentificacion)
+                    ? (tipo == "Natural" ? "CC" : "NIT")
+                    : input.TipoIdentificacion,
+                CorreoContacto = input.CorreoContacto,
+                TelefonoContacto = input.TelefonoContacto,
+                TipoProveedor = tipo,
+                Estado = true
+            };
+
+            _context.Proveedores.Add(proveedor);
+            await _context.SaveChangesAsync();
             return CreatedAtAction(nameof(GetById), new { id = proveedor.Id }, proveedor);
         }
 
@@ -141,6 +165,12 @@ namespace BarberiaApi.Controllers
 
             // Actualizar campos comunes
             proveedorExistente.Nombre = input.Nombre;
+            if (!string.IsNullOrWhiteSpace(input.NIT))
+            {
+                var nitDuplicado = await _context.Proveedores.AnyAsync(p => p.NIT == input.NIT && p.Id != id);
+                if (nitDuplicado) return BadRequest("Ya existe un proveedor con ese NIT");
+                proveedorExistente.NIT = input.NIT;
+            }
             proveedorExistente.Correo = input.Correo;
             proveedorExistente.Telefono = input.Telefono;
             proveedorExistente.Direccion = input.Direccion;
@@ -153,15 +183,16 @@ namespace BarberiaApi.Controllers
                 proveedorExistente.Contacto = input.Contacto;
                 proveedorExistente.NumeroIdentificacion = input.NumeroIdentificacion;
                 proveedorExistente.TipoIdentificacion = input.TipoIdentificacion;
+                proveedorExistente.CorreoContacto = input.CorreoContacto;
+                proveedorExistente.TelefonoContacto = input.TelefonoContacto;
             }
             else if (proveedorExistente.TipoProveedor == "Juridico")
             {
-                proveedorExistente.RazonSocial = input.RazonSocial;
-                proveedorExistente.RepresentanteLegal = input.RepresentanteLegal;
-                proveedorExistente.NumeroIdentificacionRepLegal = input.NumeroIdentificacionRepLegal;
-                proveedorExistente.CargoRepLegal = input.CargoRepLegal;
-                proveedorExistente.Ciudad = input.Ciudad;
-                proveedorExistente.Departamento = input.Departamento;
+                proveedorExistente.Contacto = input.Contacto;
+                proveedorExistente.NumeroIdentificacion = input.NumeroIdentificacion;
+                proveedorExistente.TipoIdentificacion = input.TipoIdentificacion;
+                proveedorExistente.CorreoContacto = input.CorreoContacto;
+                proveedorExistente.TelefonoContacto = input.TelefonoContacto;
             }
 
             try

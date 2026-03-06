@@ -267,6 +267,11 @@ public partial class BarberiaContext : DbContext
             entity.Property(e => e.Correo).HasMaxLength(150);
             entity.Property(e => e.Direccion).HasMaxLength(200);
             entity.Property(e => e.Estado).HasDefaultValue(true);
+            entity.Property(e => e.TipoProveedor).HasMaxLength(20);
+            entity.Property(e => e.NumeroIdentificacion).HasMaxLength(50);
+            entity.Property(e => e.TipoIdentificacion).HasMaxLength(20);
+            entity.Property(e => e.CorreoContacto).HasMaxLength(150);
+            entity.Property(e => e.TelefonoContacto).HasMaxLength(50);
         });
 
         modelBuilder.Entity<Role>(entity =>

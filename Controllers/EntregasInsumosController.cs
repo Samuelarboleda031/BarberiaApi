@@ -37,7 +37,7 @@ namespace BarberiaApi.Controllers
                 .Include(e => e.Barbero).ThenInclude(b => b.Usuario)
                 .Include(e => e.Usuario)
                 .Include(e => e.DetalleEntregasInsumos).ThenInclude(d => d.Producto)
-                .Where(e => e.Estado == "Devuelto")
+                .Where(e => _context.Devoluciones.Any(dev => dev.EntregaId == e.Id))
                 .AsQueryable();
 
             if (barberoId.HasValue) q = q.Where(e => e.BarberoId == barberoId.Value);
@@ -86,7 +86,7 @@ namespace BarberiaApi.Controllers
         {
             var q = _context.EntregasInsumos
                 .Include(e => e.Barbero).ThenInclude(b => b.Usuario)
-                .Where(e => e.Estado == "Devuelto")
+                .Where(e => _context.Devoluciones.Any(dev => dev.EntregaId == e.Id))
                 .AsQueryable();
 
             if (barberoId.HasValue) q = q.Where(e => e.BarberoId == barberoId.Value);

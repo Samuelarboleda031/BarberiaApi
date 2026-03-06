@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 namespace BarberiaApi.Models;
 
 // DTOs para Usuarios
@@ -117,6 +118,7 @@ public class VentaInput
 {
     public int UsuarioId { get; set; }
     public int? ClienteId { get; set; }
+    public int? BarberoId { get; set; }
     public string? MetodoPago { get; set; }
     public decimal? Descuento { get; set; }
     public decimal? IVA { get; set; }
@@ -269,53 +271,78 @@ public class CambioEstadoResponse<T>
 // DTOs para Proveedores
 public class ProveedorNaturalInput
 {
+    [Required]
     public string Nombre { get; set; } = string.Empty;
+    [Required]
+    public string NIT { get; set; } = string.Empty;
+    public string? Contacto { get; set; }
+    [Required]
+    public string Correo { get; set; } = string.Empty;
+    [Required]
+    public string Telefono { get; set; } = string.Empty;
+    [Required]
+    public string Direccion { get; set; } = string.Empty;
     public string? NumeroIdentificacion { get; set; }
     public string TipoIdentificacion { get; set; } = "CC";
-    public string? Contacto { get; set; }
-    public string? Correo { get; set; }
-    public string? Telefono { get; set; }
-    public string? Direccion { get; set; }
-    public string? NIT { get; set; }
+    public string? CorreoContacto { get; set; }
+    public string? TelefonoContacto { get; set; }
 }
 
 public class ProveedorJuridicoInput
 {
+    [Required]
     public string Nombre { get; set; } = string.Empty;
-    public string RazonSocial { get; set; } = string.Empty;
+    [Required]
     public string NIT { get; set; } = string.Empty;
-    public string? RepresentanteLegal { get; set; }
-    public string? NumeroIdentificacionRepLegal { get; set; }
-    public string? CargoRepLegal { get; set; }
-    public string? Correo { get; set; }
-    public string? Telefono { get; set; }
-    public string? Direccion { get; set; }
-    public string? Ciudad { get; set; }
-    public string? Departamento { get; set; }
+    public string? Contacto { get; set; }
+    [Required]
+    public string Correo { get; set; } = string.Empty;
+    [Required]
+    public string Telefono { get; set; } = string.Empty;
+    [Required]
+    public string Direccion { get; set; } = string.Empty;
+    public string? NumeroIdentificacion { get; set; }
+    public string TipoIdentificacion { get; set; } = "NIT";
+    public string? CorreoContacto { get; set; }
+    public string? TelefonoContacto { get; set; }
 }
 
 public class ProveedorUpdateInput
 {
     public string Nombre { get; set; } = string.Empty;
+    public string? NIT { get; set; }
     public string? Correo { get; set; }
     public string? Telefono { get; set; }
     public string? Direccion { get; set; }
     public bool? Estado { get; set; }
     
-    // Campos para Persona Natural
     public string? Contacto { get; set; }
     public string? NumeroIdentificacion { get; set; }
     public string TipoIdentificacion { get; set; } = "CC";
-    
-    // Campos para Persona Jurídica
-    public string? RazonSocial { get; set; }
-    public string? RepresentanteLegal { get; set; }
-    public string? NumeroIdentificacionRepLegal { get; set; }
-    public string? CargoRepLegal { get; set; }
-    public string? Ciudad { get; set; }
-    public string? Departamento { get; set; }
+    public string? CorreoContacto { get; set; }
+    public string? TelefonoContacto { get; set; }
 }
 
+public class ProveedorCreateInput
+{
+    [Required]
+    public string TipoProveedor { get; set; } = string.Empty; // "Natural" | "Juridico"
+    [Required]
+    public string Nombre { get; set; } = string.Empty;
+    [Required]
+    public string NIT { get; set; } = string.Empty;
+    public string? Contacto { get; set; }
+    [Required]
+    public string Correo { get; set; } = string.Empty;
+    [Required]
+    public string Telefono { get; set; } = string.Empty;
+    [Required]
+    public string Direccion { get; set; } = string.Empty;
+    public string? NumeroIdentificacion { get; set; }
+    public string? TipoIdentificacion { get; set; }
+    public string? CorreoContacto { get; set; }
+    public string? TelefonoContacto { get; set; }
+}
 public class DevolucionInput
 {
     public int? VentaId { get; set; }

@@ -688,12 +688,6 @@ namespace BarberiaApi.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("CargoRepLegal")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Ciudad")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Contacto")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -702,8 +696,9 @@ namespace BarberiaApi.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
-                    b.Property<string>("Departamento")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("CorreoContacto")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
 
                     b.Property<string>("Direccion")
                         .HasMaxLength(200)
@@ -724,27 +719,25 @@ namespace BarberiaApi.Migrations
                         .HasColumnType("nvarchar(150)");
 
                     b.Property<string>("NumeroIdentificacion")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("NumeroIdentificacionRepLegal")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RazonSocial")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("RepresentanteLegal")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("Telefono")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("TelefonoContacto")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("TipoIdentificacion")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("TipoProveedor")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.HasKey("Id");
 

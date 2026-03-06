@@ -58,9 +58,29 @@ namespace BarberiaApi.Controllers
             using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
             try
             {
+                int usuarioId = input.UsuarioId;
+                if (usuarioId == 0 && input.BarberoId.HasValue)
+                {
+                    var barbero = await _context.Barberos.FirstOrDefaultAsync(b => b.Id == input.BarberoId.Value);
+                    if (barbero == null)
+                    {
+                        return BadRequest("El barbero especificado no existe");
+                    }
+                    usuarioId = barbero.UsuarioId;
+                    if (usuarioId == 0)
+                    {
+                        return BadRequest("El barbero especificado no tiene usuario asociado válido");
+                    }
+                }
+                else
+                {
+                    var usuario = await _context.Usuarios.FindAsync(usuarioId);
+                    if (usuario == null)
+                        return BadRequest("El usuario especificado no existe");
+                }
                 var venta = new Venta
                 {
-                    UsuarioId = input.UsuarioId,
+                    UsuarioId = usuarioId,
                     ClienteId = input.ClienteId,
                     Fecha = DateTime.Now,
                     MetodoPago = input.MetodoPago ?? "Efectivo",

@@ -19,21 +19,13 @@ public partial class Proveedor
 
     public bool? Estado { get; set; }
 
-    // Campos específicos para tipo de proveedor
     public string TipoProveedor { get; set; } = "Natural"; // "Natural" o "Juridico"
 
-    // Campos para Persona Jurídica
-    public string? RazonSocial { get; set; }
-    public string? RepresentanteLegal { get; set; }
-    public string? NumeroIdentificacionRepLegal { get; set; }
-    public string? CargoRepLegal { get; set; }
-    public string? Ciudad { get; set; }
-    public string? Departamento { get; set; }
-
-    // Campos para Persona Natural
     public string? Contacto { get; set; }
     public string? NumeroIdentificacion { get; set; }
     public string? TipoIdentificacion { get; set; } // "CC", "CE", "TI", "Pasaporte"
+    public string? CorreoContacto { get; set; }
+    public string? TelefonoContacto { get; set; }
 
     public virtual ICollection<Compra> Compras { get; set; } = new List<Compra>();
 }

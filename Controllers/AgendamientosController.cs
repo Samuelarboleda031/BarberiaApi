@@ -24,7 +24,9 @@ namespace BarberiaApi.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<AgendamientoDTO>>> GetAll()
         {
+            var limite = DateTime.Now.AddDays(-7);
             var agendamientos = await _context.Agendamientos
+                .Where(a => a.FechaHora >= limite)
                 .Include(a => a.Cliente)
                     .ThenInclude(c => c.Usuario)
                 .Include(a => a.Barbero)

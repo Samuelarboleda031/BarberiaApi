@@ -40,7 +40,7 @@
                         BarberoId = input.BarberoId,
                         UsuarioId = input.UsuarioId,
                         Fecha = DateTime.Now,
-                        Estado = "Devuelto"
+                        Estado = "Entregado"
                     };
 
                     int cantidadTotal = 0;
@@ -61,10 +61,10 @@
                                         d.Entrega.Estado == "Entregado")
                             .SumAsync(d => (int?)d.Cantidad) ?? 0;
 
-                        var devuelto = await _context.DetalleEntregasInsumos
+                        var devuelto = await _context.Devoluciones
                             .Where(d => d.ProductoId == det.ProductoId &&
-                                        d.Entrega.BarberoId == input.BarberoId &&
-                                        d.Entrega.Estado == "Devuelto")
+                                        d.BarberoId == input.BarberoId &&
+                                        d.Estado == "Activo")
                             .SumAsync(d => (int?)d.Cantidad) ?? 0;
 
                         var disponible = entregado - devuelto;

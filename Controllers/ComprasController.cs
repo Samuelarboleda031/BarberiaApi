@@ -49,6 +49,14 @@ namespace BarberiaApi.Controllers
         {
             if (input == null || input.Detalles == null || !input.Detalles.Any())
                 return BadRequest("La compra debe tener al menos un detalle");
+            var proveedorVal = await _context.Proveedores.FindAsync(input.ProveedorId);
+            if (proveedorVal == null)
+                return BadRequest("El proveedor no existe");
+            if (proveedorVal.Estado.HasValue && !proveedorVal.Estado.Value)
+                return BadRequest("El proveedor está inactivo");
+            var usuarioVal = await _context.Usuarios.FindAsync(input.UsuarioId);
+            if (usuarioVal == null)
+                return BadRequest("El usuario no existe");
 
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
@@ -70,6 +78,12 @@ namespace BarberiaApi.Controllers
 
                 foreach (var detInput in input.Detalles)
                 {
+                    var producto = await _context.Productos.FindAsync(detInput.ProductoId);
+                    if (producto == null)
+                    {
+                        await transaction.RollbackAsync();
+                        return BadRequest($"El producto {detInput.ProductoId} no existe");
+                    }
                     var detalle = new DetalleCompra
                     {
                         ProductoId = detInput.ProductoId,
@@ -82,16 +96,10 @@ namespace BarberiaApi.Controllers
 
                     subtotal += detalle.Subtotal;
 
-                    // Actualizar stock
-                    // Actualizar stock y precio de compra (último costo de adquisición)
-                    var producto = await _context.Productos.FindAsync(detInput.ProductoId);
-                    if (producto != null)
-                    {
-                        producto.StockVentas += detInput.CantidadVentas;
-                        producto.StockInsumos += detInput.CantidadInsumos;
-                        producto.StockTotal = producto.StockVentas + producto.StockInsumos;
-                        producto.PrecioCompra = detInput.PrecioUnitario;
-                    }
+                    producto.StockVentas += detInput.CantidadVentas;
+                    producto.StockInsumos += detInput.CantidadInsumos;
+                    producto.StockTotal = producto.StockVentas + producto.StockInsumos;
+                    producto.PrecioCompra = detInput.PrecioUnitario;
 
                     compra.DetalleCompras.Add(detalle);
                 }
