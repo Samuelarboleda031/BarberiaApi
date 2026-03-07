@@ -347,11 +347,11 @@ namespace BarberiaApi.Controllers
                     var ventaExistente = await _context.Ventas
                         .Include(v => v.DetalleVenta)
                         .Where(v => v.ClienteId == agendamiento.ClienteId
-                                    && v.UsuarioId == usuarioId
-                                    && v.Fecha == agendamiento.FechaHora)
+                                    && v.UsuarioId == usuarioId)
                         .Where(v => v.DetalleVenta.Any(d =>
                             (agendamiento.ServicioId.HasValue && d.ServicioId == agendamiento.ServicioId) ||
                             (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
+                        .OrderByDescending(v => v.Id)
                         .FirstOrDefaultAsync();
                     if (ventaExistente != null)
                     {
@@ -362,6 +362,7 @@ namespace BarberiaApi.Controllers
                             {
                                 ventaExistente.BarberoId = agendamiento.BarberoId;
                             }
+                            ventaExistente.Fecha = agendamiento.FechaHora;
                             // Asegurar detalle mínimo si no existe por algún motivo
                             if (!ventaExistente.DetalleVenta.Any())
                             {
@@ -456,11 +457,11 @@ namespace BarberiaApi.Controllers
                         .Include(v => v.DetalleVenta)
                         .Where(v => v.ClienteId == agendamiento.ClienteId
                                     && v.UsuarioId == usuarioId
-                                    && v.Estado != "Anulada"
-                                    && v.Fecha == agendamiento.FechaHora)
+                                    && v.Estado != "Anulada")
                         .Where(v => v.DetalleVenta.Any(d =>
                             (agendamiento.ServicioId.HasValue && d.ServicioId == agendamiento.ServicioId) ||
                             (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
+                        .OrderByDescending(v => v.Id)
                         .FirstOrDefaultAsync();
                     if (ventaRelacionada != null)
                     {

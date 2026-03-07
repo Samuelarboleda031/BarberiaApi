@@ -63,8 +63,7 @@ namespace BarberiaApi.Controllers
             var ventaRelacionada = await _context.Ventas
                 .Include(v => v.DetalleVenta)
                 .Where(v => v.ClienteId == ag.ClienteId
-                            && v.UsuarioId == usuarioId
-                            && v.Fecha == ag.FechaHora)
+                            && v.UsuarioId == usuarioId)
                 .Where(v => v.DetalleVenta.Any(d =>
                     (ag.ServicioId.HasValue && d.ServicioId == ag.ServicioId) ||
                     (ag.PaqueteId.HasValue && d.PaqueteId == ag.PaqueteId)))
