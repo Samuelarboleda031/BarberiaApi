@@ -162,6 +162,8 @@ public class EntregaInput
     public int BarberoId { get; set; }
     public int UsuarioId { get; set; }
     public List<DetalleEntregaInput> Detalles { get; set; } = new();
+    public string? MotivoCategoria { get; set; }
+    public string? MotivoDetalle { get; set; }
 }
 
 public class DetalleEntregaInput

@@ -46,6 +46,14 @@
                     int cantidadTotal = 0;
                     decimal valorTotal = 0;
 
+                    bool esErrorCompraInsumos = 
+                        (input.MotivoCategoria != null && 
+                         (string.Equals(input.MotivoCategoria, "ErrorCompra", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(input.MotivoCategoria, "Error en la compra", StringComparison.OrdinalIgnoreCase))) ||
+                        (input.MotivoDetalle != null &&
+                         input.MotivoDetalle.ToLower().Contains("error") &&
+                         input.MotivoDetalle.ToLower().Contains("compra"));
+
                     foreach (var det in input.Detalles)
                     {
                         var producto = await _context.Productos.FindAsync(det.ProductoId);
@@ -74,9 +82,12 @@
                             return BadRequest($"Cantidad a devolver para el producto {producto.Nombre} ({det.Cantidad}) excede lo entregado al barbero ({disponible}).");
                         }
 
-                        // Al devolver insumos, se suman a StockInsumos
-                        producto.StockInsumos += det.Cantidad;
-                        producto.StockTotal = producto.StockVentas + producto.StockInsumos;
+                        // Devolver al stock de insumos SOLO si es error en la compra
+                        if (esErrorCompraInsumos)
+                        {
+                            producto.StockInsumos += det.Cantidad;
+                            producto.StockTotal = producto.StockVentas + producto.StockInsumos;
+                        }
 
                         var detalle = new DetalleEntregasInsumo
                         {
@@ -109,8 +120,8 @@
                             EntregaId = entrega.Id,
                             ProductoId = det.ProductoId,
                             Cantidad = det.Cantidad,
-                            MotivoCategoria = "Insumos",
-                            MotivoDetalle = null,
+                            MotivoCategoria = input.MotivoCategoria ?? "Insumos",
+                            MotivoDetalle = input.MotivoDetalle,
                             Observaciones = null,
                             MontoDevuelto = 0,
                             SaldoAFavor = 0,
@@ -254,6 +265,14 @@
                     if (DateTime.Now > exp)
                         return BadRequest("Garantía expirada para esta venta");
 
+                    bool esErrorCompraVenta =
+                        (input.MotivoCategoria != null &&
+                         (string.Equals(input.MotivoCategoria, "ErrorCompra", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(input.MotivoCategoria, "Error en la compra", StringComparison.OrdinalIgnoreCase))) ||
+                        (input.MotivoDetalle != null &&
+                         input.MotivoDetalle.ToLower().Contains("error") &&
+                         input.MotivoDetalle.ToLower().Contains("compra"));
+
                     var devolucion = new Devolucion
                     {
                         VentaId = input.VentaId,
@@ -272,7 +291,7 @@
                         Estado = "Activo"
                     };
 
-                    if (input.ProductoId > 0)
+                    if (esErrorCompraVenta && input.ProductoId > 0)
                     {
                         var producto = await _context.Productos.FindAsync(input.ProductoId);
                         if (producto != null)
@@ -317,6 +336,11 @@
                     var exp = fechaVenta.AddDays(15);
                     if (DateTime.Now > exp) return BadRequest("Garantía expirada para esta venta");
 
+                    bool esErrorCompraBatch =
+                        !string.IsNullOrWhiteSpace(input.MotivoCategoria) &&
+                        (string.Equals(input.MotivoCategoria, "ErrorCompra", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(input.MotivoCategoria, "Error en la compra", StringComparison.OrdinalIgnoreCase));
+
                     foreach (var it in input.Items)
                     {
                         var dev = new Devolucion
@@ -337,11 +361,14 @@
 
                         _context.Devoluciones.Add(dev);
 
-                        var p = await _context.Productos.FindAsync(it.ProductoId);
-                        if (p != null)
+                        if (esErrorCompraBatch)
                         {
-                            p.StockVentas += it.Cantidad;
-                            p.StockTotal = p.StockVentas + p.StockInsumos;
+                            var p = await _context.Productos.FindAsync(it.ProductoId);
+                            if (p != null)
+                            {
+                                p.StockVentas += it.Cantidad;
+                                p.StockTotal = p.StockVentas + p.StockInsumos;
+                            }
                         }
                     }
 
@@ -380,12 +407,20 @@
                     
                     if (devolucion.ProductoId.HasValue && devolucion.ProductoId.Value > 0 && devolucion.Producto != null)
                     {
+                        bool esErrorCompra = 
+                            (devolucion.MotivoCategoria != null && 
+                             (string.Equals(devolucion.MotivoCategoria, "ErrorCompra", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(devolucion.MotivoCategoria, "Error en la compra", StringComparison.OrdinalIgnoreCase))) ||
+                            (devolucion.MotivoDetalle != null &&
+                             devolucion.MotivoDetalle.ToLower().Contains("error") &&
+                             devolucion.MotivoDetalle.ToLower().Contains("compra"));
+
                         bool esAnulacion = string.Equals(input.estado, "Anulado", StringComparison.OrdinalIgnoreCase) && 
                                           string.Equals(estadoAnterior, "Activo", StringComparison.OrdinalIgnoreCase);
                         
                         bool esReactivacion = string.Equals(input.estado, "Activo", StringComparison.OrdinalIgnoreCase) && 
                                              string.Equals(estadoAnterior, "Anulado", StringComparison.OrdinalIgnoreCase);
-                        if (devolucion.VentaId.HasValue)
+                        if (esErrorCompra && devolucion.VentaId.HasValue)
                         {
                             if (esAnulacion)
                             {
@@ -405,7 +440,7 @@
                                 }
                             }
                         }
-                        else if (devolucion.BarberoId.HasValue)
+                        else if (esErrorCompra && devolucion.BarberoId.HasValue)
                         {
                             if (esAnulacion)
                             {
