@@ -15,6 +15,14 @@
         public class DevolucionesController : ControllerBase
         {
             private readonly BarberiaContext _context;
+            private static bool IsErrorCompra(string? categoria, string? detalle)
+            {
+                var cat = (categoria ?? string.Empty).Trim().ToLower();
+                var normalized = cat.Replace("_", "").Replace("-", "").Replace(" ", "");
+                if (normalized == "errorcompra" || normalized == "errorenlacompra") return true;
+                var det = (detalle ?? string.Empty).Trim().ToLower();
+                return det.Contains("error") && det.Contains("compra");
+            }
 
             public DevolucionesController(BarberiaContext context)
             {
@@ -46,13 +54,7 @@
                     int cantidadTotal = 0;
                     decimal valorTotal = 0;
 
-                    bool esErrorCompraInsumos = 
-                        (input.MotivoCategoria != null && 
-                         (string.Equals(input.MotivoCategoria, "ErrorCompra", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(input.MotivoCategoria, "Error en la compra", StringComparison.OrdinalIgnoreCase))) ||
-                        (input.MotivoDetalle != null &&
-                         input.MotivoDetalle.ToLower().Contains("error") &&
-                         input.MotivoDetalle.ToLower().Contains("compra"));
+                    bool esErrorCompraInsumos = IsErrorCompra(input.MotivoCategoria, input.MotivoDetalle);
 
                     foreach (var det in input.Detalles)
                     {
@@ -265,13 +267,7 @@
                     if (DateTime.Now > exp)
                         return BadRequest("Garantía expirada para esta venta");
 
-                    bool esErrorCompraVenta =
-                        (input.MotivoCategoria != null &&
-                         (string.Equals(input.MotivoCategoria, "ErrorCompra", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(input.MotivoCategoria, "Error en la compra", StringComparison.OrdinalIgnoreCase))) ||
-                        (input.MotivoDetalle != null &&
-                         input.MotivoDetalle.ToLower().Contains("error") &&
-                         input.MotivoDetalle.ToLower().Contains("compra"));
+                    bool esErrorCompraVenta = IsErrorCompra(input.MotivoCategoria, input.MotivoDetalle);
 
                     var devolucion = new Devolucion
                     {
@@ -336,10 +332,7 @@
                     var exp = fechaVenta.AddDays(15);
                     if (DateTime.Now > exp) return BadRequest("Garantía expirada para esta venta");
 
-                    bool esErrorCompraBatch =
-                        !string.IsNullOrWhiteSpace(input.MotivoCategoria) &&
-                        (string.Equals(input.MotivoCategoria, "ErrorCompra", StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(input.MotivoCategoria, "Error en la compra", StringComparison.OrdinalIgnoreCase));
+                    bool esErrorCompraBatch = IsErrorCompra(input.MotivoCategoria, input.Observaciones);
 
                     foreach (var it in input.Items)
                     {
@@ -407,13 +400,7 @@
                     
                     if (devolucion.ProductoId.HasValue && devolucion.ProductoId.Value > 0 && devolucion.Producto != null)
                     {
-                        bool esErrorCompra = 
-                            (devolucion.MotivoCategoria != null && 
-                             (string.Equals(devolucion.MotivoCategoria, "ErrorCompra", StringComparison.OrdinalIgnoreCase) ||
-                              string.Equals(devolucion.MotivoCategoria, "Error en la compra", StringComparison.OrdinalIgnoreCase))) ||
-                            (devolucion.MotivoDetalle != null &&
-                             devolucion.MotivoDetalle.ToLower().Contains("error") &&
-                             devolucion.MotivoDetalle.ToLower().Contains("compra"));
+                        bool esErrorCompra = IsErrorCompra(devolucion.MotivoCategoria, devolucion.MotivoDetalle);
 
                         bool esAnulacion = string.Equals(input.estado, "Anulado", StringComparison.OrdinalIgnoreCase) && 
                                           string.Equals(estadoAnterior, "Activo", StringComparison.OrdinalIgnoreCase);
@@ -423,11 +410,6 @@
                         if (esErrorCompra && devolucion.VentaId.HasValue)
                         {
                             if (esAnulacion)
-                            {
-                                devolucion.Producto.StockVentas += devolucion.Cantidad;
-                                devolucion.Producto.StockTotal = devolucion.Producto.StockVentas + devolucion.Producto.StockInsumos;
-                            }
-                            else if (esReactivacion)
                             {
                                 if (devolucion.Producto.StockVentas >= devolucion.Cantidad)
                                 {
@@ -439,15 +421,15 @@
                                     return BadRequest($"Stock insuficiente. Stock actual: {devolucion.Producto.StockVentas}, requerido: {devolucion.Cantidad}");
                                 }
                             }
+                            else if (esReactivacion)
+                            {
+                                devolucion.Producto.StockVentas += devolucion.Cantidad;
+                                devolucion.Producto.StockTotal = devolucion.Producto.StockVentas + devolucion.Producto.StockInsumos;
+                            }
                         }
                         else if (esErrorCompra && devolucion.BarberoId.HasValue)
                         {
                             if (esAnulacion)
-                            {
-                                devolucion.Producto.StockInsumos += devolucion.Cantidad;
-                                devolucion.Producto.StockTotal = devolucion.Producto.StockVentas + devolucion.Producto.StockInsumos;
-                            }
-                            else if (esReactivacion)
                             {
                                 if (devolucion.Producto.StockInsumos >= devolucion.Cantidad)
                                 {
@@ -458,6 +440,11 @@
                                 {
                                     return BadRequest($"Stock insuficiente. Stock actual insumos: {devolucion.Producto.StockInsumos}, requerido: {devolucion.Cantidad}");
                                 }
+                            }
+                            else if (esReactivacion)
+                            {
+                                devolucion.Producto.StockInsumos += devolucion.Cantidad;
+                                devolucion.Producto.StockTotal = devolucion.Producto.StockVentas + devolucion.Producto.StockInsumos;
                             }
                         }
                     }
