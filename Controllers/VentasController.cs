@@ -51,6 +51,42 @@ namespace BarberiaApi.Controllers
             return Ok(venta);
         }
 
+        [HttpGet("por-agendamiento/{agendamientoId}")]
+        public async Task<ActionResult<object>> GetByAgendamiento(int agendamientoId)
+        {
+            var ag = await _context.Agendamientos
+                .Include(a => a.Barbero)
+                .Include(a => a.Cliente)
+                .FirstOrDefaultAsync(a => a.Id == agendamientoId);
+            if (ag == null) return NotFound();
+            var usuarioId = ag.Barbero?.UsuarioId ?? 0;
+            var ventaRelacionada = await _context.Ventas
+                .Include(v => v.DetalleVenta)
+                .Where(v => v.ClienteId == ag.ClienteId
+                            && v.UsuarioId == usuarioId
+                            && v.Fecha == ag.FechaHora)
+                .Where(v => v.DetalleVenta.Any(d =>
+                    (ag.ServicioId.HasValue && d.ServicioId == ag.ServicioId) ||
+                    (ag.PaqueteId.HasValue && d.PaqueteId == ag.PaqueteId)))
+                .OrderByDescending(v => v.Id)
+                .FirstOrDefaultAsync();
+            if (ventaRelacionada == null) return Ok(new { ventaId = 0 });
+            return Ok(new {
+                ventaId = ventaRelacionada.Id,
+                venta = new {
+                    Id = ventaRelacionada.Id,
+                    ClienteId = ventaRelacionada.ClienteId,
+                    UsuarioId = ventaRelacionada.UsuarioId,
+                    BarberoId = ventaRelacionada.BarberoId,
+                    Fecha = ventaRelacionada.Fecha,
+                    Subtotal = ventaRelacionada.Subtotal,
+                    Total = ventaRelacionada.Total,
+                    Estado = ventaRelacionada.Estado,
+                    MetodoPago = ventaRelacionada.MetodoPago
+                }
+            });
+        }
+
         [HttpPost]
         public async Task<ActionResult<Venta>> Create([FromBody] VentaInput input)
         {

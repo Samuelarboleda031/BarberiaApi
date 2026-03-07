@@ -381,7 +381,18 @@ namespace BarberiaApi.Controllers
                                 message = "Estado actualizado. Venta existente reactivada",
                                 estadoActual = input.estado,
                                 agendamientoId = id,
-                                ventaId = ventaExistente.Id
+                                ventaId = ventaExistente.Id,
+                                venta = new {
+                                    Id = ventaExistente.Id,
+                                    ClienteId = ventaExistente.ClienteId,
+                                    UsuarioId = ventaExistente.UsuarioId,
+                                    BarberoId = ventaExistente.BarberoId,
+                                    Fecha = ventaExistente.Fecha,
+                                    Subtotal = ventaExistente.Subtotal,
+                                    Total = ventaExistente.Total,
+                                    Estado = ventaExistente.Estado,
+                                    MetodoPago = ventaExistente.MetodoPago
+                                }
                             });
                         }
                         else
@@ -391,7 +402,18 @@ namespace BarberiaApi.Controllers
                                 message = "Estado actualizado. Venta ya existente no duplicada",
                                 estadoActual = input.estado,
                                 agendamientoId = id,
-                                ventaId = ventaExistente.Id
+                                ventaId = ventaExistente.Id,
+                                venta = new {
+                                    Id = ventaExistente.Id,
+                                    ClienteId = ventaExistente.ClienteId,
+                                    UsuarioId = ventaExistente.UsuarioId,
+                                    BarberoId = ventaExistente.BarberoId,
+                                    Fecha = ventaExistente.Fecha,
+                                    Subtotal = ventaExistente.Subtotal,
+                                    Total = ventaExistente.Total,
+                                    Estado = ventaExistente.Estado,
+                                    MetodoPago = ventaExistente.MetodoPago
+                                }
                             });
                         }
                     }
@@ -444,6 +466,24 @@ namespace BarberiaApi.Controllers
                     {
                         ventaRelacionada.Estado = "Anulada";
                         await _context.SaveChangesAsync();
+                        await tx.CommitAsync();
+                        return Ok(new {
+                            message = "Estado actualizado. Venta asociada anulada",
+                            estadoActual = input.estado,
+                            agendamientoId = id,
+                            ventaId = ventaRelacionada.Id,
+                            venta = new {
+                                Id = ventaRelacionada.Id,
+                                ClienteId = ventaRelacionada.ClienteId,
+                                UsuarioId = ventaRelacionada.UsuarioId,
+                                BarberoId = ventaRelacionada.BarberoId,
+                                Fecha = ventaRelacionada.Fecha,
+                                Subtotal = ventaRelacionada.Subtotal,
+                                Total = ventaRelacionada.Total,
+                                Estado = ventaRelacionada.Estado,
+                                MetodoPago = ventaRelacionada.MetodoPago
+                            }
+                        });
                     }
                 }
 
