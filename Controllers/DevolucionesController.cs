@@ -267,6 +267,21 @@
                     if (DateTime.Now > exp)
                         return BadRequest("Garantía expirada para esta venta");
 
+                    var vendido = await _context.DetalleVentas
+                        .Where(d => d.VentaId == input.VentaId.Value && d.ProductoId == input.ProductoId)
+                        .SumAsync(d => (int?)d.Cantidad) ?? 0;
+                    if (vendido <= 0)
+                        return BadRequest("El producto indicado no figura como vendido en esta venta.");
+                    
+                    var yaDevuelto = await _context.Devoluciones
+                        .Where(d => d.VentaId == input.VentaId.Value && d.ProductoId == input.ProductoId && d.Estado != "Anulado")
+                        .SumAsync(d => (int?)d.Cantidad) ?? 0;
+                    var disponible = vendido - yaDevuelto;
+                    if (disponible <= 0)
+                        return BadRequest("No hay cantidad disponible para devolver de este producto en la venta seleccionada.");
+                    if (input.Cantidad > disponible)
+                        return BadRequest($"Cantidad a devolver ({input.Cantidad}) excede disponible ({disponible}). Vendidos: {vendido}, ya devueltos: {yaDevuelto}.");
+
                     bool esErrorCompraVenta = IsErrorCompra(input.MotivoCategoria, input.MotivoDetalle);
 
                     var devolucion = new Devolucion
@@ -333,6 +348,37 @@
                     if (DateTime.Now > exp) return BadRequest("Garantía expirada para esta venta");
 
                     bool esErrorCompraBatch = IsErrorCompra(input.MotivoCategoria, input.Observaciones);
+
+                    var vendidosPorProducto = await _context.DetalleVentas
+                        .Where(d => d.VentaId == input.VentaId)
+                        .GroupBy(d => d.ProductoId)
+                        .Select(g => new { ProductoId = g.Key, Cantidad = g.Sum(x => x.Cantidad) })
+                        .ToDictionaryAsync(x => x.ProductoId ?? 0, x => x.Cantidad);
+
+                    var yaDevueltosPorProducto = await _context.Devoluciones
+                        .Where(d => d.VentaId == input.VentaId && d.Estado != "Anulado" && d.ProductoId.HasValue)
+                        .GroupBy(d => d.ProductoId)
+                        .Select(g => new { ProductoId = g.Key, Cantidad = g.Sum(x => x.Cantidad) })
+                        .ToDictionaryAsync(x => x.ProductoId ?? 0, x => x.Cantidad);
+
+                    var propuestosPorProducto = input.Items
+                        .GroupBy(i => i.ProductoId)
+                        .ToDictionary(g => g.Key, g => g.Sum(x => x.Cantidad));
+
+                    foreach (var kv in propuestosPorProducto)
+                    {
+                        var pid = kv.Key;
+                        var propuesto = kv.Value;
+                        var vendidos = vendidosPorProducto.ContainsKey(pid) ? vendidosPorProducto[pid] : 0;
+                        if (vendidos <= 0)
+                            return BadRequest($"El producto {pid} no figura como vendido en esta venta.");
+                        var yaDev = yaDevueltosPorProducto.ContainsKey(pid) ? yaDevueltosPorProducto[pid] : 0;
+                        var disponible = vendidos - yaDev;
+                        if (disponible <= 0)
+                            return BadRequest($"No hay cantidad disponible para devolver del producto {pid} en esta venta.");
+                        if (propuesto > disponible)
+                            return BadRequest($"Cantidad propuesta a devolver para producto {pid} ({propuesto}) excede disponible ({disponible}). Vendidos: {vendidos}, ya devueltos: {yaDev}.");
+                    }
 
                     foreach (var it in input.Items)
                     {
