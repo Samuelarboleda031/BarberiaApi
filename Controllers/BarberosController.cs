@@ -334,47 +334,55 @@ namespace BarberiaApi.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            // Busca el barbero sin importar el estado
             var barbero = await _context.Barberos
                 .Include(b => b.Agendamientos)
                 .Include(b => b.EntregasInsumos)
                 .Include(b => b.Usuario)
                 .FirstOrDefaultAsync(b => b.Id == id);
-            
-            // Solo falla si realmente NO existe en la BD
             if (barbero == null) return NotFound();
-
-            // Verificar si tiene agendamientos activos o entregas
+            var usuario = barbero.Usuario;
             bool tieneAgendamientosActivos = barbero.Agendamientos.Any(a => a.Estado != "Cancelada");
             bool tieneEntregas = barbero.EntregasInsumos.Any();
-
-            if (tieneAgendamientosActivos || tieneEntregas)
+            bool tieneVentasComoBarbero = await _context.Ventas.AnyAsync(v => v.BarberoId == barbero.Id);
+            bool tieneRegistroUsuario = await _context.Compras.AnyAsync(c => c.UsuarioId == usuario.Id)
+                                        || await _context.Devoluciones.AnyAsync(d => d.UsuarioId == usuario.Id)
+                                        || await _context.EntregasInsumos.AnyAsync(e => e.UsuarioId == usuario.Id)
+                                        || await _context.Ventas.AnyAsync(v => v.UsuarioId == usuario.Id);
+            if (tieneAgendamientosActivos || tieneEntregas || tieneVentasComoBarbero || tieneRegistroUsuario)
             {
-                // Soft Delete: Cambia el estado a false
                 barbero.Estado = false;
+                if (usuario != null) usuario.Estado = false;
                 await _context.SaveChangesAsync();
-                return Ok(new { 
-                    message = "Barbero desactivado (borrado lógico por tener registros asociados)", 
-                    eliminado = true, 
+                return Ok(new {
+                    message = "Barbero y usuario desactivados (historial asociado)",
+                    eliminado = true,
                     fisico = false,
-                    motivo = tieneAgendamientosActivos ? "Agendamientos activos" : "Entregas de insumos asociadas",
-                    agendamientosActivos = barbero.Agendamientos.Count(a => a.Estado != "Cancelada"),
-                    entregasAsociadas = barbero.EntregasInsumos.Count()
+                    motivos = new {
+                        agendamientosActivos = barbero.Agendamientos.Count(a => a.Estado != "Cancelada"),
+                        entregasAsociadas = barbero.EntregasInsumos.Count(),
+                        ventasComoBarbero = tieneVentasComoBarbero,
+                        registrosUsuario = tieneRegistroUsuario
+                    }
                 });
             }
-
-            // Borrado Físico: No tiene registros críticos
-            // Eliminar dependencias primero
             _context.Agendamientos.RemoveRange(barbero.Agendamientos.Where(a => a.Estado == "Cancelada"));
-
-            // Eliminar el barbero
-            _context.Barberos.Remove(barbero);
-            await _context.SaveChangesAsync();
-            return Ok(new { 
-                message = "Barbero eliminado físicamente de la base de datos", 
-                eliminado = true, 
-                fisico = true 
-            });
+            using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                if (usuario != null) _context.Usuarios.Remove(usuario);
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+                return Ok(new {
+                    message = "Usuario y barbero eliminados físicamente",
+                    eliminado = true,
+                    fisico = true
+                });
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, $"Error interno: {ex.Message}");
+            }
         }
     }
 }

@@ -572,66 +572,71 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpDelete("{id}")]
-        /// <summary>
-        /// Input DTO para crear usuario con contraseña en texto plano
-        /// Roles: 1=Administrador, 2=Barbero, 3=Cliente
-        /// </summary>
         public async Task<IActionResult> Delete(int id)
         {
             var usuario = await _context.Usuarios
                 .Include(u => u.Cliente)
                 .Include(u => u.Barbero)
                 .FirstOrDefaultAsync(u => u.Id == id);
-
-            if (usuario == null) 
-                return NotFound();
-
-            // ESTRATEGIA DE ELIMINACIÓN INTELIGENTE:
-            
-            // 1. Verificar si tiene registros relacionados (ventas, agendamientos, etc.)
-            bool tieneHistorial = false;
-            
-            if (usuario.Cliente != null)
+            if (usuario == null) return NotFound();
+            using var tx = await _context.Database.BeginTransactionAsync();
+            try
             {
-                tieneHistorial = await _context.Ventas.AnyAsync(v => v.ClienteId == usuario.Cliente.Id) ||
-                                await _context.Agendamientos.AnyAsync(a => a.ClienteId == usuario.Cliente.Id);
-            }
-            
-            if (usuario.Barbero != null)
-            {
-                tieneHistorial = await _context.Agendamientos.AnyAsync(a => a.BarberoId == usuario.Barbero.Id) ||
-                                await _context.EntregasInsumos.AnyAsync(e => e.BarberoId == usuario.Barbero.Id);
-            }
-
-            // También verificar historial directo del usuario
-            if (!tieneHistorial)
-            {
-                tieneHistorial = await _context.Ventas.AnyAsync(v => v.UsuarioId == id) ||
-                                await _context.Compras.AnyAsync(c => c.UsuarioId == id) ||
-                                await _context.Devoluciones.AnyAsync(d => d.UsuarioId == id) ||
-                                await _context.EntregasInsumos.AnyAsync(e => e.UsuarioId == id);
-            }
-
-            if (tieneHistorial)
-            {
-                // ELIMINACIÓN LÓGICA: Solo desactivar
-                usuario.Estado = false;
-                if (usuario.Cliente != null) usuario.Cliente.Estado = false;
-                if (usuario.Barbero != null) usuario.Barbero.Estado = false;
-                usuario.FechaModificacion = DateTime.Now;
-
-                await _context.SaveChangesAsync();
-                return Ok(new { message = "Usuario desactivado (tiene historial)", eliminado = true, fisico = false });
-            }
-            else
-            {
-                // ELIMINACIÓN FÍSICA: Eliminar completamente
+                var fallback = await _context.Usuarios.FirstOrDefaultAsync(u => u.Correo == "system@local");
+                if (fallback == null)
+                {
+                    var rolAdmin = await _context.Roles.FirstOrDefaultAsync(r => r.Id == 1);
+                    fallback = new Usuario
+                    {
+                        Nombre = "Sistema",
+                        Apellido = "Local",
+                        Correo = "system@local",
+                        Contrasena = Guid.NewGuid().ToString(),
+                        RolId = rolAdmin?.Id ?? 1,
+                        Estado = true,
+                        FechaCreacion = DateTime.Now
+                    };
+                    _context.Usuarios.Add(fallback);
+                    await _context.SaveChangesAsync();
+                }
+                var ventas = await _context.Ventas.Where(v => v.UsuarioId == id).ToListAsync();
+                foreach (var v in ventas) v.UsuarioId = fallback.Id;
+                var compras = await _context.Compras.Where(c => c.UsuarioId == id).ToListAsync();
+                foreach (var c in compras) c.UsuarioId = fallback.Id;
+                var entregas = await _context.EntregasInsumos.Where(e => e.UsuarioId == id).ToListAsync();
+                foreach (var e in entregas) e.UsuarioId = fallback.Id;
+                var devols = await _context.Devoluciones.Where(d => d.UsuarioId == id).ToListAsync();
+                foreach (var d in devols) d.UsuarioId = fallback.Id;
+                if (usuario.Cliente != null)
+                {
+                    var clienteId = usuario.Cliente.Id;
+                    var agsCliente = await _context.Agendamientos.Where(a => a.ClienteId == clienteId).ToListAsync();
+                    _context.Agendamientos.RemoveRange(agsCliente);
+                    var devsCliente = await _context.Devoluciones.Where(d => d.ClienteId == clienteId).ToListAsync();
+                    foreach (var d in devsCliente) d.ClienteId = null;
+                }
+                if (usuario.Barbero != null)
+                {
+                    var barberoId = usuario.Barbero.Id;
+                    var agsBarbero = await _context.Agendamientos.Where(a => a.BarberoId == barberoId).ToListAsync();
+                    _context.Agendamientos.RemoveRange(agsBarbero);
+                    var entBarbero = await _context.EntregasInsumos.Where(e => e.BarberoId == barberoId).Include(e => e.DetalleEntregasInsumos).ToListAsync();
+                    foreach (var e in entBarbero) _context.DetalleEntregasInsumos.RemoveRange(e.DetalleEntregasInsumos);
+                    _context.EntregasInsumos.RemoveRange(entBarbero);
+                    var devsBarbero = await _context.Devoluciones.Where(d => d.BarberoId == barberoId).ToListAsync();
+                    foreach (var d in devsBarbero) d.BarberoId = null;
+                }
                 if (usuario.Cliente != null) _context.Clientes.Remove(usuario.Cliente);
                 if (usuario.Barbero != null) _context.Barberos.Remove(usuario.Barbero);
                 _context.Usuarios.Remove(usuario);
-
                 await _context.SaveChangesAsync();
+                await tx.CommitAsync();
                 return Ok(new { message = "Usuario eliminado permanentemente", eliminado = true, fisico = true });
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, $"Error interno: {ex.Message}");
             }
         }
     }

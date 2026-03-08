@@ -353,48 +353,54 @@ namespace BarberiaApi.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            // Busca el cliente sin importar el estado
             var cliente = await _context.Clientes
                 .Include(c => c.Agendamientos)
                 .Include(c => c.Venta)
                 .Include(c => c.Usuario)
                 .FirstOrDefaultAsync(c => c.Id == id);
-            
-            // Solo falla si realmente NO existe en la BD
             if (cliente == null) return NotFound();
-
-            // Verificar si tiene agendamientos activos o ventas completadas
+            var usuario = cliente.Usuario;
             bool tieneAgendamientosActivos = cliente.Agendamientos.Any(a => a.Estado != "Cancelada");
             bool tieneVentasCompletadas = cliente.Venta.Any(v => v.Estado == "Completada");
-
-            if (tieneAgendamientosActivos || tieneVentasCompletadas)
+            bool tieneComprasUsuario = await _context.Compras.AnyAsync(c => c.UsuarioId == usuario.Id);
+            bool tieneEntregasUsuario = await _context.EntregasInsumos.AnyAsync(e => e.UsuarioId == usuario.Id);
+            bool tieneDevolucionesCliente = await _context.Devoluciones.AnyAsync(d => d.ClienteId == cliente.Id);
+            if (tieneAgendamientosActivos || tieneVentasCompletadas || tieneComprasUsuario || tieneEntregasUsuario)
             {
-                // Soft Delete: Cambia el estado a false
                 cliente.Estado = false;
+                if (usuario != null) usuario.Estado = false;
                 await _context.SaveChangesAsync();
-                return Ok(new { 
-                    message = "Cliente desactivado (borrado lógico por tener registros asociados)", 
-                    eliminado = true, 
+                return Ok(new {
+                    message = "Cliente y usuario desactivados (historial asociado)",
+                    eliminado = true,
                     fisico = false,
-                    motivo = tieneAgendamientosActivos ? "Agendamientos activos" : "Ventas completadas",
-                    agendamientosActivos = cliente.Agendamientos.Count(a => a.Estado != "Cancelada"),
-                    ventasCompletadas = cliente.Venta.Count(v => v.Estado == "Completada")
+                    motivos = new {
+                        agendamientosActivos = cliente.Agendamientos.Count(a => a.Estado != "Cancelada"),
+                        ventasCompletadas = cliente.Venta.Count(v => v.Estado == "Completada"),
+                        comprasUsuario = tieneComprasUsuario,
+                        entregasUsuario = tieneEntregasUsuario,
+                        devolucionesCliente = tieneDevolucionesCliente
+                    }
                 });
             }
-
-            // Borrado Físico: No tiene registros críticos
-            // Eliminar dependencias primero
             _context.Agendamientos.RemoveRange(cliente.Agendamientos.Where(a => a.Estado == "Cancelada"));
-            _context.Ventas.RemoveRange(cliente.Venta.Where(v => v.Estado != "Completada"));
-
-            // Eliminar el cliente
-            _context.Clientes.Remove(cliente);
-            await _context.SaveChangesAsync();
-            return Ok(new { 
-                message = "Cliente eliminado físicamente de la base de datos", 
-                eliminado = true, 
-                fisico = true 
-            });
+            using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                if (usuario != null) _context.Usuarios.Remove(usuario);
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+                return Ok(new {
+                    message = "Usuario y cliente eliminados físicamente",
+                    eliminado = true,
+                    fisico = true
+                });
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, $"Error interno: {ex.Message}");
+            }
         }
     }
 }
