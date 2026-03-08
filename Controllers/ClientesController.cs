@@ -308,8 +308,9 @@ namespace BarberiaApi.Controllers
             if (cliente == null) 
                 return NotFound();
 
-            // Actualizar solo el estado
+            // Actualizar el estado del cliente y del usuario vinculado
             cliente.Estado = input.estado;
+            if (cliente.Usuario != null) cliente.Usuario.Estado = input.estado;
             await _context.SaveChangesAsync();
 
             var clienteDto = new ClienteDto

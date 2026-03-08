@@ -553,12 +553,16 @@ namespace BarberiaApi.Controllers
         {
             var usuario = await _context.Usuarios
                 .Include(u => u.Rol)
+                .Include(u => u.Cliente)
+                .Include(u => u.Barbero)
                 .FirstOrDefaultAsync(u => u.Id == id);
 
             if (usuario == null) return NotFound();
 
             // Actualizar solo el estado
             usuario.Estado = input.estado;
+            if (usuario.Cliente != null) usuario.Cliente.Estado = input.estado;
+            if (usuario.Barbero != null) usuario.Barbero.Estado = input.estado;
             await _context.SaveChangesAsync();
 
             var response = new CambioEstadoResponse<Usuario>

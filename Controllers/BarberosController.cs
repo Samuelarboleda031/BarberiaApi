@@ -288,8 +288,9 @@ namespace BarberiaApi.Controllers
             if (barbero == null) 
                 return NotFound();
 
-            // Actualizar solo el estado
+            // Actualizar el estado del barbero y del usuario vinculado
             barbero.Estado = input.estado;
+            if (barbero.Usuario != null) barbero.Usuario.Estado = input.estado;
             await _context.SaveChangesAsync();
 
             var barberoDto = new BarberoDto
