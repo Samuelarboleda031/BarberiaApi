@@ -61,6 +61,18 @@ namespace BarberiaApi.Controllers
             if (detalle.PaqueteId <= 0 || detalle.ServicioId <= 0)
                 return BadRequest("PaqueteId y ServicioId son obligatorios");
 
+            if (detalle.Cantidad <= 0)
+                return BadRequest("La cantidad debe ser mayor a cero");
+
+            var paqueteExiste = await _context.Paquetes.AnyAsync(p => p.Id == detalle.PaqueteId);
+            if (!paqueteExiste)
+                return BadRequest("El paquete no existe");
+
+            var servicio = await _context.Servicios.FirstOrDefaultAsync(s => s.Id == detalle.ServicioId);
+            if (servicio == null)
+                return BadRequest("El servicio no existe");
+
+
             // Ignorar propiedades de navegación
             detalle.Paquete = null!;
             detalle.Servicio = null!;
