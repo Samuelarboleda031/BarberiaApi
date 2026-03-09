@@ -70,5 +70,28 @@ namespace BarberiaApi.Controllers
 
             return CreatedAtAction(nameof(GetById), new { id = detalle.Id }, detalle);
         }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, [FromBody] DetallePaquete input)
+        {
+            if (input == null) return BadRequest("El detalle es requerido");
+            var existing = await _context.DetallePaquetes.FirstOrDefaultAsync(dp => dp.Id == id);
+            if (existing == null) return NotFound();
+            existing.PaqueteId = input.PaqueteId;
+            existing.ServicioId = input.ServicioId;
+            existing.Cantidad = input.Cantidad;
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var detalle = await _context.DetallePaquetes.FirstOrDefaultAsync(dp => dp.Id == id);
+            if (detalle == null) return NotFound();
+            _context.DetallePaquetes.Remove(detalle);
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
     }
 }
