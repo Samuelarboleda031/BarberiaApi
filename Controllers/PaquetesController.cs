@@ -151,6 +151,68 @@ namespace BarberiaApi.Controllers
             return NoContent();
         }
 
+        public class DetalleUpdateInput
+        {
+            public int ServicioId { get; set; }
+            public int Cantidad { get; set; }
+        }
+        public class PaqueteDetallesUpdateInput
+        {
+            public List<DetalleUpdateInput> Detalles { get; set; } = new List<DetalleUpdateInput>();
+        }
+
+        [HttpPut("{id}/detalles")]
+        public async Task<ActionResult<Paquete>> UpdateDetalles(int id, [FromBody] PaqueteDetallesUpdateInput input)
+        {
+            var paquete = await _context.Paquetes
+                .Include(p => p.DetallePaquetes)
+                .FirstOrDefaultAsync(p => p.Id == id);
+            if (paquete == null) return NotFound();
+
+            if (input == null || input.Detalles == null || !input.Detalles.Any())
+                return BadRequest("El paquete debe tener al menos un detalle");
+
+            foreach (var det in input.Detalles)
+            {
+                if (det.ServicioId <= 0 || det.Cantidad <= 0)
+                    return BadRequest("ServicioId y Cantidad son obligatorios y mayores a cero");
+                var servicioExiste = await _context.Servicios.AnyAsync(s => s.Id == det.ServicioId);
+                if (!servicioExiste)
+                    return BadRequest($"El servicio con id {det.ServicioId} no existe");
+            }
+
+            using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                _context.DetallePaquetes.RemoveRange(paquete.DetallePaquetes);
+                await _context.SaveChangesAsync();
+
+                foreach (var det in input.Detalles)
+                {
+                    var nuevo = new DetallePaquete
+                    {
+                        PaqueteId = id,
+                        ServicioId = det.ServicioId,
+                        Cantidad = det.Cantidad
+                    };
+                    _context.DetallePaquetes.Add(nuevo);
+                }
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                var resultado = await _context.Paquetes
+                    .Include(p => p.DetallePaquetes)
+                        .ThenInclude(d => d.Servicio)
+                    .FirstOrDefaultAsync(p => p.Id == id);
+                return Ok(resultado);
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, $"Error interno: {ex.Message}");
+            }
+        }
+
         [HttpPut("{id}/estado")]
         public async Task<ActionResult<CambioEstadoResponse<Paquete>>> CambiarEstado(int id, [FromBody] CambioEstadoBooleanInput input)
         {
