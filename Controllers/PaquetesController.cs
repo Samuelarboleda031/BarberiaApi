@@ -93,6 +93,10 @@ namespace BarberiaApi.Controllers
                 {
                     if (detInput.ServicioId <= 0 || detInput.Cantidad <= 0)
                         return BadRequest("ServicioId y Cantidad son obligatorios y mayores a cero");
+                    
+                    var servicioExiste = await _context.Servicios.AnyAsync(s => s.Id == detInput.ServicioId);
+                    if (!servicioExiste)
+                        return BadRequest($"El servicio con id {detInput.ServicioId} no existe");
 
                     var detalle = new DetallePaquete
                     {

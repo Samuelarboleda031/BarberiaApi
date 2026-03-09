@@ -87,8 +87,21 @@ namespace BarberiaApi.Controllers
         public async Task<IActionResult> Update(int id, [FromBody] DetallePaquete input)
         {
             if (input == null) return BadRequest("El detalle es requerido");
+            if (input.PaqueteId <= 0 || input.ServicioId <= 0)
+                return BadRequest(new { error = "PaqueteId y ServicioId son obligatorios", paqueteId = input.PaqueteId, servicioId = input.ServicioId });
+            if (input.Cantidad <= 0)
+                return BadRequest(new { error = "La cantidad debe ser mayor a cero", cantidad = input.Cantidad });
+
             var existing = await _context.DetallePaquetes.FirstOrDefaultAsync(dp => dp.Id == id);
             if (existing == null) return NotFound();
+
+            var paqueteExiste = await _context.Paquetes.AnyAsync(p => p.Id == input.PaqueteId);
+            if (!paqueteExiste)
+                return BadRequest(new { error = "El paquete no existe", paqueteId = input.PaqueteId });
+
+            var servicioExiste = await _context.Servicios.AnyAsync(s => s.Id == input.ServicioId);
+            if (!servicioExiste)
+                return BadRequest(new { error = "El servicio no existe", servicioId = input.ServicioId });
             existing.PaqueteId = input.PaqueteId;
             existing.ServicioId = input.ServicioId;
             existing.Cantidad = input.Cantidad;
