@@ -56,21 +56,21 @@ namespace BarberiaApi.Controllers
         public async Task<ActionResult<DetallePaquete>> Create([FromBody] DetallePaquete detalle)
         {
             if (detalle == null)
-                return BadRequest("El detalle es requerido");
+                return BadRequest(new { error = "El detalle es requerido" });
 
             if (detalle.PaqueteId <= 0 || detalle.ServicioId <= 0)
-                return BadRequest("PaqueteId y ServicioId son obligatorios");
+                return BadRequest(new { error = "PaqueteId y ServicioId son obligatorios", paqueteId = detalle.PaqueteId, servicioId = detalle.ServicioId });
 
             if (detalle.Cantidad <= 0)
-                return BadRequest("La cantidad debe ser mayor a cero");
+                return BadRequest(new { error = "La cantidad debe ser mayor a cero", cantidad = detalle.Cantidad });
 
             var paqueteExiste = await _context.Paquetes.AnyAsync(p => p.Id == detalle.PaqueteId);
             if (!paqueteExiste)
-                return BadRequest("El paquete no existe");
+                return BadRequest(new { error = "El paquete no existe", paqueteId = detalle.PaqueteId });
 
             var servicio = await _context.Servicios.FirstOrDefaultAsync(s => s.Id == detalle.ServicioId);
             if (servicio == null)
-                return BadRequest("El servicio no existe");
+                return BadRequest(new { error = "El servicio no existe", servicioId = detalle.ServicioId });
 
 
             // Ignorar propiedades de navegación
