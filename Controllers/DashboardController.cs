@@ -61,6 +61,7 @@ namespace BarberiaApi.Controllers
                             nombre = d.Servicio != null
                                 ? d.Servicio.Nombre
                                 : (d.Paquete != null ? d.Paquete.Nombre : "Servicio"),
+                            tipo = d.PaqueteId != null ? "Paquete" : "Servicio",
                             cantidad = d.Cantidad,
                             precio = d.PrecioUnitario
                         })
