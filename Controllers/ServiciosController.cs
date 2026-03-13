@@ -5,6 +5,11 @@ using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using BarberiaApi.Services;
+using BarberiaApi.Helpers;
+using System.IO;
+using System;
+
 
 namespace BarberiaApi.Controllers
 {
@@ -13,10 +18,12 @@ namespace BarberiaApi.Controllers
     public class ServiciosController : ControllerBase
     {
         private readonly BarberiaContext _context;
+        private readonly IPhotoService _photoService;
 
-        public ServiciosController(BarberiaContext context)
+        public ServiciosController(BarberiaContext context, IPhotoService photoService)
         {
             _context = context;
+            _photoService = photoService;
         }
 
         [HttpGet]
@@ -39,6 +46,63 @@ namespace BarberiaApi.Controllers
             return Ok(servicio);
         }
 
+        [HttpPost("{id}/imagen")]
+        [RequestSizeLimit(15728640)]
+        public async Task<ActionResult<object>> SubirImagen(int id, IFormFile imagen)
+        {
+            var servicio = await _context.Servicios.FirstOrDefaultAsync(s => s.Id == id);
+            if (servicio == null) return NotFound();
+            if (imagen == null || imagen.Length == 0) return BadRequest("Imagen requerida");
+            if (string.IsNullOrWhiteSpace(imagen.ContentType) || !imagen.ContentType.StartsWith("image/")) return BadRequest("Content-Type inválido");
+            var res = await _photoService.AddPhotoAsync(imagen);
+            if (res.Error != null) return BadRequest(res.Error.Message);
+            var url = res.SecureUrl?.ToString();
+            if (string.IsNullOrWhiteSpace(url)) return BadRequest("Error al subir");
+            servicio.Imagen = url;
+            await _context.SaveChangesAsync();
+            return Ok(new { url, publicId = res.PublicId });
+        }
+
+        [HttpDelete("{id}/imagen")]
+        public async Task<ActionResult<object>> EliminarImagen(int id, [FromQuery] bool borrarCloud = true)
+        {
+            var servicio = await _context.Servicios.FirstOrDefaultAsync(s => s.Id == id);
+            if (servicio == null) return NotFound();
+            var url = servicio.Imagen;
+            if (string.IsNullOrWhiteSpace(url)) return Ok(new { eliminado = false });
+            string publicId = borrarCloud ? ExtraerPublicIdDesdeUrl(url) ?? "" : "";
+            if (borrarCloud && !string.IsNullOrWhiteSpace(publicId)) await _photoService.DeletePhotoAsync(publicId);
+            servicio.Imagen = null;
+            await _context.SaveChangesAsync();
+            return Ok(new { eliminado = true, publicId });
+        }
+
+        private static string? ExtraerPublicIdDesdeUrl(string url)
+        {
+            try
+            {
+                var uri = new Uri(url);
+                var path = uri.AbsolutePath;
+                var marker = "/upload/";
+                var idx = path.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+                if (idx < 0) return null;
+                var after = path[(idx + marker.Length)..].Trim('/');
+                var segments = after.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                if (segments.Length == 0) return null;
+                var start = 0;
+                if (segments[0].Length > 1 && segments[0][0] == 'v' && long.TryParse(segments[0][1..], out _)) start = 1;
+                if (start >= segments.Length) return null;
+                var last = segments[^1];
+                var nameNoExt = Path.GetFileNameWithoutExtension(last);
+                var leading = segments.Length - start > 1 ? string.Join('/', segments[start..^1]) + "/" : string.Empty;
+                return leading + nameNoExt;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         [HttpPost]
         public async Task<ActionResult<Servicio>> Create([FromBody] Servicio? servicio)
         {
@@ -50,6 +114,12 @@ namespace BarberiaApi.Controllers
 
             if (servicio.Precio <= 0)
                 return BadRequest("El precio debe ser mayor a cero");
+
+            // Validar URL de imagen usando el helper estandarizado
+            if (!BarberiaApi.Helpers.ValidationHelper.ValidarUrlImagen(servicio.Imagen, out var imgError))
+            {
+                return BadRequest(imgError);
+            }
 
             servicio.Id = 0;
             servicio.Estado = true;
@@ -69,6 +139,12 @@ namespace BarberiaApi.Controllers
             var servicioExistente = await _context.Servicios.FindAsync(id);
             // Solo falla si realmente NO existe en la BD
             if (servicioExistente == null) return NotFound();
+
+            // Validar URL de imagen usando el helper estandarizado
+            if (!BarberiaApi.Helpers.ValidationHelper.ValidarUrlImagen(servicio.Imagen, out var imgErrorUpdate))
+            {
+                return BadRequest(imgErrorUpdate);
+            }
 
             _context.Entry(servicioExistente).CurrentValues.SetValues(servicio);
 

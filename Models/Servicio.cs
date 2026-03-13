@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace BarberiaApi.Models;
@@ -16,6 +16,8 @@ public partial class Servicio
     public int? DuracionMinutes { get; set; }
 
     public bool? Estado { get; set; }
+    
+    public string? Imagen { get; set; }
 
     public virtual ICollection<Agendamiento> Agendamientos { get; set; } = new List<Agendamiento>();
 

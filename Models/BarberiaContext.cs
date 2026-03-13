@@ -308,6 +308,7 @@ public partial class BarberiaContext : DbContext
             entity.Property(e => e.Precio).HasPrecision(18, 2);
             entity.Property(e => e.DuracionMinutes).HasDefaultValue(30);
             entity.Property(e => e.Estado).HasDefaultValue(true);
+            entity.Property(e => e.Imagen).HasMaxLength(500);
         });
 
         modelBuilder.Entity<Usuario>(entity =>
