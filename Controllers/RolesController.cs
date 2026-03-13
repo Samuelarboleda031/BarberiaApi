@@ -20,9 +20,18 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Role>>> GetAll()
+        public async Task<ActionResult<IEnumerable<RoleDto>>> GetAll()
         {
             return await _context.Roles
+                .Select(r => new RoleDto
+                {
+                    Id = r.Id,
+                    Nombre = r.Nombre,
+                    Descripcion = r.Descripcion,
+                    Estado = r.Estado ?? false,
+                    UsuariosAsignados = r.Usuarios.Count,
+                    Modulos = r.RolesModulos.Select(rm => rm.ModuloId).ToList()
+                })
                 .ToListAsync();
         }
 
@@ -33,6 +42,7 @@ namespace BarberiaApi.Controllers
             var rol = await _context.Roles
                 .Include(r => r.RolesModulos)
                     .ThenInclude(rm => rm.Modulo)
+                .Include(r => r.Usuarios)
                 .FirstOrDefaultAsync(r => r.Id == id);
 
             // Solo falla si realmente NO existe en la BD
@@ -53,10 +63,17 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] Role rol)
+        public async Task<IActionResult> Update(int id, [FromBody] RoleInput input)
         {
-            if (id != rol.Id) return BadRequest();
-            _context.Entry(rol).State = EntityState.Modified;
+            if (id != input.Id) return BadRequest();
+            
+            var rol = await _context.Roles.FindAsync(id);
+            if (rol == null) return NotFound();
+
+            rol.Nombre = input.Nombre;
+            rol.Descripcion = input.Descripcion;
+            rol.Estado = input.Estado;
+
             try
             {
                 await _context.SaveChangesAsync();
