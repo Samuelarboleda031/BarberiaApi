@@ -211,7 +211,7 @@ namespace BarberiaApi.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] Producto producto)
         {
-            if (id != producto.Id) return BadRequest();
+            if (producto == null || id != producto.Id) return BadRequest("Payload inválido");
 
             // Busca el producto existente sin importar el estado
             var productoExistente = await _context.Productos.FindAsync(id);
@@ -224,7 +224,6 @@ namespace BarberiaApi.Controllers
             if (producto.PrecioVenta < 0)
                 return BadRequest("El precio de venta no puede ser negativo");
 
-            // Validar URL de imagen si se proporciona
             // Validar URL de imagen usando el helper estandarizado
             if (!BarberiaApi.Helpers.ValidationHelper.ValidarUrlImagen(producto.ImagenProduc, out var imgErrorUpdate))
             {
@@ -252,17 +251,23 @@ namespace BarberiaApi.Controllers
                     return BadRequest("La categoría especificada no existe o está inactiva");
             }
 
-            // Conservar valores que NO deben editarse manualmente (solo por documentos de compra/venta)
-            var stockVentasOriginal = productoExistente.StockVentas;
-            var stockInsumosOriginal = productoExistente.StockInsumos;
+            // Actualizar campos permitidos
+            productoExistente.Nombre = producto.Nombre?.Trim() ?? productoExistente.Nombre;
+            productoExistente.Descripcion = producto.Descripcion ?? "";
+            productoExistente.Marca = producto.Marca ?? "";
+            productoExistente.PrecioVenta = producto.PrecioVenta;
+            productoExistente.PrecioCompra = producto.PrecioCompra;
             
-            _context.Entry(productoExistente).CurrentValues.SetValues(producto);
-
-            // Restaurar los valores protegidos
-            productoExistente.StockVentas = stockVentasOriginal;
-            productoExistente.StockInsumos = stockInsumosOriginal;
-            // Permitir actualizar PrecioCompra manualmente si se desea
-            // productoExistente.PrecioCompra = precioCompraOriginal;
+            // AHORA SÍ: Permitir transferencia de stock desde el input
+            productoExistente.StockVentas = producto.StockVentas;
+            productoExistente.StockInsumos = producto.StockInsumos;
+            
+            // Recalcular StockTotal para consistencia
+            productoExistente.StockTotal = productoExistente.StockVentas + productoExistente.StockInsumos;
+            
+            productoExistente.CategoriaId = producto.CategoriaId;
+            productoExistente.Estado = producto.Estado;
+            productoExistente.ImagenProduc = producto.ImagenProduc ?? productoExistente.ImagenProduc;
 
             try
             {
@@ -274,7 +279,14 @@ namespace BarberiaApi.Controllers
                     return NotFound();
                 throw;
             }
-            return NoContent();
+
+            return Ok(new
+            {
+                productoExistente.Id,
+                productoExistente.StockVentas,
+                productoExistente.StockInsumos,
+                productoExistente.StockTotal
+            });
         }
 
         [HttpPut("{id}/estado")]
