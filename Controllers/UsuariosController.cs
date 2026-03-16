@@ -26,9 +26,11 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("analisis")]
-        public async Task<ActionResult<IEnumerable<AnalisisUsuarioDto>>> Analisis()
+        public async Task<ActionResult<object>> Analisis([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var data = await _context.Usuarios
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.Usuarios
                 .Select(u => new AnalisisUsuarioDto
                 {
                     Id = u.Id,
@@ -51,9 +53,11 @@ namespace BarberiaApi.Controllers
                     ModulosAcceso = u.Rol != null
                         ? u.Rol.RolesModulos.Where(rm => rm.PuedeVer == true && rm.Modulo != null).Select(rm => rm.Modulo!.Nombre).ToList()
                         : new List<string>()
-                })
-                .ToListAsync();
-            return Ok(data);
+                });
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("{id}/analisis")]
@@ -90,9 +94,11 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<UsuarioDto>>> GetAll()
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var usuarios = await _context.Usuarios
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.Usuarios
                 .Include(u => u.Rol)
                 .Include(u => u.Cliente)
                 .Include(u => u.Barbero)
@@ -147,10 +153,11 @@ namespace BarberiaApi.Controllers
                         Estado = u.Barbero.Estado,
                         FechaContratacion = u.Barbero.FechaContratacion
                     } : null
-                })
-                .ToListAsync();
-
-            return Ok(usuarios);
+                });
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("{id}")]

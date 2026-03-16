@@ -21,17 +21,23 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<EntregasInsumo>>> GetAll()
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            return await _context.EntregasInsumos
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.EntregasInsumos
                 .Include(e => e.Barbero)
                 .Include(e => e.Usuario)
                 .OrderByDescending(e => e.Fecha)
-                .ToListAsync();
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("devoluciones")]
-        public async Task<ActionResult<IEnumerable<object>>> GetDevoluciones([FromQuery] int? barberoId, [FromQuery] int? entregaId, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta)
+        public async Task<ActionResult<object>> GetDevoluciones([FromQuery] int? barberoId, [FromQuery] int? entregaId, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
             var q = _context.EntregasInsumos
                 .Include(e => e.Barbero).ThenInclude(b => b.Usuario)
@@ -49,8 +55,11 @@ namespace BarberiaApi.Controllers
                 q = q.Where(e => e.Fecha <= h);
             }
 
-            var data = await q
-                .OrderByDescending(e => e.Fecha)
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var qOrdered = q.OrderByDescending(e => e.Fecha);
+            var totalCount = await qOrdered.CountAsync();
+            var items = await qOrdered
                 .Select(e => new
                 {
                     e.Id,
@@ -76,9 +85,11 @@ namespace BarberiaApi.Controllers
                         d.PrecioHistorico
                     })
                 })
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
-
-            return Ok(data);
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("devoluciones/resumen")]

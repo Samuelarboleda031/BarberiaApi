@@ -22,10 +22,12 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<AgendamientoDTO>>> GetAll()
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
             var limite = DateTime.Now.AddDays(-7);
-            var agendamientos = await _context.Agendamientos
+            var q = _context.Agendamientos
                 .Where(a => a.FechaHora >= limite)
                 .Include(a => a.Cliente)
                     .ThenInclude(c => c.Usuario)
@@ -50,10 +52,11 @@ namespace BarberiaApi.Controllers
                     Duracion = a.Duracion,
                     Precio = a.Precio,
                     Notas = a.Notas
-                })
-                .ToListAsync();
-
-            return Ok(agendamientos);
+                });
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("{id}")]

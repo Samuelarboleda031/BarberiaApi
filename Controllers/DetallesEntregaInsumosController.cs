@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System;
 
 namespace BarberiaApi.Controllers
 {
@@ -19,16 +20,20 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<DetalleEntregasInsumo>>> GetAll()
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var detalles = await _context.DetalleEntregasInsumos
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.DetalleEntregasInsumos
                 .Include(d => d.Entrega)
                     .ThenInclude(e => e.Barbero)
                 .Include(d => d.Producto)
                     .ThenInclude(p => p.Categoria)
-                .ToListAsync();
-
-            return Ok(detalles);
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("{id}")]
@@ -46,31 +51,39 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("entrega/{entregaId}")]
-        public async Task<ActionResult<IEnumerable<DetalleEntregasInsumo>>> GetByEntregaId(int entregaId)
+        public async Task<ActionResult<object>> GetByEntregaId(int entregaId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var detalles = await _context.DetalleEntregasInsumos
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.DetalleEntregasInsumos
                 .Include(d => d.Entrega)
                     .ThenInclude(e => e.Barbero)
                 .Include(d => d.Producto)
                     .ThenInclude(p => p.Categoria)
                 .Where(d => d.EntregaId == entregaId)
-                .ToListAsync();
-
-            return Ok(detalles);
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("producto/{productoId}")]
-        public async Task<ActionResult<IEnumerable<DetalleEntregasInsumo>>> GetByProductoId(int productoId)
+        public async Task<ActionResult<object>> GetByProductoId(int productoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var detalles = await _context.DetalleEntregasInsumos
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.DetalleEntregasInsumos
                 .Include(d => d.Entrega)
                     .ThenInclude(e => e.Barbero)
                 .Include(d => d.Producto)
                     .ThenInclude(p => p.Categoria)
                 .Where(d => d.ProductoId == productoId)
-                .ToListAsync();
-
-            return Ok(detalles);
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
     }
 }

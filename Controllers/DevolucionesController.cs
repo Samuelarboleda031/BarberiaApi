@@ -153,7 +153,7 @@
             }
 
             [HttpGet]
-            public async Task<ActionResult<IEnumerable<object>>> GetAll([FromQuery] int? barberoId, [FromQuery] int? clienteId, [FromQuery] int? productoId, [FromQuery] int? entregaId, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta)
+            public async Task<ActionResult<object>> GetAll([FromQuery] int? barberoId, [FromQuery] int? clienteId, [FromQuery] int? productoId, [FromQuery] int? entregaId, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
             {
                 var q = _context.Devoluciones.AsQueryable();
 
@@ -168,7 +168,11 @@
                     q = q.Where(d => d.Fecha <= h);
                 }
 
-                return await q
+                if (page < 1) page = 1;
+                if (pageSize < 1) pageSize = 20;
+                var qOrdered = q.OrderByDescending(d => d.Fecha);
+                var totalCount = await qOrdered.CountAsync();
+                var items = await qOrdered
                         .Select(d => new
                         {
                             d.Id,
@@ -198,8 +202,11 @@
                                 ? new { d.Entrega.Id, d.Entrega.Estado, d.Entrega.Fecha }
                                 : null
                         })
-                        .OrderByDescending(d => d.Fecha)
+                        .Skip((page - 1) * pageSize)
+                        .Take(pageSize)
                         .ToListAsync();
+                var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+                return Ok(new { items, totalCount, page, pageSize, totalPages });
             }
 
             [HttpGet("{id}")]

@@ -1,6 +1,7 @@
 using BarberiaApi.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
 
 namespace BarberiaApi.Controllers
 {
@@ -16,29 +17,47 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Proveedor>>> GetAll()
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            return await _context.Proveedores
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.Proveedores
                 .OrderBy(p => p.Nombre)
-                .ToListAsync();
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("naturales")]
-        public async Task<ActionResult<IEnumerable<Proveedor>>> GetNaturales()
+        public async Task<ActionResult<object>> GetNaturales([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            return await _context.Proveedores
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.Proveedores
                 .Where(p => p.TipoProveedor == "Natural")
                 .OrderBy(p => p.Nombre)
-                .ToListAsync();
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("juridicos")]
-        public async Task<ActionResult<IEnumerable<Proveedor>>> GetJuridicos()
+        public async Task<ActionResult<object>> GetJuridicos([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            return await _context.Proveedores
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.Proveedores
                 .Where(p => p.TipoProveedor == "Juridico")
                 .OrderBy(p => p.Nombre)
-                .ToListAsync();
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("{id}")]

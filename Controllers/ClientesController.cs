@@ -21,9 +21,11 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ClienteDto>>> GetAll()
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var clientes = await _context.Clientes
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.Clientes
                 .Include(c => c.Usuario)
                 .Select(c => new ClienteDto
                 {
@@ -51,10 +53,11 @@ namespace BarberiaApi.Controllers
                         Estado = c.Usuario.Estado,
                         FechaCreacion = c.Usuario.FechaCreacion
                     }
-                })
-                .ToListAsync();
-
-            return Ok(clientes);
+                });
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("{id}")]

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System;
 
 namespace BarberiaApi.Controllers
 {
@@ -20,21 +21,33 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<RolesModulos>>> GetAll()
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            return await _context.RolesModulos
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.RolesModulos
                 .Include(rm => rm.Rol)
                 .Include(rm => rm.Modulo)
-                .ToListAsync();
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("role/{rolId}")]
-        public async Task<ActionResult<IEnumerable<RolesModulos>>> GetByRole(int rolId)
+        public async Task<ActionResult<object>> GetByRole(int rolId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            return await _context.RolesModulos
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.RolesModulos
                 .Include(rm => rm.Modulo)
                 .Where(rm => rm.RolId == rolId)
-                .ToListAsync();
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpPost]

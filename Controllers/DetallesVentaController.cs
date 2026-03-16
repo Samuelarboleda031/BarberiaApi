@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System;
 
 namespace BarberiaApi.Controllers
 {
@@ -19,15 +20,19 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<DetalleVenta>>> GetAll()
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var detalles = await _context.DetalleVentas
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.DetalleVentas
                 .Include(d => d.Producto)
                 .Include(d => d.Servicio)
                 .Include(d => d.Paquete)
-                .ToListAsync();
-
-            return Ok(detalles);
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("{id}")]
@@ -44,16 +49,20 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("venta/{ventaId}")]
-        public async Task<ActionResult<IEnumerable<DetalleVenta>>> GetByVenta(int ventaId)
+        public async Task<ActionResult<object>> GetByVenta(int ventaId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var detalles = await _context.DetalleVentas
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.DetalleVentas
                 .Include(d => d.Producto)
                 .Include(d => d.Servicio)
                 .Include(d => d.Paquete)
                 .Where(d => d.VentaId == ventaId)
-                .ToListAsync();
-
-            return Ok(detalles);
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpPost]

@@ -25,9 +25,11 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ProductoDto>>> GetAll()
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            return await _context.Productos
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.Productos
                 .Include(p => p.Categoria)
                 .OrderBy(p => p.Nombre)
                 .Select(p => new ProductoDto
@@ -45,8 +47,11 @@ namespace BarberiaApi.Controllers
                     CategoriaNombre = p.Categoria != null ? p.Categoria.Nombre : null,
                     Estado = p.Estado,
                     ImagenProduc = p.ImagenProduc
-                })
-                .ToListAsync();
+                });
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpPost("{id}/imagen")]
@@ -106,9 +111,11 @@ namespace BarberiaApi.Controllers
             }
         }
         [HttpGet("stock-bajo")]
-        public async Task<ActionResult<IEnumerable<ProductoDto>>> GetStockBajo()
+        public async Task<ActionResult<object>> GetStockBajo([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            return await _context.Productos
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.Productos
                 .Include(p => p.Categoria)
                 .Where(p => p.StockTotal <= 5 && p.Estado == true)
                 .OrderBy(p => p.StockTotal)
@@ -127,8 +134,11 @@ namespace BarberiaApi.Controllers
                     CategoriaNombre = p.Categoria != null ? p.Categoria.Nombre : null,
                     Estado = p.Estado,
                     ImagenProduc = p.ImagenProduc
-                })
-                .ToListAsync();
+                });
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("{id}")]

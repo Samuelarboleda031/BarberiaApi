@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System;
 
 namespace BarberiaApi.Controllers
 {
@@ -20,11 +21,17 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<HorariosBarbero>>> GetAll()
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            return await _context.HorariosBarberos
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.HorariosBarberos
                 .Include(h => h.Barbero)
-                .ToListAsync();
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("{id}")]
@@ -39,15 +46,19 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("barbero/{barberoId}")]
-        public async Task<ActionResult<IEnumerable<HorariosBarbero>>> GetByBarbero(int barberoId)
+        public async Task<ActionResult<object>> GetByBarbero(int barberoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var horarios = await _context.HorariosBarberos
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            var q = _context.HorariosBarberos
                 .Include(h => h.Barbero)
                 .Where(h => h.BarberoId == barberoId && h.Estado == true)
                 .OrderBy(h => h.DiaSemana)
-                .ToListAsync();
-
-            return Ok(horarios);
+                .AsQueryable();
+            var totalCount = await q.CountAsync();
+            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpPost]
