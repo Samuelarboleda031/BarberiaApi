@@ -21,20 +21,41 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.Agendamientos
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.Agendamientos
                 .Include(a => a.Cliente)
                     .ThenInclude(c => c.Usuario)
                 .Include(a => a.Barbero)
                     .ThenInclude(b => b.Usuario)
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
-                .OrderByDescending(a => a.FechaHora);
-            var totalCount = await q.CountAsync();
-            var ags = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+                .AsQueryable();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(a =>
+                    (a.Estado != null && a.Estado.ToLower().Contains(term)) ||
+                    (a.Cliente != null && a.Cliente.Usuario != null && (
+                        (a.Cliente.Usuario.Nombre != null && a.Cliente.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (a.Cliente.Usuario.Apellido != null && a.Cliente.Usuario.Apellido.ToLower().Contains(term))
+                    )) ||
+                    (a.Barbero != null && a.Barbero.Usuario != null && (
+                        (a.Barbero.Usuario.Nombre != null && a.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (a.Barbero.Usuario.Apellido != null && a.Barbero.Usuario.Apellido.ToLower().Contains(term))
+                    )) ||
+                    (a.Servicio != null && a.Servicio.Nombre != null && a.Servicio.Nombre.ToLower().Contains(term)) ||
+                    (a.Paquete != null && a.Paquete.Nombre != null && a.Paquete.Nombre.ToLower().Contains(term))
+                );
+            }
+            var totalCount = await baseQ.CountAsync();
+            var ags = await baseQ
+                .OrderByDescending(a => a.FechaHora)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
             var items = ags.Select(a => new CitaFrontend
             {
                 id = a.Id,

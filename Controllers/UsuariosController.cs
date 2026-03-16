@@ -26,10 +26,10 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("analisis")]
-        public async Task<ActionResult<object>> Analisis([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> Analisis([FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
+            if (pageSize < 1) pageSize = 5;
             var q = _context.Usuarios
                 .Select(u => new AnalisisUsuarioDto
                 {
@@ -94,14 +94,41 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.Usuarios
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.Usuarios
                 .Include(u => u.Rol)
                 .Include(u => u.Cliente)
                 .Include(u => u.Barbero)
+                .AsQueryable();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(u =>
+                    (u.Nombre != null && u.Nombre.ToLower().Contains(term)) ||
+                    (u.Apellido != null && u.Apellido.ToLower().Contains(term)) ||
+                    (u.Documento != null && u.Documento.ToLower().Contains(term)) ||
+                    (u.Correo != null && u.Correo.ToLower().Contains(term)) ||
+                    (u.Cliente != null && (
+                        (u.Cliente.Telefono != null && u.Cliente.Telefono.ToLower().Contains(term)) ||
+                        (u.Cliente.Direccion != null && u.Cliente.Direccion.ToLower().Contains(term)) ||
+                        (u.Cliente.Barrio != null && u.Cliente.Barrio.ToLower().Contains(term))
+                    )) ||
+                    (u.Barbero != null && (
+                        (u.Barbero.Telefono != null && u.Barbero.Telefono.ToLower().Contains(term)) ||
+                        (u.Barbero.Direccion != null && u.Barbero.Direccion.ToLower().Contains(term)) ||
+                        (u.Barbero.Barrio != null && u.Barbero.Barrio.ToLower().Contains(term)) ||
+                        (u.Barbero.Especialidad != null && u.Barbero.Especialidad.ToLower().Contains(term))
+                    ))
+                );
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ
+                .OrderBy(u => u.Nombre)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(u => new UsuarioDto
                 {
                     Id = u.Id,
@@ -153,9 +180,8 @@ namespace BarberiaApi.Controllers
                         Estado = u.Barbero.Estado,
                         FechaContratacion = u.Barbero.FechaContratacion
                     } : null
-                });
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+                })
+                .ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }

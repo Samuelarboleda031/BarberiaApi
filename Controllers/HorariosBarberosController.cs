@@ -21,15 +21,25 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.HorariosBarberos
-                .Include(h => h.Barbero)
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.HorariosBarberos
+                .Include(h => h.Barbero).ThenInclude(b => b.Usuario)
                 .AsQueryable();
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(h =>
+                    (h.Barbero != null && h.Barbero.Usuario != null && (
+                        (h.Barbero.Usuario.Nombre != null && h.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (h.Barbero.Usuario.Apellido != null && h.Barbero.Usuario.Apellido.ToLower().Contains(term))
+                    ))
+                );
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
@@ -46,17 +56,24 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("barbero/{barberoId}")]
-        public async Task<ActionResult<object>> GetByBarbero(int barberoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetByBarbero(int barberoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.HorariosBarberos
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.HorariosBarberos
                 .Include(h => h.Barbero)
                 .Where(h => h.BarberoId == barberoId && h.Estado == true)
                 .OrderBy(h => h.DiaSemana)
                 .AsQueryable();
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(h => h.Barbero != null && h.Barbero.Usuario != null &&
+                    ((h.Barbero.Usuario.Nombre != null && h.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
+                     (h.Barbero.Usuario.Apellido != null && h.Barbero.Usuario.Apellido.ToLower().Contains(term))));
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }

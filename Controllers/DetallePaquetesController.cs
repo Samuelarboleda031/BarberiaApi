@@ -20,10 +20,10 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
+            if (pageSize < 1) pageSize = 5;
             var q = _context.DetallePaquetes
                 .Include(dp => dp.Paquete)
                 .Include(dp => dp.Servicio)
@@ -47,10 +47,10 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("paquete/{paqueteId}")]
-        public async Task<ActionResult<object>> GetByPaquete(int paqueteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetByPaquete(int paqueteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
+            if (pageSize < 1) pageSize = 5;
             var q = _context.DetallePaquetes
                 .Include(dp => dp.Servicio)
                 .Where(dp => dp.PaqueteId == paqueteId)

@@ -153,26 +153,47 @@
             }
 
             [HttpGet]
-            public async Task<ActionResult<object>> GetAll([FromQuery] int? barberoId, [FromQuery] int? clienteId, [FromQuery] int? productoId, [FromQuery] int? entregaId, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+            public async Task<ActionResult<object>> GetAll([FromQuery] int? barberoId, [FromQuery] int? clienteId, [FromQuery] int? productoId, [FromQuery] int? entregaId, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
             {
-                var q = _context.Devoluciones.AsQueryable();
+                var query = _context.Devoluciones.AsQueryable();
 
-                if (barberoId.HasValue) q = q.Where(d => d.BarberoId == barberoId.Value);
-                if (clienteId.HasValue) q = q.Where(d => d.ClienteId == clienteId.Value);
-                if (productoId.HasValue) q = q.Where(d => d.ProductoId == productoId.Value);
-                if (entregaId.HasValue) q = q.Where(d => d.EntregaId == entregaId.Value);
-                if (desde.HasValue) q = q.Where(d => d.Fecha >= desde.Value);
+                if (barberoId.HasValue) query = query.Where(d => d.BarberoId == barberoId.Value);
+                if (clienteId.HasValue) query = query.Where(d => d.ClienteId == clienteId.Value);
+                if (productoId.HasValue) query = query.Where(d => d.ProductoId == productoId.Value);
+                if (entregaId.HasValue) query = query.Where(d => d.EntregaId == entregaId.Value);
+                if (desde.HasValue) query = query.Where(d => d.Fecha >= desde.Value);
                 if (hasta.HasValue)
                 {
                     var h = hasta.Value.Date.AddDays(1).AddTicks(-1);
-                    q = q.Where(d => d.Fecha <= h);
+                    query = query.Where(d => d.Fecha <= h);
+                }
+
+                if (!string.IsNullOrWhiteSpace(q))
+                {
+                    var term = q.Trim().ToLower();
+                    query = query.Where(d =>
+                        (d.MotivoCategoria != null && d.MotivoCategoria.ToLower().Contains(term)) ||
+                        (d.MotivoDetalle != null && d.MotivoDetalle.ToLower().Contains(term)) ||
+                        (d.Observaciones != null && d.Observaciones.ToLower().Contains(term)) ||
+                        (d.Estado != null && d.Estado.ToLower().Contains(term)) ||
+                        (d.Producto != null && d.Producto.Nombre != null && d.Producto.Nombre.ToLower().Contains(term)) ||
+                        (d.Usuario != null && d.Usuario.Nombre != null && d.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (d.Cliente != null && d.Cliente.Usuario != null && (
+                            (d.Cliente.Usuario.Nombre != null && d.Cliente.Usuario.Nombre.ToLower().Contains(term)) ||
+                            (d.Cliente.Usuario.Apellido != null && d.Cliente.Usuario.Apellido.ToLower().Contains(term))
+                        )) ||
+                        (d.Barbero != null && d.Barbero.Usuario != null && (
+                            (d.Barbero.Usuario.Nombre != null && d.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
+                            (d.Barbero.Usuario.Apellido != null && d.Barbero.Usuario.Apellido.ToLower().Contains(term))
+                        ))
+                    );
                 }
 
                 if (page < 1) page = 1;
-                if (pageSize < 1) pageSize = 20;
-                var qOrdered = q.OrderByDescending(d => d.Fecha);
-                var totalCount = await qOrdered.CountAsync();
-                var items = await qOrdered
+                if (pageSize < 1) pageSize = 5;
+                var queryOrdered = query.OrderByDescending(d => d.Fecha);
+                var totalCount = await queryOrdered.CountAsync();
+                var items = await queryOrdered
                         .Select(d => new
                         {
                             d.Id,

@@ -22,20 +22,40 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
+            if (pageSize < 1) pageSize = 5;
             var limite = DateTime.Now.AddDays(-7);
-            var q = _context.Agendamientos
+            var baseQ = _context.Agendamientos
                 .Where(a => a.FechaHora >= limite)
-                .Include(a => a.Cliente)
-                    .ThenInclude(c => c.Usuario)
-                .Include(a => a.Barbero)
-                    .ThenInclude(b => b.Usuario)
+                .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
+                .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
+                .AsQueryable();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(a =>
+                    (a.Estado != null && a.Estado.ToLower().Contains(term)) ||
+                    (a.Cliente != null && a.Cliente.Usuario != null && (
+                        (a.Cliente.Usuario.Nombre != null && a.Cliente.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (a.Cliente.Usuario.Apellido != null && a.Cliente.Usuario.Apellido.ToLower().Contains(term))
+                    )) ||
+                    (a.Barbero != null && a.Barbero.Usuario != null && (
+                        (a.Barbero.Usuario.Nombre != null && a.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (a.Barbero.Usuario.Apellido != null && a.Barbero.Usuario.Apellido.ToLower().Contains(term))
+                    )) ||
+                    (a.Servicio != null && a.Servicio.Nombre != null && a.Servicio.Nombre.ToLower().Contains(term)) ||
+                    (a.Paquete != null && a.Paquete.Nombre != null && a.Paquete.Nombre.ToLower().Contains(term))
+                );
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ
                 .OrderByDescending(a => a.FechaHora)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(a => new AgendamientoDTO
                 {
                     Id = a.Id,
@@ -52,9 +72,8 @@ namespace BarberiaApi.Controllers
                     Duracion = a.Duracion,
                     Precio = a.Precio,
                     Notas = a.Notas
-                });
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+                })
+                .ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }

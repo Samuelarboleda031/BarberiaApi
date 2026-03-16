@@ -20,18 +20,26 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.DetalleEntregasInsumos
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.DetalleEntregasInsumos
                 .Include(d => d.Entrega)
                     .ThenInclude(e => e.Barbero)
                 .Include(d => d.Producto)
                     .ThenInclude(p => p.Categoria)
                 .AsQueryable();
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(d =>
+                    (d.Producto != null && d.Producto.Nombre != null && d.Producto.Nombre.ToLower().Contains(term)) ||
+                    (d.Entrega != null && d.Entrega.Estado != null && d.Entrega.Estado.ToLower().Contains(term))
+                );
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
@@ -51,37 +59,47 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("entrega/{entregaId}")]
-        public async Task<ActionResult<object>> GetByEntregaId(int entregaId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetByEntregaId(int entregaId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.DetalleEntregasInsumos
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.DetalleEntregasInsumos
                 .Include(d => d.Entrega)
                     .ThenInclude(e => e.Barbero)
                 .Include(d => d.Producto)
                     .ThenInclude(p => p.Categoria)
                 .Where(d => d.EntregaId == entregaId)
                 .AsQueryable();
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(d => d.Producto != null && d.Producto.Nombre != null && d.Producto.Nombre.ToLower().Contains(term));
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("producto/{productoId}")]
-        public async Task<ActionResult<object>> GetByProductoId(int productoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetByProductoId(int productoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.DetalleEntregasInsumos
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.DetalleEntregasInsumos
                 .Include(d => d.Entrega)
                     .ThenInclude(e => e.Barbero)
                 .Include(d => d.Producto)
                     .ThenInclude(p => p.Categoria)
                 .Where(d => d.ProductoId == productoId)
                 .AsQueryable();
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(d => d.Producto != null && d.Producto.Nombre != null && d.Producto.Nombre.ToLower().Contains(term));
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }

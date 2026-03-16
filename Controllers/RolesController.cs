@@ -21,11 +21,24 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.Roles
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.Roles.AsQueryable();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(r =>
+                    (r.Nombre != null && r.Nombre.ToLower().Contains(term)) ||
+                    (r.Descripcion != null && r.Descripcion.ToLower().Contains(term))
+                );
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ
+                .OrderBy(r => r.Nombre)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(r => new RoleDto
                 {
                     Id = r.Id,
@@ -34,9 +47,8 @@ namespace BarberiaApi.Controllers
                     Estado = r.Estado ?? false,
                     UsuariosAsignados = r.Usuarios.Count,
                     Modulos = r.RolesModulos.Select(rm => rm.ModuloId).ToList()
-                });
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+                })
+                .ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }

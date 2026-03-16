@@ -22,18 +22,41 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.Ventas
-                .Include(v => v.Cliente)
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.Ventas
+                .Include(v => v.Cliente).ThenInclude(c => c.Usuario)
                 .Include(v => v.Usuario)
-                .Include(v => v.Barbero)
-                .OrderByDescending(v => v.Fecha)
+                .Include(v => v.Barbero).ThenInclude(b => b.Usuario)
                 .AsQueryable();
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(v =>
+                    (v.Estado != null && v.Estado.ToLower().Contains(term)) ||
+                    (v.MetodoPago != null && v.MetodoPago.ToLower().Contains(term)) ||
+                    (v.Cliente != null && v.Cliente.Usuario != null && (
+                        (v.Cliente.Usuario.Nombre != null && v.Cliente.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (v.Cliente.Usuario.Apellido != null && v.Cliente.Usuario.Apellido.ToLower().Contains(term))
+                    )) ||
+                    (v.Usuario != null && (
+                        (v.Usuario.Nombre != null && v.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (v.Usuario.Apellido != null && v.Usuario.Apellido.ToLower().Contains(term))
+                    )) ||
+                    (v.Barbero != null && v.Barbero.Usuario != null && (
+                        (v.Barbero.Usuario.Nombre != null && v.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (v.Barbero.Usuario.Apellido != null && v.Barbero.Usuario.Apellido.ToLower().Contains(term))
+                    ))
+                );
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ
+                .OrderByDescending(v => v.Fecha)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }

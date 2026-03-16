@@ -22,13 +22,18 @@
             }
 
             [HttpGet]
-            public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+            public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
             {
                 if (page < 1) page = 1;
-                if (pageSize < 1) pageSize = 20;
-                var q = _context.Modulos.AsQueryable();
-                var totalCount = await q.CountAsync();
-                var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+                if (pageSize < 1) pageSize = 5;
+                var baseQ = _context.Modulos.AsQueryable();
+                if (!string.IsNullOrWhiteSpace(q))
+                {
+                    var term = q.Trim().ToLower();
+                    baseQ = baseQ.Where(m => m.Nombre != null && m.Nombre.ToLower().Contains(term));
+                }
+                var totalCount = await baseQ.CountAsync();
+                var items = await baseQ.OrderBy(m => m.Nombre).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
                 var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
                 return Ok(new { items, totalCount, page, pageSize, totalPages });
             }

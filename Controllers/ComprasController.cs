@@ -21,17 +21,36 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.Compras
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.Compras
                 .Include(c => c.Proveedor)
                 .Include(c => c.Usuario)
-                .OrderByDescending(c => c.FechaRegistro)
                 .AsQueryable();
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(c =>
+                    (c.NumeroFactura != null && c.NumeroFactura.ToLower().Contains(term)) ||
+                    (c.MetodoPago != null && c.MetodoPago.ToLower().Contains(term)) ||
+                    (c.Proveedor != null && (
+                        (c.Proveedor.Nombre != null && c.Proveedor.Nombre.ToLower().Contains(term)) ||
+                        (c.Proveedor.NIT != null && c.Proveedor.NIT.ToLower().Contains(term))
+                    )) ||
+                    (c.Usuario != null && (
+                        (c.Usuario.Nombre != null && c.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (c.Usuario.Apellido != null && c.Usuario.Apellido.ToLower().Contains(term))
+                    ))
+                );
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ
+                .OrderByDescending(c => c.FechaRegistro)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }

@@ -25,13 +25,28 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.Productos
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.Productos
                 .Include(p => p.Categoria)
+                .AsQueryable();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(p =>
+                    (p.Nombre != null && p.Nombre.ToLower().Contains(term)) ||
+                    (p.Descripcion != null && p.Descripcion.ToLower().Contains(term)) ||
+                    (p.Marca != null && p.Marca.ToLower().Contains(term)) ||
+                    (p.Categoria != null && p.Categoria.Nombre != null && p.Categoria.Nombre.ToLower().Contains(term))
+                );
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ
                 .OrderBy(p => p.Nombre)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(p => new ProductoDto
                 {
                     Id = p.Id,
@@ -47,9 +62,8 @@ namespace BarberiaApi.Controllers
                     CategoriaNombre = p.Categoria != null ? p.Categoria.Nombre : null,
                     Estado = p.Estado,
                     ImagenProduc = p.ImagenProduc
-                });
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+                })
+                .ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
@@ -111,14 +125,29 @@ namespace BarberiaApi.Controllers
             }
         }
         [HttpGet("stock-bajo")]
-        public async Task<ActionResult<object>> GetStockBajo([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<object>> GetStockBajo([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 20;
-            var q = _context.Productos
+            if (pageSize < 1) pageSize = 5;
+            var baseQ = _context.Productos
                 .Include(p => p.Categoria)
                 .Where(p => p.StockTotal <= 5 && p.Estado == true)
+                .AsQueryable();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(p =>
+                    (p.Nombre != null && p.Nombre.ToLower().Contains(term)) ||
+                    (p.Descripcion != null && p.Descripcion.ToLower().Contains(term)) ||
+                    (p.Marca != null && p.Marca.ToLower().Contains(term)) ||
+                    (p.Categoria != null && p.Categoria.Nombre != null && p.Categoria.Nombre.ToLower().Contains(term))
+                );
+            }
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ
                 .OrderBy(p => p.StockTotal)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(p => new ProductoDto
                 {
                     Id = p.Id,
@@ -134,9 +163,8 @@ namespace BarberiaApi.Controllers
                     CategoriaNombre = p.Categoria != null ? p.Categoria.Nombre : null,
                     Estado = p.Estado,
                     ImagenProduc = p.ImagenProduc
-                });
-            var totalCount = await q.CountAsync();
-            var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+                })
+                .ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
