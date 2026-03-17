@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace BarberiaApi.Models;
@@ -32,4 +32,6 @@ public partial class Agendamiento
     public virtual Servicio? Servicio { get; set; }
 
     public virtual Paquete? Paquete { get; set; }
+
+    public virtual ICollection<AgendamientoServicio> AgendamientoServicios { get; set; } = new List<AgendamientoServicio>();
 }

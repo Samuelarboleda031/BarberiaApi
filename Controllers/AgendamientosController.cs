@@ -14,11 +14,116 @@ namespace BarberiaApi.Controllers
     public class AgendamientosController : ControllerBase
     {
         private readonly BarberiaContext _context;
+        private const string ServiciosMetaPrefix = "[SERVICIOS_IDS:";
 
         public AgendamientosController(BarberiaContext context)
         {
             
             _context = context;
+        }
+
+        private List<int> BuildServicioIds(AgendamientoInput input)
+        {
+            var ids = new List<int>();
+            if (input.ServicioIds != null && input.ServicioIds.Count > 0)
+            {
+                ids.AddRange(input.ServicioIds.Where(id => id > 0));
+            }
+            if (input.ServicioId.HasValue && input.ServicioId.Value > 0)
+            {
+                ids.Add(input.ServicioId.Value);
+            }
+            return ids.Distinct().ToList();
+        }
+
+        private List<int> ExtractServicioIds(Agendamiento agendamiento)
+        {
+            var ids = new List<int>();
+            if (agendamiento.ServicioId.HasValue && agendamiento.ServicioId.Value > 0)
+            {
+                ids.Add(agendamiento.ServicioId.Value);
+            }
+            var notas = agendamiento.Notas ?? string.Empty;
+            var start = notas.IndexOf(ServiciosMetaPrefix, StringComparison.Ordinal);
+            if (start >= 0)
+            {
+                var end = notas.IndexOf(']', start);
+                if (end > start)
+                {
+                    var payload = notas.Substring(start + ServiciosMetaPrefix.Length, end - (start + ServiciosMetaPrefix.Length));
+                    var parsed = payload.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(x => int.TryParse(x.Trim(), out var id) ? id : 0)
+                        .Where(x => x > 0);
+                    ids.AddRange(parsed);
+                }
+            }
+            return ids.Distinct().ToList();
+        }
+
+        private string BuildNotasWithServicios(string? notasUsuario, List<int> servicioIds)
+        {
+            var cleanNotas = CleanNotasFromMeta(notasUsuario);
+            if (servicioIds == null || servicioIds.Count <= 1)
+            {
+                return cleanNotas;
+            }
+            var meta = $"{ServiciosMetaPrefix}{string.Join(",", servicioIds)}]";
+            if (string.IsNullOrWhiteSpace(cleanNotas))
+            {
+                return meta;
+            }
+            return $"{meta}\n{cleanNotas}";
+        }
+
+        private string CleanNotasFromMeta(string? notas)
+        {
+            if (string.IsNullOrWhiteSpace(notas)) return string.Empty;
+            var text = notas.Trim();
+            if (text.StartsWith(ServiciosMetaPrefix, StringComparison.Ordinal))
+            {
+                var idx = text.IndexOf(']');
+                if (idx >= 0)
+                {
+                    text = text.Substring(idx + 1).TrimStart('\r', '\n', ' ');
+                }
+            }
+            return text;
+        }
+
+        private AgendamientoDTO MapToDto(Agendamiento agendamiento, Dictionary<int, Servicio> serviciosMap)
+        {
+            var servicioIds = ExtractServicioIds(agendamiento);
+            var serviciosNombres = servicioIds
+                .Select(id => serviciosMap.TryGetValue(id, out var servicio) ? servicio.Nombre : null)
+                .Where(nombre => !string.IsNullOrWhiteSpace(nombre))
+                .Select(nombre => nombre!)
+                .ToList();
+            var servicioNombre = serviciosNombres.Count > 0
+                ? string.Join(", ", serviciosNombres)
+                : (agendamiento.Servicio != null ? agendamiento.Servicio.Nombre : null);
+            if (string.IsNullOrWhiteSpace(servicioNombre) && agendamiento.Paquete != null)
+            {
+                servicioNombre = agendamiento.Paquete.Nombre;
+            }
+            return new AgendamientoDTO
+            {
+                Id = agendamiento.Id,
+                ClienteId = agendamiento.ClienteId,
+                BarberoId = agendamiento.BarberoId,
+                ServicioId = agendamiento.ServicioId,
+                ServicioIds = servicioIds,
+                PaqueteId = agendamiento.PaqueteId,
+                ClienteNombre = agendamiento.Cliente?.Usuario?.Nombre + " " + agendamiento.Cliente?.Usuario?.Apellido,
+                BarberoNombre = agendamiento.Barbero?.Usuario?.Nombre + " " + agendamiento.Barbero?.Usuario?.Apellido,
+                ServicioNombre = servicioNombre,
+                ServiciosNombres = serviciosNombres,
+                PaqueteNombre = agendamiento.Paquete?.Nombre,
+                FechaHora = agendamiento.FechaHora,
+                Estado = agendamiento.Estado,
+                Duracion = agendamiento.Duracion,
+                Precio = agendamiento.Precio,
+                Notas = CleanNotasFromMeta(agendamiento.Notas)
+            };
         }
 
         [HttpGet]
@@ -49,26 +154,11 @@ namespace BarberiaApi.Controllers
                     (a.Paquete != null && a.Paquete.Nombre != null && a.Paquete.Nombre.ToLower().Contains(term))
                 );
             }
-            var items = await baseQ
+            var rows = await baseQ
                 .OrderByDescending(a => a.FechaHora)
-                .Select(a => new AgendamientoDTO
-                {
-                    Id = a.Id,
-                    ClienteId = a.ClienteId,
-                    BarberoId = a.BarberoId,
-                    ServicioId = a.ServicioId,
-                    PaqueteId = a.PaqueteId,
-                    ClienteNombre = a.Cliente.Usuario.Nombre + " " + a.Cliente.Usuario.Apellido,
-                    BarberoNombre = a.Barbero.Usuario.Nombre + " " + a.Barbero.Usuario.Apellido,
-                    ServicioNombre = a.Servicio != null ? a.Servicio.Nombre : null,
-                    PaqueteNombre = a.Paquete != null ? a.Paquete.Nombre : null,
-                    FechaHora = a.FechaHora,
-                    Estado = a.Estado,
-                    Duracion = a.Duracion,
-                    Precio = a.Precio,
-                    Notas = a.Notas
-                })
                 .ToListAsync();
+            var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
+            var items = rows.Select(a => MapToDto(a, serviciosMap)).ToList();
             return Ok(items);
         }
 
@@ -82,28 +172,11 @@ namespace BarberiaApi.Controllers
                     .ThenInclude(b => b.Usuario)
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
-                .Where(a => a.Id == id)
-                .Select(a => new AgendamientoDTO
-                {
-                    Id = a.Id,
-                    ClienteId = a.ClienteId,
-                    BarberoId = a.BarberoId,
-                    ServicioId = a.ServicioId,
-                    PaqueteId = a.PaqueteId,
-                    ClienteNombre = a.Cliente.Usuario.Nombre + " " + a.Cliente.Usuario.Apellido,
-                    BarberoNombre = a.Barbero.Usuario.Nombre + " " + a.Barbero.Usuario.Apellido,
-                    ServicioNombre = a.Servicio != null ? a.Servicio.Nombre : null,
-                    PaqueteNombre = a.Paquete != null ? a.Paquete.Nombre : null,
-                    FechaHora = a.FechaHora,
-                    Estado = a.Estado,
-                    Duracion = a.Duracion,
-                    Precio = a.Precio,
-                    Notas = a.Notas
-                })
                 .FirstOrDefaultAsync();
 
             if (agendamiento == null) return NotFound();
-            return Ok(agendamiento);
+            var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
+            return Ok(MapToDto(agendamiento, serviciosMap));
         }
 
         [HttpGet("barbero/{barberoId}/{fecha}")]
@@ -112,7 +185,7 @@ namespace BarberiaApi.Controllers
             var inicioDia = fecha.Date;
             var finDia = inicioDia.AddDays(1);
 
-            return await _context.Agendamientos
+            var rows = await _context.Agendamientos
                 .Include(a => a.Cliente)
                     .ThenInclude(c => c.Usuario)
                 .Include(a => a.Barbero)
@@ -120,24 +193,9 @@ namespace BarberiaApi.Controllers
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
                 .Where(a => a.BarberoId == barberoId && a.FechaHora >= inicioDia && a.FechaHora < finDia)
-                .Select(a => new AgendamientoDTO
-                {
-                    Id = a.Id,
-                    ClienteId = a.ClienteId,
-                    BarberoId = a.BarberoId,
-                    ServicioId = a.ServicioId,
-                    PaqueteId = a.PaqueteId,
-                    ClienteNombre = a.Cliente.Usuario.Nombre + " " + a.Cliente.Usuario.Apellido,
-                    BarberoNombre = a.Barbero.Usuario.Nombre + " " + a.Barbero.Usuario.Apellido,
-                    ServicioNombre = a.Servicio != null ? a.Servicio.Nombre : null,
-                    PaqueteNombre = a.Paquete != null ? a.Paquete.Nombre : null,
-                    FechaHora = a.FechaHora,
-                    Estado = a.Estado,
-                    Duracion = a.Duracion,
-                    Precio = a.Precio,
-                    Notas = a.Notas
-                })
                 .ToListAsync();
+            var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
+            return rows.Select(a => MapToDto(a, serviciosMap)).ToList();
         }
 
         [HttpPost]
@@ -145,26 +203,30 @@ namespace BarberiaApi.Controllers
         {
             if (input == null) return BadRequest();
 
-            // Validar que tenga servicio o paquete, no ambos
-            if (input.ServicioId.HasValue && input.PaqueteId.HasValue)
-                return BadRequest("No se puede agendar un servicio y un paquete simultáneamente.");
-            
-            if (!input.ServicioId.HasValue && !input.PaqueteId.HasValue)
-                return BadRequest("Debe especificar un servicio o un paquete.");
+            var servicioIds = BuildServicioIds(input);
+            if (servicioIds.Count > 0 && input.PaqueteId.HasValue)
+                return BadRequest("No se puede agendar varios servicios y un paquete simultáneamente.");
+            if (servicioIds.Count == 0 && !input.PaqueteId.HasValue)
+                return BadRequest("Debe especificar al menos un servicio o un paquete.");
 
             // Validar disponibilidad
             var duracionMinutos = 30; // Por defecto
-            if (input.ServicioId.HasValue)
+            decimal precioCalculado = 0m;
+            if (servicioIds.Count > 0)
             {
-                var servicio = await _context.Servicios.FindAsync(input.ServicioId.Value);
-                if (servicio == null) return BadRequest("Servicio no encontrado.");
-                duracionMinutos = servicio.DuracionMinutes ?? 30;
+                var servicios = await _context.Servicios
+                    .Where(s => servicioIds.Contains(s.Id))
+                    .ToListAsync();
+                if (servicios.Count != servicioIds.Count) return BadRequest("Uno o más servicios no fueron encontrados.");
+                duracionMinutos = servicios.Sum(s => s.DuracionMinutes ?? 30);
+                precioCalculado = servicios.Sum(s => s.Precio);
             }
             else if (input.PaqueteId.HasValue)
             {
                 var paquete = await _context.Paquetes.FindAsync(input.PaqueteId.Value);
                 if (paquete == null) return BadRequest("Paquete no encontrado.");
                 duracionMinutos = paquete.DuracionMinutos;
+                precioCalculado = paquete.Precio;
             }
 
             // Validar que el barbero esté activo y trabaje en el horario
@@ -202,38 +264,26 @@ namespace BarberiaApi.Controllers
             {
                 ClienteId = input.ClienteId,
                 BarberoId = input.BarberoId,
-                ServicioId = input.ServicioId,
+                ServicioId = servicioIds.FirstOrDefault() > 0 ? servicioIds.FirstOrDefault() : null,
                 PaqueteId = input.PaqueteId,
                 FechaHora = input.FechaHora,
-                Notas = input.Notas,
+                Notas = BuildNotasWithServicios(input.Notas, servicioIds),
                 Duracion = input.Duracion ?? $"{duracionMinutos} minutos",
-                Precio = input.Precio ?? (input.ServicioId.HasValue ? 
-                    (await _context.Servicios.FindAsync(input.ServicioId.Value))?.Precio :
-                    (input.PaqueteId.HasValue ? 
-                    (await _context.Paquetes.FindAsync(input.PaqueteId.Value))?.Precio : null)),
+                Precio = input.Precio ?? precioCalculado,
                 Estado = "Pendiente"
             };
 
             _context.Agendamientos.Add(agendamiento);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetById), new { id = agendamiento.Id }, new AgendamientoDTO
-            {
-                Id = agendamiento.Id,
-                ClienteId = agendamiento.ClienteId,
-                BarberoId = agendamiento.BarberoId,
-                ServicioId = agendamiento.ServicioId,
-                PaqueteId = agendamiento.PaqueteId,
-                ClienteNombre = (await _context.Clientes.Include(c => c.Usuario).FirstOrDefaultAsync(c => c.Id == agendamiento.ClienteId))?.Usuario?.Nombre + " " + (await _context.Clientes.Include(c => c.Usuario).FirstOrDefaultAsync(c => c.Id == agendamiento.ClienteId))?.Usuario?.Apellido,
-                BarberoNombre = (await _context.Barberos.Include(b => b.Usuario).FirstOrDefaultAsync(b => b.Id == agendamiento.BarberoId))?.Usuario?.Nombre + " " + (await _context.Barberos.Include(b => b.Usuario).FirstOrDefaultAsync(b => b.Id == agendamiento.BarberoId))?.Usuario?.Apellido,
-                ServicioNombre = agendamiento.ServicioId.HasValue ? (await _context.Servicios.FindAsync(agendamiento.ServicioId.Value))?.Nombre : null,
-                PaqueteNombre = agendamiento.PaqueteId.HasValue ? (await _context.Paquetes.FindAsync(agendamiento.PaqueteId.Value))?.Nombre : null,
-                FechaHora = agendamiento.FechaHora,
-                Estado = agendamiento.Estado,
-                Duracion = agendamiento.Duracion,
-                Precio = agendamiento.Precio,
-                Notas = agendamiento.Notas
-            });
+            var created = await _context.Agendamientos
+                .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
+                .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+                .Include(a => a.Servicio)
+                .Include(a => a.Paquete)
+                .FirstOrDefaultAsync(a => a.Id == agendamiento.Id);
+            var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
+            return CreatedAtAction(nameof(GetById), new { id = agendamiento.Id }, MapToDto(created!, serviciosMap));
         }
 
         [HttpPut("{id}")]
@@ -248,26 +298,30 @@ namespace BarberiaApi.Controllers
             
             if (agendamientoExistente == null) return NotFound();
 
-            // Validar que tenga servicio o paquete, no ambos
-            if (input.ServicioId.HasValue && input.PaqueteId.HasValue)
-                return BadRequest("No se puede agendar un servicio y un paquete simultáneamente.");
-            
-            if (!input.ServicioId.HasValue && !input.PaqueteId.HasValue)
-                return BadRequest("Debe especificar un servicio o un paquete.");
+            var servicioIds = BuildServicioIds(input);
+            if (servicioIds.Count > 0 && input.PaqueteId.HasValue)
+                return BadRequest("No se puede agendar varios servicios y un paquete simultáneamente.");
+            if (servicioIds.Count == 0 && !input.PaqueteId.HasValue)
+                return BadRequest("Debe especificar al menos un servicio o un paquete.");
 
             // Validar duración
             var duracionMinutos = 30; // Por defecto
-            if (input.ServicioId.HasValue)
+            decimal precioCalculado = agendamientoExistente.Precio ?? 0m;
+            if (servicioIds.Count > 0)
             {
-                var servicio = await _context.Servicios.FindAsync(input.ServicioId.Value);
-                if (servicio == null) return BadRequest("Servicio no encontrado.");
-                duracionMinutos = servicio.DuracionMinutes ?? 30;
+                var servicios = await _context.Servicios
+                    .Where(s => servicioIds.Contains(s.Id))
+                    .ToListAsync();
+                if (servicios.Count != servicioIds.Count) return BadRequest("Uno o más servicios no fueron encontrados.");
+                duracionMinutos = servicios.Sum(s => s.DuracionMinutes ?? 30);
+                precioCalculado = servicios.Sum(s => s.Precio);
             }
             else if (input.PaqueteId.HasValue)
             {
                 var paquete = await _context.Paquetes.FindAsync(input.PaqueteId.Value);
                 if (paquete == null) return BadRequest("Paquete no encontrado.");
                 duracionMinutos = paquete.DuracionMinutos;
+                precioCalculado = paquete.Precio;
             }
 
             // Validar que el barbero esté activo y trabaje en el horario
@@ -304,12 +358,12 @@ namespace BarberiaApi.Controllers
             // Actualizar campos
             agendamientoExistente.ClienteId = input.ClienteId;
             agendamientoExistente.BarberoId = input.BarberoId;
-            agendamientoExistente.ServicioId = input.ServicioId;
+            agendamientoExistente.ServicioId = servicioIds.FirstOrDefault() > 0 ? servicioIds.FirstOrDefault() : null;
             agendamientoExistente.PaqueteId = input.PaqueteId;
             agendamientoExistente.FechaHora = input.FechaHora;
-            agendamientoExistente.Notas = input.Notas;
-            agendamientoExistente.Duracion = input.Duracion ?? agendamientoExistente.Duracion;
-            agendamientoExistente.Precio = input.Precio ?? agendamientoExistente.Precio;
+            agendamientoExistente.Notas = BuildNotasWithServicios(input.Notas, servicioIds);
+            agendamientoExistente.Duracion = input.Duracion ?? $"{duracionMinutos} minutos";
+            agendamientoExistente.Precio = input.Precio ?? precioCalculado;
 
             try
             {
@@ -354,10 +408,15 @@ namespace BarberiaApi.Controllers
                     var usuarioId = agendamiento.Barbero?.UsuarioId ?? 0;
                     if (usuarioId == 0) return BadRequest("El barbero asociado a la cita no tiene usuario válido.");
 
+                    var servicioIdsCita = ExtractServicioIds(agendamiento);
+                    var serviciosCita = servicioIdsCita.Count > 0
+                        ? await _context.Servicios.Where(s => servicioIdsCita.Contains(s.Id)).ToListAsync()
+                        : new List<Servicio>();
+                    var serviciosPrecioMap = serviciosCita.ToDictionary(s => s.Id, s => s.Precio);
                     decimal precio = agendamiento.Precio.HasValue
                         ? agendamiento.Precio.Value
-                        : (agendamiento.Servicio != null
-                            ? agendamiento.Servicio.Precio
+                        : (serviciosCita.Count > 0
+                            ? serviciosCita.Sum(s => s.Precio)
                             : (agendamiento.Paquete != null ? agendamiento.Paquete.Precio : 0m));
 
                     var ventaExistente = await _context.Ventas
@@ -365,7 +424,7 @@ namespace BarberiaApi.Controllers
                         .Where(v => v.ClienteId == agendamiento.ClienteId
                                     && v.UsuarioId == usuarioId)
                         .Where(v => v.DetalleVenta.Any(d =>
-                            (agendamiento.ServicioId.HasValue && d.ServicioId == agendamiento.ServicioId) ||
+                            (servicioIdsCita.Count > 0 && d.ServicioId.HasValue && servicioIdsCita.Contains(d.ServicioId.Value)) ||
                             (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
                         .OrderByDescending(v => v.Id)
                         .FirstOrDefaultAsync();
@@ -382,15 +441,30 @@ namespace BarberiaApi.Controllers
                             // Asegurar detalle mínimo si no existe por algún motivo
                             if (!ventaExistente.DetalleVenta.Any())
                             {
-                                var detalleReactivado = new DetalleVenta
+                                if (servicioIdsCita.Count > 0)
                                 {
-                                    VentaId = ventaExistente.Id,
-                                    ServicioId = agendamiento.ServicioId,
-                                    PaqueteId = agendamiento.PaqueteId,
-                                    Cantidad = 1,
-                                    PrecioUnitario = precio
-                                };
-                                _context.DetalleVentas.Add(detalleReactivado);
+                                    var detallesReactivados = servicioIdsCita.Select(servicioId => new DetalleVenta
+                                    {
+                                        VentaId = ventaExistente.Id,
+                                        ServicioId = servicioId,
+                                        PaqueteId = null,
+                                        Cantidad = 1,
+                                        PrecioUnitario = serviciosPrecioMap.TryGetValue(servicioId, out var precioServicio) ? precioServicio : 0m
+                                    });
+                                    _context.DetalleVentas.AddRange(detallesReactivados);
+                                }
+                                else
+                                {
+                                    var detalleReactivado = new DetalleVenta
+                                    {
+                                        VentaId = ventaExistente.Id,
+                                        ServicioId = agendamiento.ServicioId,
+                                        PaqueteId = agendamiento.PaqueteId,
+                                        Cantidad = 1,
+                                        PrecioUnitario = precio
+                                    };
+                                    _context.DetalleVentas.Add(detalleReactivado);
+                                }
                             }
                             await _context.SaveChangesAsync();
                             await tx.CommitAsync();
@@ -453,29 +527,44 @@ namespace BarberiaApi.Controllers
                     _context.Ventas.Add(venta);
                     await _context.SaveChangesAsync();
 
-                    var detalle = new DetalleVenta
+                    if (servicioIdsCita.Count > 0)
                     {
-                        VentaId = venta.Id,
-                        ServicioId = agendamiento.ServicioId,
-                        PaqueteId = agendamiento.PaqueteId,
-                        Cantidad = 1,
-                        PrecioUnitario = precio
-                    };
-
-                    _context.DetalleVentas.Add(detalle);
+                        var detalles = servicioIdsCita.Select(servicioId => new DetalleVenta
+                        {
+                            VentaId = venta.Id,
+                            ServicioId = servicioId,
+                            PaqueteId = null,
+                            Cantidad = 1,
+                            PrecioUnitario = serviciosPrecioMap.TryGetValue(servicioId, out var precioServicio) ? precioServicio : 0m
+                        });
+                        _context.DetalleVentas.AddRange(detalles);
+                    }
+                    else
+                    {
+                        var detalle = new DetalleVenta
+                        {
+                            VentaId = venta.Id,
+                            ServicioId = agendamiento.ServicioId,
+                            PaqueteId = agendamiento.PaqueteId,
+                            Cantidad = 1,
+                            PrecioUnitario = precio
+                        };
+                        _context.DetalleVentas.Add(detalle);
+                    }
                     await _context.SaveChangesAsync();
                 }
                 if (string.Equals(input.estado, "Cancelada", StringComparison.OrdinalIgnoreCase) &&
                     !string.Equals(estadoAnterior, "Cancelada", StringComparison.OrdinalIgnoreCase))
                 {
                     var usuarioId = agendamiento.Barbero?.UsuarioId ?? 0;
+                    var servicioIdsCitaCancel = ExtractServicioIds(agendamiento);
                     var ventaRelacionada = await _context.Ventas
                         .Include(v => v.DetalleVenta)
                         .Where(v => v.ClienteId == agendamiento.ClienteId
                                     && v.UsuarioId == usuarioId
                                     && v.Estado != "Anulada")
                         .Where(v => v.DetalleVenta.Any(d =>
-                            (agendamiento.ServicioId.HasValue && d.ServicioId == agendamiento.ServicioId) ||
+                            (servicioIdsCitaCancel.Count > 0 && d.ServicioId.HasValue && servicioIdsCitaCancel.Contains(d.ServicioId.Value)) ||
                             (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
                         .OrderByDescending(v => v.Id)
                         .FirstOrDefaultAsync();

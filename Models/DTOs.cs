@@ -215,6 +215,7 @@ public class AgendamientoInput
     public int ClienteId { get; set; }
     public int BarberoId { get; set; }
     public int? ServicioId { get; set; }
+    public List<int>? ServicioIds { get; set; }
     public int? PaqueteId { get; set; }
     public DateTime FechaHora { get; set; }
     public string? Notas { get; set; }
@@ -402,10 +403,12 @@ public class AgendamientoDTO
     public int ClienteId { get; set; }
     public int BarberoId { get; set; }
     public int? ServicioId { get; set; }
+    public List<int> ServicioIds { get; set; } = new();
     public int? PaqueteId { get; set; }
     public string ClienteNombre { get; set; } = string.Empty;
     public string BarberoNombre { get; set; } = string.Empty;
     public string? ServicioNombre { get; set; }
+    public List<string> ServiciosNombres { get; set; } = new();
     public string? PaqueteNombre { get; set; }
     public DateTime FechaHora { get; set; }
     public string? Estado { get; set; }
