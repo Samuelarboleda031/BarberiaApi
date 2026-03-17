@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace BarberiaApi.Controllers
 {
@@ -21,12 +22,14 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 5;
             var baseQ = _context.Paquetes
                 .Include(p => p.DetallePaquetes)
+                .AsNoTracking()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -47,10 +50,13 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("{id}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<Paquete>> GetById(int id)
         {
             // Busca el paquete sin importar el estado
             var paquete = await _context.Paquetes
+                .AsNoTracking()
+                .AsSplitQuery()
                 .Include(p => p.DetallePaquetes)
                     .ThenInclude(d => d.Servicio)
                 .FirstOrDefaultAsync(p => p.Id == id);

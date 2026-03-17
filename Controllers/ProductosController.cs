@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using BarberiaApi.Services;
 using System;
 using System.IO;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace BarberiaApi.Controllers
 {
@@ -25,12 +26,14 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 5;
             var baseQ = _context.Productos
                 .Include(p => p.Categoria)
+                .AsNoTracking()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -125,6 +128,7 @@ namespace BarberiaApi.Controllers
             }
         }
         [HttpGet("stock-bajo")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetStockBajo([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
@@ -132,6 +136,7 @@ namespace BarberiaApi.Controllers
             var baseQ = _context.Productos
                 .Include(p => p.Categoria)
                 .Where(p => p.StockTotal <= 5 && p.Estado == true)
+                .AsNoTracking()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -170,9 +175,11 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("{id}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<ProductoDto>> GetById(int id)
         {
             var producto = await _context.Productos
+                .AsNoTracking()
                 .Include(p => p.Categoria)
                 .Where(p => p.Id == id)
                 .Select(p => new ProductoDto

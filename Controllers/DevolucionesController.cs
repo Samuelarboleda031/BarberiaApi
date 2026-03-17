@@ -7,6 +7,7 @@
     using System.Linq;
     using System.Threading.Tasks;
     using System.Data;
+    using Microsoft.AspNetCore.OutputCaching;
 
     namespace BarberiaApi.Controllers
     {
@@ -153,9 +154,12 @@
             }
 
             [HttpGet]
+            [OutputCache(PolicyName = "short")]
             public async Task<ActionResult<object>> GetAll([FromQuery] int? barberoId, [FromQuery] int? clienteId, [FromQuery] int? productoId, [FromQuery] int? entregaId, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
             {
-                var query = _context.Devoluciones.AsQueryable();
+                var query = _context.Devoluciones
+                    .AsNoTracking()
+                    .AsQueryable();
 
                 if (barberoId.HasValue) query = query.Where(d => d.BarberoId == barberoId.Value);
                 if (clienteId.HasValue) query = query.Where(d => d.ClienteId == clienteId.Value);

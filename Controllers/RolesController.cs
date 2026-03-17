@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace BarberiaApi.Controllers
 {
@@ -21,11 +22,14 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 5;
-            var baseQ = _context.Roles.AsQueryable();
+            var baseQ = _context.Roles
+                .AsNoTracking()
+                .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
                 var term = q.Trim().ToLower();

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace BarberiaApi.Controllers
 {
@@ -19,6 +20,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> Get()
         {
             var hoy = DateTime.Today;
@@ -26,6 +28,8 @@ namespace BarberiaApi.Controllers
             var limiteAgendas = DateTime.Now.AddDays(-7);
 
             var ventas = await _context.Ventas
+                .AsNoTracking()
+                .AsSplitQuery()
                 .Where(v => v.Fecha >= desdeVentas)
                 .Include(v => v.Cliente)
                     .ThenInclude(c => c.Usuario)
@@ -69,6 +73,8 @@ namespace BarberiaApi.Controllers
                 .ToListAsync();
 
             var agendamientos = await _context.Agendamientos
+                .AsNoTracking()
+                .AsSplitQuery()
                 .Where(a => a.FechaHora >= limiteAgendas)
                 .Include(a => a.Cliente)
                     .ThenInclude(c => c.Usuario)
@@ -93,6 +99,7 @@ namespace BarberiaApi.Controllers
                 .ToListAsync();
 
             var inventarioBajo = await _context.Productos
+                .AsNoTracking()
                 .Include(p => p.Categoria)
                 .Where(p => p.StockTotal <= 5 && p.Estado == true)
                 .OrderBy(p => p.StockTotal)

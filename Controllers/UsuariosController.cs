@@ -10,6 +10,7 @@ using System;
 using BarberiaApi.Helpers;
 using BarberiaApi.Services;
 using System.IO;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace BarberiaApi.Controllers
 {
@@ -26,11 +27,13 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("analisis")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> Analisis([FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 5;
             var q = _context.Usuarios
+                .AsNoTracking()
                 .Select(u => new AnalisisUsuarioDto
                 {
                     Id = u.Id,
@@ -61,9 +64,11 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("{id}/analisis")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<AnalisisUsuarioDto>> AnalisisPorId(int id)
         {
             var data = await _context.Usuarios
+                .AsNoTracking()
                 .Where(u => u.Id == id)
                 .Select(u => new AnalisisUsuarioDto
                 {
@@ -94,6 +99,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
@@ -102,6 +108,7 @@ namespace BarberiaApi.Controllers
                 .Include(u => u.Rol)
                 .Include(u => u.Cliente)
                 .Include(u => u.Barbero)
+                .AsNoTracking()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -187,9 +194,11 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("{id}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<UsuarioDto>> GetById(int id)
         {
             var usuario = await _context.Usuarios
+                .AsNoTracking()
                 .Include(u => u.Rol)
                 .Include(u => u.Cliente)
                 .Include(u => u.Barbero)

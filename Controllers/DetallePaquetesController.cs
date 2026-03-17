@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace BarberiaApi.Controllers
 {
@@ -20,6 +21,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
             if (page < 1) page = 1;
@@ -27,6 +29,7 @@ namespace BarberiaApi.Controllers
             var q = _context.DetallePaquetes
                 .Include(dp => dp.Paquete)
                 .Include(dp => dp.Servicio)
+                .AsNoTracking()
                 .AsQueryable();
             var totalCount = await q.CountAsync();
             var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
@@ -35,9 +38,11 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("{id}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<DetallePaquete>> GetById(int id)
         {
             var detalle = await _context.DetallePaquetes
+                .AsNoTracking()
                 .Include(dp => dp.Paquete)
                 .Include(dp => dp.Servicio)
                 .FirstOrDefaultAsync(dp => dp.Id == id);
@@ -47,6 +52,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("paquete/{paqueteId}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetByPaquete(int paqueteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
             if (page < 1) page = 1;
@@ -54,6 +60,7 @@ namespace BarberiaApi.Controllers
             var q = _context.DetallePaquetes
                 .Include(dp => dp.Servicio)
                 .Where(dp => dp.PaqueteId == paqueteId)
+                .AsNoTracking()
                 .AsQueryable();
             var totalCount = await q.CountAsync();
             var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();

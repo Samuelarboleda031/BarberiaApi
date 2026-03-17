@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Data;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace BarberiaApi.Controllers
 {
@@ -22,6 +23,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
@@ -30,6 +32,8 @@ namespace BarberiaApi.Controllers
                 .Include(v => v.Cliente).ThenInclude(c => c.Usuario)
                 .Include(v => v.Usuario)
                 .Include(v => v.Barbero).ThenInclude(b => b.Usuario)
+                .AsNoTracking()
+                .AsSplitQuery()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -62,9 +66,12 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("{id}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<Venta>> GetById(int id)
         {
             var venta = await _context.Ventas
+                .AsNoTracking()
+                .AsSplitQuery()
                 .Include(v => v.Cliente)
                 .Include(v => v.Usuario)
                 .Include(v => v.Barbero)

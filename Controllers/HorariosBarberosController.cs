@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace BarberiaApi.Controllers
 {
@@ -21,12 +22,14 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 5;
             var baseQ = _context.HorariosBarberos
                 .Include(h => h.Barbero).ThenInclude(b => b.Usuario)
+                .AsNoTracking()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -45,9 +48,11 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("{id}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<HorariosBarbero>> GetById(int id)
         {
             var horario = await _context.HorariosBarberos
+                .AsNoTracking()
                 .Include(h => h.Barbero)
                 .FirstOrDefaultAsync(h => h.Id == id);
 
@@ -56,6 +61,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("barbero/{barberoId}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetByBarbero(int barberoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             if (page < 1) page = 1;
@@ -64,6 +70,7 @@ namespace BarberiaApi.Controllers
                 .Include(h => h.Barbero)
                 .Where(h => h.BarberoId == barberoId && h.Estado == true)
                 .OrderBy(h => h.DiaSemana)
+                .AsNoTracking()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {

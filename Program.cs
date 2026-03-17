@@ -9,6 +9,9 @@ using Google.Apis.Auth.OAuth2;
 using Microsoft.AspNetCore.Authorization;
 using System.IO;
 using Microsoft.AspNetCore.Http.Features;
+using System.IO.Compression;
+using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.AspNetCore.OutputCaching;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,7 +40,7 @@ catch (Exception ex)
 // =======================
 
 // 📦 Base de datos
-builder.Services.AddDbContext<BarberiaContext>(options =>
+builder.Services.AddDbContextPool<BarberiaContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
 
@@ -122,6 +125,30 @@ builder.Services.Configure<FormOptions>(options =>
     options.MultipartBodyLengthLimit = 15728640;
 });
 
+// 🗜️ Compresión de respuestas (JSON)
+builder.Services.AddResponseCompression(opt =>
+{
+    opt.EnableForHttps = true;
+    opt.Providers.Add<GzipCompressionProvider>();
+    opt.Providers.Add<BrotliCompressionProvider>();
+    opt.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[] { "application/json" });
+});
+builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+
+// 🧠 Cache de salida para GET (TTL corto)
+builder.Services.AddOutputCache(options =>
+{
+    options.AddPolicy("short", policy =>
+        policy.Expire(TimeSpan.FromSeconds(10))
+              .SetVaryByQuery(new[] { "page", "pageSize", "q", "desde", "hasta", "barberoId", "clienteId", "productoId", "entregaId" })
+              .SetVaryByRouteValue("id")
+              .SetVaryByRouteValue("barberoId")
+              .SetVaryByRouteValue("paqueteId")
+              .SetVaryByRouteValue("fecha")
+    );
+});
+
 // ✉️ Email & Password Reset deshabilitado
 
 var app = builder.Build();
@@ -148,6 +175,9 @@ if (httpsRedirect)
 
 // 🌐 CORS (IMPORTANTE: antes de Authorization)
 app.UseCors("AllowFrontend");
+
+app.UseResponseCompression();
+app.UseOutputCache();
 
 app.UseStaticFiles();
 
