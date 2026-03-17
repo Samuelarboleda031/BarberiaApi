@@ -10,6 +10,61 @@ Guía de referencia de todos los endpoints disponibles en la API para la integra
 
 ---
 
+## 🔎 Búsqueda y 📄 Paginación
+- Todos los listados principales aceptan parámetros de consulta:
+  - `page`: número de página (por defecto `1`)
+  - `pageSize`: tamaño de página (por defecto `5`). Valores menores a 1 se normalizan a `5`.
+  - `q`: término de búsqueda de texto libre (opcional)
+- La respuesta de estos listados viene en un sobre con metadatos:
+  - `items`: resultados de la página
+  - `totalCount`: total de registros luego de aplicar filtros/búsqueda
+  - `page`, `pageSize`, `totalPages`
+- Orden de procesamiento: filtros específicos (IDs, fechas) → búsqueda `q` → orden → paginación.
+- Ejemplo de respuesta:
+
+```json
+{
+  "items": [ /* registros */ ],
+  "totalCount": 134,
+  "page": 2,
+  "pageSize": 5,
+  "totalPages": 27
+}
+```
+
+### Campos incluidos en la búsqueda (`q`) por módulo
+- Productos: `Nombre`, `Descripcion`, `Marca`, `Categoria.Nombre`
+- Categorías: `Nombre`
+- Servicios: `Nombre`, `Descripcion`
+- Paquetes: `Nombre`, `Descripcion`
+- Usuarios: `Nombre`, `Apellido`, `Documento`, `Correo`, además en Cliente/Barbero: `Telefono`, `Direccion`, `Barrio`, y en Barbero `Especialidad`
+- Clientes: `Usuario.Nombre`, `Usuario.Apellido`, `Usuario.Documento`, `Usuario.Correo`, `Telefono`, `Direccion`, `Barrio`
+- Barberos: `Usuario.Nombre`, `Usuario.Apellido`, `Usuario.Documento`, `Usuario.Correo`, `Telefono`, `Direccion`, `Barrio`, `Especialidad`
+- Proveedores: `Nombre`, `NIT`, `Contacto`, `Correo`, `Telefono`
+- Roles: `Nombre`, `Descripcion`
+- Módulos: `Nombre`
+- Roles-Módulos: `Rol.Nombre`, `Modulo.Nombre` (y en `GetByRole`, `Modulo.Nombre`)
+- Ventas: `Estado`, `MetodoPago`, nombres de `Cliente`, `Usuario` y `Barbero`
+- Compras: `NumeroFactura`, `MetodoPago`, `Proveedor.Nombre`, `Proveedor.NIT`, nombres de `Usuario`
+- DetalleVentas: `Producto.Nombre`, `Servicio.Nombre`, `Paquete.Nombre`
+- DetalleCompras: `Producto.Nombre`
+- EntregasInsumos: `Estado`, `Usuario.Nombre`, `Barbero.Usuario.Nombre/Apellido`
+- Devoluciones: `MotivoCategoria`, `MotivoDetalle`, `Observaciones`, `Estado`, `Producto.Nombre`, `Usuario.Nombre`, nombres de `Cliente` y `Barbero`
+- Citas (frontend): `Estado`, nombres de `Cliente` y `Barbero`, `Servicio.Nombre`, `Paquete.Nombre`
+- Agendamientos: `Estado`, nombres de `Cliente` y `Barbero`, `Servicio.Nombre`, `Paquete.Nombre`
+- HorariosBarberos: nombres de `Barbero` (y en `GetByBarbero`, filtro por ese barbero y búsqueda sobre su nombre)
+
+### Ejemplos
+- Productos: `/api/Productos?q=shampoo&page=1&pageSize=5`
+- Ventas por cliente: `/api/Ventas?q=juan&page=2`
+- Devoluciones por motivo o producto: `/api/Devoluciones?q=defecto`
+- Roles por nombre: `/api/Roles?q=admin`
+- Citas por barbero o servicio: `/api/Citas?q=barba`
+
+> Nota: El tamaño de página por defecto es 5; puedes ajustarlo enviando `pageSize`, manteniendo el mismo formato de respuesta.
+
+---
+
 ## 📅 Agendamientos y Citas (`/api/Agendamientos`)
 | Método | Ruta | Descripción |
 | :--- | :--- | :--- |

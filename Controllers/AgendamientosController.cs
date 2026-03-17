@@ -22,10 +22,8 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
+        public async Task<ActionResult<IEnumerable<AgendamientoDTO>>> GetAll([FromQuery] string? q = null)
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
             var limite = DateTime.Now.AddDays(-7);
             var baseQ = _context.Agendamientos
                 .Where(a => a.FechaHora >= limite)
@@ -51,11 +49,8 @@ namespace BarberiaApi.Controllers
                     (a.Paquete != null && a.Paquete.Nombre != null && a.Paquete.Nombre.ToLower().Contains(term))
                 );
             }
-            var totalCount = await baseQ.CountAsync();
             var items = await baseQ
                 .OrderByDescending(a => a.FechaHora)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
                 .Select(a => new AgendamientoDTO
                 {
                     Id = a.Id,
@@ -74,8 +69,7 @@ namespace BarberiaApi.Controllers
                     Notas = a.Notas
                 })
                 .ToListAsync();
-            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-            return Ok(new { items, totalCount, page, pageSize, totalPages });
+            return Ok(items);
         }
 
         [HttpGet("{id}")]

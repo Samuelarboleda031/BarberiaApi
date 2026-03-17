@@ -21,10 +21,8 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
+        public async Task<ActionResult<IEnumerable<CitaFrontend>>> GetAll([FromQuery] string? q = null)
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
             var baseQ = _context.Agendamientos
                 .Include(a => a.Cliente)
                     .ThenInclude(c => c.Usuario)
@@ -50,11 +48,8 @@ namespace BarberiaApi.Controllers
                     (a.Paquete != null && a.Paquete.Nombre != null && a.Paquete.Nombre.ToLower().Contains(term))
                 );
             }
-            var totalCount = await baseQ.CountAsync();
             var ags = await baseQ
                 .OrderByDescending(a => a.FechaHora)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
                 .ToListAsync();
             var items = ags.Select(a => new CitaFrontend
             {
@@ -70,8 +65,7 @@ namespace BarberiaApi.Controllers
                 estado = a.Estado ?? "Pendiente",
                 notas = a.Notas ?? ""
             }).ToList();
-            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-            return Ok(new { items, totalCount, page, pageSize, totalPages });
+            return Ok(items);
         }
 
         [HttpGet("{id}")]
