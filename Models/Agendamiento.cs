@@ -33,5 +33,4 @@ public partial class Agendamiento
 
     public virtual Paquete? Paquete { get; set; }
 
-    public virtual ICollection<AgendamientoServicio> AgendamientoServicios { get; set; } = new List<AgendamientoServicio>();
 }
