@@ -29,11 +29,7 @@ namespace BarberiaApi.Controllers
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 5;
             var baseQ = _context.Ventas
-                .Include(v => v.Cliente).ThenInclude(c => c.Usuario)
-                .Include(v => v.Usuario)
-                .Include(v => v.Barbero).ThenInclude(b => b.Usuario)
                 .AsNoTracking()
-                .AsSplitQuery()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -60,6 +56,51 @@ namespace BarberiaApi.Controllers
                 .OrderByDescending(v => v.Fecha)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
+                .Select(v => new
+                {
+                    v.Id,
+                    v.Fecha,
+                    v.Subtotal,
+                    v.Total,
+                    v.Descuento,
+                    v.IVA,
+                    v.Estado,
+                    v.MetodoPago,
+                    v.ClienteId,
+                    v.BarberoId,
+                    v.UsuarioId,
+                    v.SaldoAFavorUsado,
+                    Cliente = v.Cliente == null ? null : new
+                    {
+                        v.Cliente.Id,
+                        v.Cliente.UsuarioId,
+                        v.Cliente.Telefono,
+                        Usuario = v.Cliente.Usuario == null ? null : new
+                        {
+                            v.Cliente.Usuario.Id,
+                            v.Cliente.Usuario.Nombre,
+                            v.Cliente.Usuario.Apellido,
+                            v.Cliente.Usuario.Correo
+                        }
+                    },
+                    Usuario = v.Usuario == null ? null : new
+                    {
+                        v.Usuario.Id,
+                        v.Usuario.Nombre,
+                        v.Usuario.Apellido
+                    },
+                    Barbero = v.Barbero == null ? null : new
+                    {
+                        v.Barbero.Id,
+                        v.Barbero.UsuarioId,
+                        Usuario = v.Barbero.Usuario == null ? null : new
+                        {
+                            v.Barbero.Usuario.Id,
+                            v.Barbero.Usuario.Nombre,
+                            v.Barbero.Usuario.Apellido
+                        }
+                    }
+                })
                 .ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });

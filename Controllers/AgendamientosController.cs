@@ -93,6 +93,20 @@ namespace BarberiaApi.Controllers
             return text;
         }
 
+        private async Task<Dictionary<int, Servicio>> LoadServiciosMapAsync(IEnumerable<Agendamiento> agendamientos)
+        {
+            var ids = agendamientos
+                .SelectMany(a => ExtractServicioIds(a))
+                .Concat(agendamientos.Where(a => a.ServicioId.HasValue).Select(a => a.ServicioId!.Value))
+                .Distinct()
+                .ToList();
+            if (ids.Count == 0) return new Dictionary<int, Servicio>();
+            return await _context.Servicios
+                .AsNoTracking()
+                .Where(s => ids.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id);
+        }
+
         private AgendamientoDTO MapToDto(Agendamiento agendamiento, Dictionary<int, Servicio> serviciosMap)
         {
             var servicioIds = ExtractServicioIds(agendamiento);
@@ -169,7 +183,7 @@ namespace BarberiaApi.Controllers
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
-            var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
+            var serviciosMap = await LoadServiciosMapAsync(rows);
             var items = rows.Select(a => MapToDto(a, serviciosMap)).ToList();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
@@ -191,7 +205,7 @@ namespace BarberiaApi.Controllers
                 .FirstOrDefaultAsync(a => a.Id == id);
 
             if (agendamiento == null) return NotFound();
-            var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
+            var serviciosMap = await LoadServiciosMapAsync(new[] { agendamiento });
             return Ok(MapToDto(agendamiento, serviciosMap));
         }
 
@@ -213,7 +227,7 @@ namespace BarberiaApi.Controllers
                 .AsNoTracking()
                 .AsSplitQuery()
                 .ToListAsync();
-            var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
+            var serviciosMap = await LoadServiciosMapAsync(rows);
             return rows.Select(a => MapToDto(a, serviciosMap)).ToList();
         }
 
@@ -255,7 +269,7 @@ namespace BarberiaApi.Controllers
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
-            var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
+            var serviciosMap = await LoadServiciosMapAsync(rows);
             var items = rows.Select(a => MapToDto(a, serviciosMap)).ToList();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
@@ -346,7 +360,7 @@ namespace BarberiaApi.Controllers
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
                 .FirstOrDefaultAsync(a => a.Id == agendamiento.Id);
-            var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
+            var serviciosMap = await LoadServiciosMapAsync(new[] { created! });
             return CreatedAtAction(nameof(GetById), new { id = agendamiento.Id }, MapToDto(created!, serviciosMap));
         }
 

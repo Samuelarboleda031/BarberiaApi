@@ -186,11 +186,11 @@ builder.Services.AddResponseCompression(opt =>
 builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 
-// 🧠 Cache de salida para GET (TTL corto)
+// 🧠 Cache de salida para GET
 builder.Services.AddOutputCache(options =>
 {
     options.AddPolicy("short", policy =>
-        policy.Expire(TimeSpan.FromSeconds(10))
+        policy.Expire(TimeSpan.FromSeconds(30))
               .SetVaryByQuery(new[] { "page", "pageSize", "q", "desde", "hasta", "barberoId", "clienteId", "productoId", "entregaId" })
               .SetVaryByRouteValue("id")
               .SetVaryByRouteValue("barberoId")

@@ -29,6 +29,7 @@ namespace BarberiaApi.Controllers
             if (pageSize < 1) pageSize = 5;
             var baseQ = _context.Barberos
                 .Include(b => b.Usuario)
+                    .ThenInclude(u => u.Rol)
                 .AsNoTracking()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
