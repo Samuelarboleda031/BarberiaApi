@@ -1,0 +1,18 @@
+using BarberiaApi.Models;
+
+namespace BarberiaApi.Services;
+
+public interface INotificacionCitasService
+{
+    Task<ResultadoNotificacionCita> NotificarCancelacionPorDesactivacionAsync(
+        Agendamiento agendamiento,
+        string motivo,
+        IReadOnlyCollection<DateTime> sugerenciasReprogramacion);
+}
+
+public class ResultadoNotificacionCita
+{
+    public bool Enviado { get; set; }
+    public string Canal { get; set; } = string.Empty;
+    public string Mensaje { get; set; } = string.Empty;
+}
