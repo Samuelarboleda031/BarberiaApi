@@ -267,7 +267,9 @@ namespace BarberiaApi.Controllers
                 var citasCanceladas = new List<object>();
                 var correosEnviados = 0;
                 var correosFallidos = 0;
-                foreach (var agendamiento in agendamientosAfectados)
+
+                // Preparar las tareas de notificación para ejecución en paralelo
+                var tareasNotificacion = agendamientosAfectados.Select(async agendamiento =>
                 {
                     var duracion = ObtenerDuracionMinutos(agendamiento);
                     var sugerencias = ObtenerSugerenciasReprogramacionConCache(
@@ -282,6 +284,18 @@ namespace BarberiaApi.Controllers
                         agendamiento,
                         motivo,
                         sugerencias);
+
+                    return new { agendamiento, notificacion, sugerencias };
+                }).ToList();
+
+                var resultados = await Task.WhenAll(tareasNotificacion);
+
+                foreach (var res in resultados)
+                {
+                    var agendamiento = res.agendamiento;
+                    var notificacion = res.notificacion;
+                    var sugerencias = res.sugerencias;
+
                     if (notificacion.Enviado) correosEnviados++;
                     else correosFallidos++;
 
@@ -545,7 +559,11 @@ namespace BarberiaApi.Controllers
                 .ToDictionary(g => g.Key, g => g.ToList());
 
             var citasCanceladas = new List<object>();
-            foreach (var agendamiento in agendamientosAfectados)
+            var correosEnviados = 0;
+            var correosFallidos = 0;
+
+            // Preparar las tareas de notificación para ejecución en paralelo
+            var tareasNotificacion = agendamientosAfectados.Select(async agendamiento =>
             {
                 var duracion = ObtenerDuracionMinutos(agendamiento);
                 var sugerencias = ObtenerSugerenciasReprogramacionConCache(
@@ -560,6 +578,20 @@ namespace BarberiaApi.Controllers
                     agendamiento,
                     motivo,
                     sugerencias);
+
+                return new { agendamiento, notificacion, sugerencias };
+            }).ToList();
+
+            var resultados = await Task.WhenAll(tareasNotificacion);
+
+            foreach (var res in resultados)
+            {
+                var agendamiento = res.agendamiento;
+                var notificacion = res.notificacion;
+                var sugerencias = res.sugerencias;
+
+                if (notificacion.Enviado) correosEnviados++;
+                else correosFallidos++;
 
                 agendamiento.Estado = "Cancelada";
                 agendamiento.Notas = AgregarNotaSistema(agendamiento.Notas, motivo, fechaReferencia);
@@ -593,7 +625,14 @@ namespace BarberiaApi.Controllers
                 barberoId = barberoId,
                 fechaCancelada = fechaReferencia.ToString("yyyy-MM-dd"),
                 citasCanceladas = citasCanceladas.Count,
-                detalle = citasCanceladas
+                detalle = citasCanceladas,
+                integracionCorreo = new
+                {
+                    activa = correosEnviados > 0,
+                    estado = correosFallidos == 0 ? "correo_enviado" : "correo_parcial_o_fallido",
+                    enviados = correosEnviados,
+                    fallidos = correosFallidos
+                }
             });
         }
 
