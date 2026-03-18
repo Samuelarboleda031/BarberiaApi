@@ -461,6 +461,114 @@ namespace BarberiaApi.Controllers
 
             return Ok(horariosDisponibles);
         }
+
+        [HttpPost("barbero/{barberoId}/cancelar-dia")]
+        public async Task<IActionResult> CancelarDiaPorBarbero(int barberoId, [FromBody] CambioEstadoHorarioInput input)
+        {
+            if (input == null) return BadRequest("Entrada requerida");
+            if (input.UsuarioSolicitanteId <= 0) return BadRequest("Debe enviar UsuarioSolicitanteId para cancelar día.");
+
+            var usuarioSolicitante = await _context.Usuarios
+                .Include(u => u.Rol)
+                .Include(u => u.Barbero)
+                .FirstOrDefaultAsync(u => u.Id == input.UsuarioSolicitanteId && u.Estado);
+
+            if (usuarioSolicitante == null)
+                return Unauthorized("Usuario solicitante inválido o inactivo.");
+
+            var puedeGestionar = PuedeGestionarDesactivacionPorBarbero(usuarioSolicitante, barberoId);
+            if (!puedeGestionar) return Forbid();
+
+            var fechaReferencia = (input.FechaReferencia ?? DateTime.Today).Date;
+            var inicioDia = fechaReferencia;
+            var finDia = inicioDia.AddDays(1);
+
+            var motivo = string.IsNullOrWhiteSpace(input.Motivo)
+                ? "Día desactivado por administración."
+                : input.Motivo!.Trim();
+
+            var agendamientosAfectados = await _context.Agendamientos
+                .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
+                .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+                .Include(a => a.Servicio)
+                .Include(a => a.Paquete)
+                .Where(a => a.BarberoId == barberoId
+                            && a.FechaHora >= inicioDia
+                            && a.FechaHora < finDia
+                            && !string.Equals(a.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase)
+                            && !string.Equals(a.Estado, "Completada", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(a => a.FechaHora)
+                .ToListAsync();
+
+            var cantidadSugerencias = input.CantidadSugerencias <= 0 ? 3 : input.CantidadSugerencias;
+            var citasCanceladas = new List<object>();
+            foreach (var agendamiento in agendamientosAfectados)
+            {
+                var duracion = ObtenerDuracionMinutos(agendamiento);
+                var sugerencias = await ObtenerSugerenciasReprogramacionAsync(
+                    barberoId,
+                    agendamiento.Id,
+                    agendamiento.FechaHora,
+                    duracion,
+                    cantidadSugerencias);
+
+                var notificacion = await _notificacionCitasService.NotificarCancelacionPorDesactivacionAsync(
+                    agendamiento,
+                    motivo,
+                    sugerencias);
+
+                agendamiento.Estado = "Cancelada";
+                agendamiento.Notas = AgregarNotaSistema(agendamiento.Notas, motivo, fechaReferencia);
+
+                citasCanceladas.Add(new
+                {
+                    citaId = agendamiento.Id,
+                    clienteId = agendamiento.ClienteId,
+                    clienteNombre = $"{agendamiento.Cliente?.Usuario?.Nombre} {agendamiento.Cliente?.Usuario?.Apellido}".Trim(),
+                    clienteCorreo = agendamiento.Cliente?.Usuario?.Correo,
+                    barberoId = agendamiento.BarberoId,
+                    barberoNombre = $"{agendamiento.Barbero?.Usuario?.Nombre} {agendamiento.Barbero?.Usuario?.Apellido}".Trim(),
+                    fechaHoraOriginal = agendamiento.FechaHora,
+                    estadoFinal = agendamiento.Estado,
+                    notificacion = new
+                    {
+                        enviado = notificacion.Enviado,
+                        canal = notificacion.Canal,
+                        mensaje = notificacion.Mensaje
+                    },
+                    sugerenciasReprogramacion = sugerencias.Select(s => s.ToString("yyyy-MM-ddTHH:mm:ss"))
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                exitoso = true,
+                mensaje = "Día cancelado para el barbero y citas afectadas canceladas.",
+                barberoId = barberoId,
+                fechaCancelada = fechaReferencia.ToString("yyyy-MM-dd"),
+                citasCanceladas = citasCanceladas.Count,
+                detalle = citasCanceladas
+            });
+        }
+
+        private static bool PuedeGestionarDesactivacionPorBarbero(Usuario usuarioSolicitante, int barberoId)
+        {
+            var nombreRol = (usuarioSolicitante.Rol?.Nombre ?? string.Empty).Trim().ToLowerInvariant();
+            var rolId = usuarioSolicitante.RolId ?? 0;
+
+            var esSuperAdministrador = rolId == 18 || (nombreRol.Contains("super") && nombreRol.Contains("admin"));
+            var esAdministrador = rolId == 1 || (nombreRol.Contains("admin") && !nombreRol.Contains("barbero") && !nombreRol.Contains("super"));
+            var esBarbero = rolId == 2 || nombreRol.Contains("barbero");
+
+            if (esSuperAdministrador || esAdministrador) return true;
+            if (esBarbero)
+            {
+                return usuarioSolicitante.Barbero != null && usuarioSolicitante.Barbero.Id == barberoId;
+            }
+            return false;
+        }
     }
 
     // DTOs para HorariosBarbero
