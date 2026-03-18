@@ -244,16 +244,37 @@ namespace BarberiaApi.Controllers
                     .OrderBy(a => a.FechaHora)
                     .ToListAsync();
 
+                var cantidadSugerencias = input.CantidadSugerencias <= 0 ? 3 : input.CantidadSugerencias;
+                var inicioBusquedaSugerencias = fechaReferencia.AddDays(1);
+                var finBusquedaSugerencias = inicioBusquedaSugerencias.AddDays(31);
+                var horariosActivos = await _context.HorariosBarberos
+                    .AsNoTracking()
+                    .Where(h => h.BarberoId == horario.BarberoId && h.Estado == true)
+                    .ToListAsync();
+                var agendaRango = await _context.Agendamientos
+                    .AsNoTracking()
+                    .Include(a => a.Servicio)
+                    .Include(a => a.Paquete)
+                    .Where(a => a.BarberoId == horario.BarberoId
+                                && a.FechaHora >= inicioBusquedaSugerencias
+                                && a.FechaHora < finBusquedaSugerencias
+                                && (a.Estado == null || a.Estado != "Cancelada"))
+                    .ToListAsync();
+                var agendaPorDia = agendaRango
+                    .GroupBy(a => a.FechaHora.Date)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
                 var citasCanceladas = new List<object>();
                 foreach (var agendamiento in agendamientosAfectados)
                 {
                     var duracion = ObtenerDuracionMinutos(agendamiento);
-                    var sugerencias = await ObtenerSugerenciasReprogramacionAsync(
-                        horario.BarberoId,
+                    var sugerencias = ObtenerSugerenciasReprogramacionConCache(
                         agendamiento.Id,
                         agendamiento.FechaHora,
                         duracion,
-                        input.CantidadSugerencias <= 0 ? 3 : input.CantidadSugerencias);
+                        cantidadSugerencias,
+                        horariosActivos,
+                        agendaPorDia);
 
                     var notificacion = await _notificacionCitasService.NotificarCancelacionPorDesactivacionAsync(
                         agendamiento,
@@ -499,16 +520,36 @@ namespace BarberiaApi.Controllers
                 .ToListAsync();
 
             var cantidadSugerencias = input.CantidadSugerencias <= 0 ? 3 : input.CantidadSugerencias;
+            var inicioBusqueda = fechaReferencia.AddDays(1);
+            var finBusqueda = inicioBusqueda.AddDays(31);
+            var horariosActivos = await _context.HorariosBarberos
+                .AsNoTracking()
+                .Where(h => h.BarberoId == barberoId && h.Estado == true)
+                .ToListAsync();
+            var agendaRango = await _context.Agendamientos
+                .AsNoTracking()
+                .Include(a => a.Servicio)
+                .Include(a => a.Paquete)
+                .Where(a => a.BarberoId == barberoId
+                            && a.FechaHora >= inicioBusqueda
+                            && a.FechaHora < finBusqueda
+                            && (a.Estado == null || a.Estado != "Cancelada"))
+                .ToListAsync();
+            var agendaPorDia = agendaRango
+                .GroupBy(a => a.FechaHora.Date)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
             var citasCanceladas = new List<object>();
             foreach (var agendamiento in agendamientosAfectados)
             {
                 var duracion = ObtenerDuracionMinutos(agendamiento);
-                var sugerencias = await ObtenerSugerenciasReprogramacionAsync(
-                    barberoId,
+                var sugerencias = ObtenerSugerenciasReprogramacionConCache(
                     agendamiento.Id,
                     agendamiento.FechaHora,
                     duracion,
-                    cantidadSugerencias);
+                    cantidadSugerencias,
+                    horariosActivos,
+                    agendaPorDia);
 
                 var notificacion = await _notificacionCitasService.NotificarCancelacionPorDesactivacionAsync(
                     agendamiento,
@@ -566,6 +607,58 @@ namespace BarberiaApi.Controllers
                 return usuarioSolicitante.Barbero != null && usuarioSolicitante.Barbero.Id == barberoId;
             }
             return false;
+        }
+
+        private List<DateTime> ObtenerSugerenciasReprogramacionConCache(
+            int agendamientoIdActual,
+            DateTime fechaOriginal,
+            int duracionMinutos,
+            int cantidadSugerencias,
+            List<HorariosBarbero> horariosActivos,
+            Dictionary<DateTime, List<Agendamiento>> agendaPorDia)
+        {
+            var sugerencias = new List<DateTime>();
+            if (horariosActivos == null || horariosActivos.Count == 0) return sugerencias;
+
+            var fechaInicioBusqueda = fechaOriginal.Date.AddDays(1);
+            var fechaLimite = fechaInicioBusqueda.AddDays(30);
+
+            for (var fecha = fechaInicioBusqueda; fecha <= fechaLimite && sugerencias.Count < cantidadSugerencias; fecha = fecha.AddDays(1))
+            {
+                var diaSemana = DiaSemanaDominicalANumerico(fecha.DayOfWeek);
+                var horarioDia = horariosActivos.FirstOrDefault(h => h.DiaSemana == diaSemana);
+                if (horarioDia == null) continue;
+
+                var agendamientosDia = agendaPorDia.TryGetValue(fecha.Date, out var listaDia)
+                    ? listaDia.Where(a => a.Id != agendamientoIdActual).ToList()
+                    : new List<Agendamiento>();
+
+                var inicioSlot = fecha.Add(horarioDia.HoraInicio);
+                var limiteSlot = fecha.Add(horarioDia.HoraFin).AddMinutes(-duracionMinutos);
+
+                while (inicioSlot <= limiteSlot && sugerencias.Count < cantidadSugerencias)
+                {
+                    if (inicioSlot > DateTime.Now)
+                    {
+                        var finSlot = inicioSlot.AddMinutes(duracionMinutos);
+                        var hayTraslape = agendamientosDia.Any(a =>
+                        {
+                            var inicioExistente = a.FechaHora;
+                            var finExistente = inicioExistente.AddMinutes(ObtenerDuracionMinutos(a));
+                            return inicioExistente < finSlot && finExistente > inicioSlot;
+                        });
+
+                        if (!hayTraslape)
+                        {
+                            sugerencias.Add(inicioSlot);
+                        }
+                    }
+
+                    inicioSlot = inicioSlot.AddMinutes(30);
+                }
+            }
+
+            return sugerencias;
         }
     }
 
