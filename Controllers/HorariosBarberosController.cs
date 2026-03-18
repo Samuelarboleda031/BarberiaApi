@@ -240,8 +240,7 @@ namespace BarberiaApi.Controllers
                     .Where(a => a.BarberoId == horario.BarberoId
                                 && a.FechaHora >= inicioDia
                                 && a.FechaHora < finDia
-                                && !string.Equals(a.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase)
-                                && !string.Equals(a.Estado, "Completada", StringComparison.OrdinalIgnoreCase))
+                                && (a.Estado == null || (a.Estado != "Cancelada" && a.Estado != "Completada")))
                     .OrderBy(a => a.FechaHora)
                     .ToListAsync();
 
@@ -401,7 +400,7 @@ namespace BarberiaApi.Controllers
                                 && a.Id != agendamientoIdActual
                                 && a.FechaHora >= fecha
                                 && a.FechaHora < fecha.AddDays(1)
-                                && !string.Equals(a.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase))
+                                && (a.Estado == null || a.Estado != "Cancelada"))
                     .ToListAsync();
 
                 var inicioSlot = fecha.Add(horarioDia.HoraInicio);
@@ -495,8 +494,7 @@ namespace BarberiaApi.Controllers
                 .Where(a => a.BarberoId == barberoId
                             && a.FechaHora >= inicioDia
                             && a.FechaHora < finDia
-                            && !string.Equals(a.Estado, "Cancelada", StringComparison.OrdinalIgnoreCase)
-                            && !string.Equals(a.Estado, "Completada", StringComparison.OrdinalIgnoreCase))
+                            && (a.Estado == null || (a.Estado != "Cancelada" && a.Estado != "Completada")))
                 .OrderBy(a => a.FechaHora)
                 .ToListAsync();
 
