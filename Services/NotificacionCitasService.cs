@@ -19,14 +19,26 @@ public class NotificacionCitasService : INotificacionCitasService
         string motivo,
         IReadOnlyCollection<DateTime> sugerenciasReprogramacion)
     {
-        var correoHabilitado = _configuration.GetValue<bool>("Notificaciones:Correo:Habilitado", false);
+        string? GetSetting(string key, string envKey)
+        {
+            var value = _configuration[key];
+            if (!string.IsNullOrWhiteSpace(value)) return value;
+            return Environment.GetEnvironmentVariable(envKey);
+        }
+
+        var correoHabilitadoConfig = _configuration.GetValue<bool?>("Notificaciones:Correo:Habilitado");
+        var correoHabilitadoEnv = Environment.GetEnvironmentVariable("NOTIFICACIONES_CORREO_HABILITADO")
+            ?? Environment.GetEnvironmentVariable("SMTP_ENABLED");
+        var correoHabilitado = correoHabilitadoConfig
+            ?? (bool.TryParse(correoHabilitadoEnv, out var habilitadoEnv) && habilitadoEnv);
+
         if (!correoHabilitado)
         {
             return new ResultadoNotificacionCita
             {
-                Enviado = true,
-                Canal = "in_app",
-                Mensaje = "Cancelación notificada para consumo frontend (in-app), sin envío de correo."
+                Enviado = false,
+                Canal = "correo_smtp",
+                Mensaje = "El envío de correo está deshabilitado. Activa Notificaciones:Correo:Habilitado o SMTP_ENABLED=true."
             };
         }
 
@@ -41,13 +53,17 @@ public class NotificacionCitasService : INotificacionCitasService
             };
         }
 
-        var host = _configuration["Notificaciones:Correo:Host"]?.Trim();
-        var puerto = _configuration.GetValue<int?>("Notificaciones:Correo:Puerto") ?? 587;
-        var useSsl = _configuration.GetValue<bool>("Notificaciones:Correo:UseSsl", true);
-        var usuario = _configuration["Notificaciones:Correo:Usuario"]?.Trim();
-        var contrasena = _configuration["Notificaciones:Correo:Contrasena"];
-        var remitente = _configuration["Notificaciones:Correo:Remitente"]?.Trim();
-        var nombreRemitente = _configuration["Notificaciones:Correo:NombreRemitente"]?.Trim();
+        var host = GetSetting("Notificaciones:Correo:Host", "SMTP_HOST")?.Trim();
+        var puertoConfig = _configuration.GetValue<int?>("Notificaciones:Correo:Puerto");
+        var puertoEnv = Environment.GetEnvironmentVariable("SMTP_PORT");
+        var puerto = puertoConfig ?? (int.TryParse(puertoEnv, out var p) ? p : 587);
+        var useSslConfig = _configuration.GetValue<bool?>("Notificaciones:Correo:UseSsl");
+        var useSslEnv = Environment.GetEnvironmentVariable("SMTP_SSL");
+        var useSsl = useSslConfig ?? (bool.TryParse(useSslEnv, out var ssl) ? ssl : true);
+        var usuario = GetSetting("Notificaciones:Correo:Usuario", "SMTP_USER")?.Trim();
+        var contrasena = GetSetting("Notificaciones:Correo:Contrasena", "SMTP_PASSWORD");
+        var remitente = GetSetting("Notificaciones:Correo:Remitente", "SMTP_FROM")?.Trim();
+        var nombreRemitente = GetSetting("Notificaciones:Correo:NombreRemitente", "SMTP_FROM_NAME")?.Trim();
 
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(remitente))
         {
