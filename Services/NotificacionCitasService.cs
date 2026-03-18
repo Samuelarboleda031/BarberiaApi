@@ -84,6 +84,19 @@ public class NotificacionCitasService : INotificacionCitasService
         }
         var puertoEnv = NormalizeSetting(Environment.GetEnvironmentVariable("SMTP_PORT"));
         var puerto = puertoConfig ?? (int.TryParse(puertoEnv, out var p) ? p : 587);
+        var timeoutSegundosConfig = _configuration.GetValue<int?>("Notificaciones:Correo:TimeoutSegundos");
+        if (!timeoutSegundosConfig.HasValue)
+        {
+            var timeoutSegundosConfigRaw = NormalizeSetting(_configuration["Notificaciones:Correo:TimeoutSegundos"]);
+            if (int.TryParse(timeoutSegundosConfigRaw, out var timeoutSegundosConfigParsed))
+            {
+                timeoutSegundosConfig = timeoutSegundosConfigParsed;
+            }
+        }
+        var timeoutSegundosEnv = NormalizeSetting(Environment.GetEnvironmentVariable("SMTP_TIMEOUT_SECONDS"));
+        var timeoutSegundos = timeoutSegundosConfig ?? (int.TryParse(timeoutSegundosEnv, out var timeoutEnvParsed) ? timeoutEnvParsed : 6);
+        if (timeoutSegundos < 2) timeoutSegundos = 2;
+        if (timeoutSegundos > 30) timeoutSegundos = 30;
         var useSslConfig = _configuration.GetValue<bool?>("Notificaciones:Correo:UseSsl");
         if (!useSslConfig.HasValue)
         {
@@ -115,7 +128,8 @@ public class NotificacionCitasService : INotificacionCitasService
             using var smtp = new SmtpClient(host, puerto)
             {
                 EnableSsl = useSsl,
-                DeliveryMethod = SmtpDeliveryMethod.Network
+                DeliveryMethod = SmtpDeliveryMethod.Network,
+                Timeout = timeoutSegundos * 1000
             };
 
             if (!string.IsNullOrWhiteSpace(usuario))
@@ -132,12 +146,21 @@ public class NotificacionCitasService : INotificacionCitasService
             };
             mail.To.Add(destinatario);
 
-            await smtp.SendMailAsync(mail);
+            await smtp.SendMailAsync(mail).WaitAsync(TimeSpan.FromSeconds(timeoutSegundos));
             return new ResultadoNotificacionCita
             {
                 Enviado = true,
                 Canal = "correo_smtp",
                 Mensaje = "Correo enviado correctamente al cliente."
+            };
+        }
+        catch (TimeoutException)
+        {
+            return new ResultadoNotificacionCita
+            {
+                Enviado = false,
+                Canal = "correo_smtp",
+                Mensaje = $"Timeout SMTP tras {timeoutSegundos}s. El correo no respondió a tiempo."
             };
         }
         catch (Exception ex)
