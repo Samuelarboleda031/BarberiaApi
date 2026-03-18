@@ -12,6 +12,9 @@ using Microsoft.AspNetCore.Http.Features;
 using System.IO.Compression;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.OutputCaching;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -68,6 +71,52 @@ builder.Services.AddCors(options =>
 
 // Registrar el Handler en el contenedor de dependencias
 builder.Services.AddSingleton<IAuthorizationHandler, ValidPasswordHandler>();
+
+var firebaseProjectId = builder.Configuration["Firebase:ProjectId"]
+    ?? Environment.GetEnvironmentVariable("FIREBASE_PROJECT_ID");
+
+if (!string.IsNullOrWhiteSpace(firebaseProjectId))
+{
+    builder.Services
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.Authority = $"https://securetoken.google.com/{firebaseProjectId}";
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = $"https://securetoken.google.com/{firebaseProjectId}",
+                ValidateAudience = true,
+                ValidAudience = firebaseProjectId,
+                ValidateLifetime = true,
+                NameClaimType = "name",
+                RoleClaimType = ClaimTypes.Role
+            };
+            options.Events = new JwtBearerEvents
+            {
+                OnTokenValidated = context =>
+                {
+                    if (context.Principal?.Identity is ClaimsIdentity identity)
+                    {
+                        var adminClaim = identity.FindFirst("admin")?.Value;
+                        var superAdminClaim = identity.FindFirst("super_admin")?.Value;
+                        if (string.Equals(adminClaim, "true", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(superAdminClaim, "true", StringComparison.OrdinalIgnoreCase))
+                        {
+                            identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                        }
+
+                        var explicitRole = identity.FindFirst("role")?.Value ?? identity.FindFirst("rol")?.Value;
+                        if (!string.IsNullOrWhiteSpace(explicitRole))
+                        {
+                            identity.AddClaim(new Claim(ClaimTypes.Role, explicitRole));
+                        }
+                    }
+                    return Task.CompletedTask;
+                }
+            };
+        });
+}
 
 // Configurar la Política de Autorización
 builder.Services.AddAuthorization(options =>
@@ -182,6 +231,7 @@ app.UseOutputCache();
 
 app.UseStaticFiles();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

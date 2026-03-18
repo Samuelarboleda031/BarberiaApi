@@ -328,8 +328,8 @@ namespace BarberiaApi.Controllers
             var nombreRol = (usuarioSolicitante.Rol?.Nombre ?? string.Empty).Trim().ToLowerInvariant();
             var rolId = usuarioSolicitante.RolId ?? 0;
 
-            var esSuperAdministrador = nombreRol.Contains("super") && nombreRol.Contains("admin");
-            var esAdministrador = rolId == 1 || (nombreRol.Contains("admin") && !nombreRol.Contains("barbero"));
+            var esSuperAdministrador = rolId == 18 || (nombreRol.Contains("super") && nombreRol.Contains("admin"));
+            var esAdministrador = rolId == 1 || (nombreRol.Contains("admin") && !nombreRol.Contains("barbero") && !nombreRol.Contains("super"));
             var esBarbero = rolId == 2 || nombreRol.Contains("barbero");
 
             if (esSuperAdministrador || esAdministrador) return true;
