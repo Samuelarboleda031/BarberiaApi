@@ -265,6 +265,8 @@ namespace BarberiaApi.Controllers
                     .ToDictionary(g => g.Key, g => g.ToList());
 
                 var citasCanceladas = new List<object>();
+                var correosEnviados = 0;
+                var correosFallidos = 0;
                 foreach (var agendamiento in agendamientosAfectados)
                 {
                     var duracion = ObtenerDuracionMinutos(agendamiento);
@@ -280,6 +282,8 @@ namespace BarberiaApi.Controllers
                         agendamiento,
                         motivo,
                         sugerencias);
+                    if (notificacion.Enviado) correosEnviados++;
+                    else correosFallidos++;
 
                     agendamiento.Estado = "Cancelada";
                     agendamiento.Notas = AgregarNotaSistema(agendamiento.Notas, motivo, fechaReferencia);
@@ -317,9 +321,10 @@ namespace BarberiaApi.Controllers
                     detalle = citasCanceladas,
                     integracionCorreo = new
                     {
-                        activa = false,
-                        estado = "flujo_correo_general_deshabilitado_en_program",
-                        recomendacion = "Mantener notificación in-app desde este endpoint hasta habilitar un servicio SMTP dedicado."
+                        activa = correosEnviados > 0,
+                        estado = correosFallidos == 0 ? "correo_enviado" : "correo_parcial_o_fallido",
+                        enviados = correosEnviados,
+                        fallidos = correosFallidos
                     }
                 });
             }

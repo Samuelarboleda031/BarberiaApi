@@ -8,6 +8,10 @@ public interface INotificacionCitasService
         Agendamiento agendamiento,
         string motivo,
         IReadOnlyCollection<DateTime> sugerenciasReprogramacion);
+
+    Task<ResultadoNotificacionCita> NotificarCancelacionGeneralAsync(
+        Agendamiento agendamiento,
+        string motivo);
 }
 
 public class ResultadoNotificacionCita

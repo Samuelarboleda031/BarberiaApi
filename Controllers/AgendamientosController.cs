@@ -1,6 +1,8 @@
 using BarberiaApi.Models;
+using BarberiaApi.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -14,12 +16,13 @@ namespace BarberiaApi.Controllers
     public class AgendamientosController : ControllerBase
     {
         private readonly BarberiaContext _context;
+        private readonly INotificacionCitasService _notificacionService;
         private const string ServiciosMetaPrefix = "[SERVICIOS_IDS:";
 
-        public AgendamientosController(BarberiaContext context)
+        public AgendamientosController(BarberiaContext context, INotificacionCitasService notificacionService)
         {
-            
             _context = context;
+            _notificacionService = notificacionService;
         }
 
         private List<int> BuildServicioIds(AgendamientoInput input)
@@ -127,8 +130,12 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<AgendamientoDTO>>> GetAll([FromQuery] string? q = null)
+        [OutputCache(PolicyName = "short")]
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 100, [FromQuery] string? q = null)
         {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 100;
+            if (pageSize > 300) pageSize = 300;
             var limite = DateTime.Now.AddDays(-7);
             var baseQ = _context.Agendamientos
                 .Where(a => a.FechaHora >= limite)
@@ -136,6 +143,8 @@ namespace BarberiaApi.Controllers
                 .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
+                .AsNoTracking()
+                .AsSplitQuery()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -154,15 +163,20 @@ namespace BarberiaApi.Controllers
                     (a.Paquete != null && a.Paquete.Nombre != null && a.Paquete.Nombre.ToLower().Contains(term))
                 );
             }
+            var totalCount = await baseQ.CountAsync();
             var rows = await baseQ
                 .OrderByDescending(a => a.FechaHora)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
             var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
             var items = rows.Select(a => MapToDto(a, serviciosMap)).ToList();
-            return Ok(items);
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpGet("{id}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<AgendamientoDTO>> GetById(int id)
         {
             var agendamiento = await _context.Agendamientos
@@ -172,7 +186,9 @@ namespace BarberiaApi.Controllers
                     .ThenInclude(b => b.Usuario)
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
-                .FirstOrDefaultAsync();
+                .AsNoTracking()
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(a => a.Id == id);
 
             if (agendamiento == null) return NotFound();
             var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
@@ -180,6 +196,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("barbero/{barberoId}/{fecha}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<IEnumerable<AgendamientoDTO>>> GetByBarberoYFecha(int barberoId, DateTime fecha)
         {
             var inicioDia = fecha.Date;
@@ -193,9 +210,56 @@ namespace BarberiaApi.Controllers
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
                 .Where(a => a.BarberoId == barberoId && a.FechaHora >= inicioDia && a.FechaHora < finDia)
+                .AsNoTracking()
+                .AsSplitQuery()
                 .ToListAsync();
             var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
             return rows.Select(a => MapToDto(a, serviciosMap)).ToList();
+        }
+
+        [HttpGet("cliente/{clienteId}")]
+        [OutputCache(PolicyName = "short")]
+        public async Task<ActionResult<object>> GetByCliente(int clienteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 100, [FromQuery] string? q = null)
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 100;
+            if (pageSize > 300) pageSize = 300;
+
+            var baseQ = _context.Agendamientos
+                .Where(a => a.ClienteId == clienteId)
+                .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
+                .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+                .Include(a => a.Servicio)
+                .Include(a => a.Paquete)
+                .AsNoTracking()
+                .AsSplitQuery()
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                baseQ = baseQ.Where(a =>
+                    (a.Estado != null && a.Estado.ToLower().Contains(term)) ||
+                    (a.Barbero != null && a.Barbero.Usuario != null && (
+                        (a.Barbero.Usuario.Nombre != null && a.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (a.Barbero.Usuario.Apellido != null && a.Barbero.Usuario.Apellido.ToLower().Contains(term))
+                    )) ||
+                    (a.Servicio != null && a.Servicio.Nombre != null && a.Servicio.Nombre.ToLower().Contains(term)) ||
+                    (a.Paquete != null && a.Paquete.Nombre != null && a.Paquete.Nombre.ToLower().Contains(term))
+                );
+            }
+
+            var totalCount = await baseQ.CountAsync();
+            var rows = await baseQ
+                .OrderByDescending(a => a.FechaHora)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+            var serviciosMap = await _context.Servicios.AsNoTracking().ToDictionaryAsync(s => s.Id);
+            var items = rows.Select(a => MapToDto(a, serviciosMap)).ToList();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
         [HttpPost]
@@ -556,6 +620,21 @@ namespace BarberiaApi.Controllers
                 if (string.Equals(input.estado, "Cancelada", StringComparison.OrdinalIgnoreCase) &&
                     !string.Equals(estadoAnterior, "Cancelada", StringComparison.OrdinalIgnoreCase))
                 {
+                    ResultadoNotificacionCita? notificacionCancelacion = null;
+                    try
+                    {
+                        notificacionCancelacion = await _notificacionService.NotificarCancelacionGeneralAsync(agendamiento, "Cita cancelada por el usuario o administrador.");
+                    }
+                    catch (Exception ex)
+                    {
+                        notificacionCancelacion = new ResultadoNotificacionCita
+                        {
+                            Enviado = false,
+                            Canal = "correo_smtp",
+                            Mensaje = $"Error al enviar notificación: {ex.Message}"
+                        };
+                    }
+
                     var usuarioId = agendamiento.Barbero?.UsuarioId ?? 0;
                     var servicioIdsCitaCancel = ExtractServicioIds(agendamiento);
                     var ventaRelacionada = await _context.Ventas
@@ -588,9 +667,27 @@ namespace BarberiaApi.Controllers
                                 Total = ventaRelacionada.Total,
                                 Estado = ventaRelacionada.Estado,
                                 MetodoPago = ventaRelacionada.MetodoPago
+                            },
+                            notificacion = notificacionCancelacion == null ? null : new
+                            {
+                                enviado = notificacionCancelacion.Enviado,
+                                canal = notificacionCancelacion.Canal,
+                                mensaje = notificacionCancelacion.Mensaje
                             }
                         });
                     }
+                    await tx.CommitAsync();
+                    return Ok(new {
+                        message = "Estado actualizado correctamente",
+                        estadoActual = input.estado,
+                        agendamientoId = id,
+                        notificacion = notificacionCancelacion == null ? null : new
+                        {
+                            enviado = notificacionCancelacion.Enviado,
+                            canal = notificacionCancelacion.Canal,
+                            mensaje = notificacionCancelacion.Mensaje
+                        }
+                    });
                 }
 
                 await tx.CommitAsync();
@@ -612,15 +709,29 @@ namespace BarberiaApi.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             var agendamiento = await _context.Agendamientos
-                .Include(a => a.Cliente)
-                .Include(a => a.Barbero)
+                .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
+                .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
                 .FirstOrDefaultAsync(a => a.Id == id);
             
             if (agendamiento == null) return NotFound();
 
-            // Guardar información para la respuesta
+            ResultadoNotificacionCita? notificacionCancelacion = null;
+            try
+            {
+                notificacionCancelacion = await _notificacionService.NotificarCancelacionGeneralAsync(agendamiento, "Cita eliminada permanentemente del sistema.");
+            }
+            catch (Exception ex)
+            {
+                notificacionCancelacion = new ResultadoNotificacionCita
+                {
+                    Enviado = false,
+                    Canal = "correo_smtp",
+                    Mensaje = $"Error al enviar notificación: {ex.Message}"
+                };
+            }
+
             var infoRespuesta = new {
                 message = "Agendamiento eliminado permanentemente",
                 eliminado = true,
@@ -628,7 +739,13 @@ namespace BarberiaApi.Controllers
                 clienteAsociado = agendamiento.Cliente?.Usuario?.Nombre + " " + agendamiento.Cliente?.Usuario?.Apellido,
                 barberoAsociado = agendamiento.Barbero?.Usuario?.Nombre + " " + agendamiento.Barbero?.Usuario?.Apellido,
                 servicioAsociado = agendamiento.Servicio?.Nombre,
-                paqueteAsociado = agendamiento.Paquete?.Nombre
+                paqueteAsociado = agendamiento.Paquete?.Nombre,
+                notificacion = notificacionCancelacion == null ? null : new
+                {
+                    enviado = notificacionCancelacion.Enviado,
+                    canal = notificacionCancelacion.Canal,
+                    mensaje = notificacionCancelacion.Mensaje
+                }
             };
 
             // Borrar físicamente el agendamiento

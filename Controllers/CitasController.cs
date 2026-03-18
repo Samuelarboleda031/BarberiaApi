@@ -1,6 +1,8 @@
 using BarberiaApi.Models;
+using BarberiaApi.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -14,15 +16,21 @@ namespace BarberiaApi.Controllers
     public class CitasController : ControllerBase
     {
         private readonly BarberiaContext _context;
+        private readonly INotificacionCitasService _notificacionService;
 
-        public CitasController(BarberiaContext context)
+        public CitasController(BarberiaContext context, INotificacionCitasService notificacionService)
         {
             _context = context;
+            _notificacionService = notificacionService;
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<CitaFrontend>>> GetAll([FromQuery] string? q = null)
+        [OutputCache(PolicyName = "short")]
+        public async Task<ActionResult<IEnumerable<CitaFrontend>>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 100, [FromQuery] string? q = null)
         {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 100;
+            if (pageSize > 300) pageSize = 300;
             var baseQ = _context.Agendamientos
                 .Include(a => a.Cliente)
                     .ThenInclude(c => c.Usuario)
@@ -30,6 +38,8 @@ namespace BarberiaApi.Controllers
                     .ThenInclude(b => b.Usuario)
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
+                .AsNoTracking()
+                .AsSplitQuery()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -50,6 +60,8 @@ namespace BarberiaApi.Controllers
             }
             var ags = await baseQ
                 .OrderByDescending(a => a.FechaHora)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
             var items = ags.Select(a => new CitaFrontend
             {
@@ -69,6 +81,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("{id}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<CitaFrontend>> GetById(int id)
         {
             var agendamiento = await _context.Agendamientos
@@ -78,6 +91,8 @@ namespace BarberiaApi.Controllers
                     .ThenInclude(b => b.Usuario)
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
+                .AsNoTracking()
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(a => a.Id == id);
 
             if (agendamiento == null) return NotFound();
@@ -341,8 +356,8 @@ namespace BarberiaApi.Controllers
         public async Task<ActionResult<CitaFrontend>> CambiarEstado(int id, [FromBody] CambioEstadoInput input)
         {
             var agendamiento = await _context.Agendamientos
-                .Include(a => a.Cliente)
-                .Include(a => a.Barbero)
+                .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
+                .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
                 .FirstOrDefaultAsync(a => a.Id == id);
@@ -356,6 +371,19 @@ namespace BarberiaApi.Controllers
             // Actualizar solo el estado
             agendamiento.Estado = input.estado;
             await _context.SaveChangesAsync();
+
+            // Notificar si es cancelación
+            if (string.Equals(input.estado, "Cancelada", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    await _notificacionService.NotificarCancelacionGeneralAsync(agendamiento, "Estado de cita cambiado a Cancelada.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error al enviar notificación: {ex.Message}");
+                }
+            }
 
             var citaResponse = new CitaFrontend
             {
@@ -380,8 +408,8 @@ namespace BarberiaApi.Controllers
         {
             // Busca el agendamiento sin importar el estado
             var agendamiento = await _context.Agendamientos
-                .Include(a => a.Cliente)
-                .Include(a => a.Barbero)
+                .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
+                .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
                 .Include(a => a.Servicio)
                 .Include(a => a.Paquete)
                 .FirstOrDefaultAsync(a => a.Id == id);
@@ -392,6 +420,17 @@ namespace BarberiaApi.Controllers
             // Soft Delete: Cambia el estado a Cancelada
             agendamiento.Estado = "Cancelada";
             await _context.SaveChangesAsync();
+
+            // Notificar cancelación
+            try
+            {
+                await _notificacionService.NotificarCancelacionGeneralAsync(agendamiento, "Cita cancelada mediante eliminación lógica.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al enviar notificación: {ex.Message}");
+            }
+
             return Ok(new { 
                 message = "Cita cancelada (borrado lógico)", 
                 eliminado = true, 

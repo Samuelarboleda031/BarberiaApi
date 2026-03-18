@@ -194,6 +194,7 @@ builder.Services.AddOutputCache(options =>
               .SetVaryByQuery(new[] { "page", "pageSize", "q", "desde", "hasta", "barberoId", "clienteId", "productoId", "entregaId" })
               .SetVaryByRouteValue("id")
               .SetVaryByRouteValue("barberoId")
+              .SetVaryByRouteValue("clienteId")
               .SetVaryByRouteValue("paqueteId")
               .SetVaryByRouteValue("fecha")
     );
