@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.OutputCaching;
 using BarberiaApi.Services;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.Text.Json.Serialization;
 
 namespace BarberiaApi.Controllers
 {
@@ -222,7 +223,7 @@ namespace BarberiaApi.Controllers
 
                 horario.Estado = false;
 
-                var fechaReferencia = (input.FechaReferencia ?? DateTime.Today).Date;
+                var fechaReferencia = (input.FechaReferencia ?? input.FechaHora ?? DateTime.Today).Date;
                 if (DiaSemanaDominicalANumerico(fechaReferencia.DayOfWeek) != horario.DiaSemana)
                     return BadRequest("La FechaReferencia no corresponde al día de semana del horario seleccionado.");
 
@@ -336,7 +337,7 @@ namespace BarberiaApi.Controllers
                     integracionCorreo = new
                     {
                         activa = correosEnviados > 0,
-                        estado = correosFallidos == 0 ? "correo_enviado" : "correo_parcial_o_fallido",
+                        estado = correosEnviados == 0 && correosFallidos == 0 ? "sin_citas" : (correosFallidos == 0 ? "correo_enviado" : "correo_parcial_o_fallido"),
                         enviados = correosEnviados,
                         fallidos = correosFallidos
                     }
@@ -518,7 +519,7 @@ namespace BarberiaApi.Controllers
             var puedeGestionar = PuedeGestionarDesactivacionPorBarbero(usuarioSolicitante, barberoId);
             if (!puedeGestionar) return Forbid();
 
-            var fechaReferencia = (input.FechaReferencia ?? DateTime.Today).Date;
+            var fechaReferencia = (input.FechaReferencia ?? input.FechaHora ?? DateTime.Today).Date;
             var inicioDia = fechaReferencia;
             var finDia = inicioDia.AddDays(1);
 
@@ -629,7 +630,7 @@ namespace BarberiaApi.Controllers
                 integracionCorreo = new
                 {
                     activa = correosEnviados > 0,
-                    estado = correosFallidos == 0 ? "correo_enviado" : "correo_parcial_o_fallido",
+                    estado = correosEnviados == 0 && correosFallidos == 0 ? "sin_citas" : (correosFallidos == 0 ? "correo_enviado" : "correo_parcial_o_fallido"),
                     enviados = correosEnviados,
                     fallidos = correosFallidos
                 }
@@ -728,6 +729,8 @@ namespace BarberiaApi.Controllers
     {
         public bool estado { get; set; }
         public int UsuarioSolicitanteId { get; set; }
+        [JsonPropertyName("fechaHora")]
+        public DateTime? FechaHora { get; set; }
         public DateTime? FechaReferencia { get; set; }
         public string? Motivo { get; set; }
         public int CantidadSugerencias { get; set; } = 3;
