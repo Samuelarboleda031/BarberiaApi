@@ -373,6 +373,8 @@ namespace BarberiaApi.Controllers
             await _context.SaveChangesAsync();
 
             // Notificar si es cancelación
+            // La notificación vía SMTP ha sido eliminada. Se manejará en el frontend con EmailJS.
+            /*
             if (string.Equals(input.estado, "Cancelada", StringComparison.OrdinalIgnoreCase))
             {
                 try
@@ -384,6 +386,7 @@ namespace BarberiaApi.Controllers
                     Console.WriteLine($"Error al enviar notificación: {ex.Message}");
                 }
             }
+            */
 
             var citaResponse = new CitaFrontend
             {
@@ -422,6 +425,8 @@ namespace BarberiaApi.Controllers
             await _context.SaveChangesAsync();
 
             // Notificar cancelación
+            // La notificación vía SMTP ha sido eliminada. Se manejará en el frontend con EmailJS.
+            /*
             try
             {
                 await _notificacionService.NotificarCancelacionGeneralAsync(agendamiento, "Cita cancelada mediante eliminación lógica.");
@@ -430,6 +435,7 @@ namespace BarberiaApi.Controllers
             {
                 Console.WriteLine($"Error al enviar notificación: {ex.Message}");
             }
+            */
 
             return Ok(new { 
                 message = "Cita cancelada (borrado lógico)", 

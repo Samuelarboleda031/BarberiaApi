@@ -281,10 +281,14 @@ namespace BarberiaApi.Controllers
                         horariosActivos,
                         agendaPorDia);
 
+                    // La notificación vía SMTP ha sido eliminada. Se manejará en el frontend con EmailJS.
+                    /*
                     var notificacion = await _notificacionCitasService.NotificarCancelacionPorDesactivacionAsync(
                         agendamiento,
                         motivo,
                         sugerencias);
+                    */
+                    var notificacion = new ResultadoNotificacionCita { Enviado = false, Canal = "frontend", Mensaje = "Pendiente enviar via frontend" };
 
                     return new { agendamiento, notificacion, sugerencias };
                 }).ToList();
@@ -575,10 +579,14 @@ namespace BarberiaApi.Controllers
                     horariosActivos,
                     agendaPorDia);
 
+                // La notificación vía SMTP ha sido eliminada. Se manejará en el frontend con EmailJS.
+                /*
                 var notificacion = await _notificacionCitasService.NotificarCancelacionPorDesactivacionAsync(
                     agendamiento,
                     motivo,
                     sugerencias);
+                */
+                var notificacion = new ResultadoNotificacionCita { Enviado = false, Canal = "frontend", Mensaje = "Pendiente enviar via frontend" };
 
                 return new { agendamiento, notificacion, sugerencias };
             }).ToList();

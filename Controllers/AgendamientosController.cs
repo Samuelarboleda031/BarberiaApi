@@ -621,6 +621,8 @@ namespace BarberiaApi.Controllers
                     !string.Equals(estadoAnterior, "Cancelada", StringComparison.OrdinalIgnoreCase))
                 {
                     ResultadoNotificacionCita? notificacionCancelacion = null;
+                    // La notificación vía SMTP ha sido eliminada. Se manejará en el frontend con EmailJS.
+                    /*
                     try
                     {
                         notificacionCancelacion = await _notificacionService.NotificarCancelacionGeneralAsync(agendamiento, "Cita cancelada por el usuario o administrador.");
@@ -634,6 +636,7 @@ namespace BarberiaApi.Controllers
                             Mensaje = $"Error al enviar notificación: {ex.Message}"
                         };
                     }
+                    */
 
                     var usuarioId = agendamiento.Barbero?.UsuarioId ?? 0;
                     var servicioIdsCitaCancel = ExtractServicioIds(agendamiento);
@@ -718,6 +721,8 @@ namespace BarberiaApi.Controllers
             if (agendamiento == null) return NotFound();
 
             ResultadoNotificacionCita? notificacionCancelacion = null;
+            // La notificación vía SMTP ha sido eliminada. Se manejará en el frontend con EmailJS.
+            /*
             try
             {
                 notificacionCancelacion = await _notificacionService.NotificarCancelacionGeneralAsync(agendamiento, "Cita eliminada permanentemente del sistema.");
@@ -731,6 +736,7 @@ namespace BarberiaApi.Controllers
                     Mensaje = $"Error al enviar notificación: {ex.Message}"
                 };
             }
+            */
 
             var infoRespuesta = new {
                 message = "Agendamiento eliminado permanentemente",
