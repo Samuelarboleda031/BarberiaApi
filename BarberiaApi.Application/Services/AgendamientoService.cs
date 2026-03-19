@@ -11,7 +11,6 @@ public class AgendamientoService : IAgendamientoService
 {
     private readonly BarberiaContext _context;
     private readonly INotificacionCitasService _notificacionService;
-    private const string ServiciosMetaPrefix = "[SERVICIOS_IDS:";
 
     public AgendamientoService(BarberiaContext context, INotificacionCitasService notificacionService)
     {
@@ -40,14 +39,35 @@ public class AgendamientoService : IAgendamientoService
         {
             ids.Add(agendamiento.ServicioId.Value);
         }
-        var notas = agendamiento.Notas ?? string.Empty;
-        var start = notas.IndexOf(ServiciosMetaPrefix, StringComparison.Ordinal);
+        if (agendamiento.AgendamientoServicios != null)
+        {
+            ids.AddRange(agendamiento.AgendamientoServicios.Select(s => s.ServicioId));
+        }
+        return ids.Distinct().ToList();
+    }
+    
+    private List<int> ExtractProductoIds(Agendamiento agendamiento)
+    {
+        return agendamiento.AgendamientoProductos != null 
+            ? agendamiento.AgendamientoProductos.Select(ap => ap.ProductoId).ToList() 
+            : new List<int>();
+    }
+
+    private List<int> ExtractMetaIds(string? notas, string prefix, int? singleId)
+    {
+        var ids = new List<int>();
+        if (singleId.HasValue && singleId.Value > 0)
+        {
+            ids.Add(singleId.Value);
+        }
+        var text = notas ?? string.Empty;
+        var start = text.IndexOf(prefix, StringComparison.Ordinal);
         if (start >= 0)
         {
-            var end = notas.IndexOf(']', start);
+            var end = text.IndexOf(']', start);
             if (end > start)
             {
-                var payload = notas.Substring(start + ServiciosMetaPrefix.Length, end - (start + ServiciosMetaPrefix.Length));
+                var payload = text.Substring(start + prefix.Length, end - (start + prefix.Length));
                 var parsed = payload.Split(',', StringSplitOptions.RemoveEmptyEntries)
                     .Select(x => int.TryParse(x.Trim(), out var id) ? id : 0)
                     .Where(x => x > 0);
@@ -57,41 +77,26 @@ public class AgendamientoService : IAgendamientoService
         return ids.Distinct().ToList();
     }
 
-    private string BuildNotasWithServicios(string? notasUsuario, List<int> servicioIds)
+    private string BuildNotasWithMetadata(string? notasUsuario, List<int> servicioIds, List<int>? productoIds)
     {
-        var cleanNotas = CleanNotasFromMeta(notasUsuario);
-        if (servicioIds == null || servicioIds.Count <= 1)
-        {
-            return cleanNotas;
-        }
-        var meta = $"{ServiciosMetaPrefix}{string.Join(",", servicioIds)}]";
-        if (string.IsNullOrWhiteSpace(cleanNotas))
-        {
-            return meta;
-        }
-        return $"{meta}\n{cleanNotas}";
+        return CleanNotasFromMeta(notasUsuario);
     }
+
 
     private string CleanNotasFromMeta(string? notas)
     {
         if (string.IsNullOrWhiteSpace(notas)) return string.Empty;
-        var text = notas.Trim();
-        if (text.StartsWith(ServiciosMetaPrefix, StringComparison.Ordinal))
-        {
-            var idx = text.IndexOf(']');
-            if (idx >= 0)
-            {
-                text = text.Substring(idx + 1).TrimStart('\r', '\n', ' ');
-            }
-        }
-        return text;
+        var lines = notas.Split('\n');
+        var cleanLines = lines.Where(l => 
+            !l.Trim().StartsWith("[SERVICIOS_IDS:", StringComparison.Ordinal) &&
+            !l.Trim().StartsWith("[PRODUCTOS_IDS:", StringComparison.Ordinal));
+        return string.Join("\n", cleanLines).Trim();
     }
 
     private async Task<Dictionary<int, Servicio>> LoadServiciosMapAsync(IEnumerable<Agendamiento> agendamientos)
     {
         var ids = agendamientos
             .SelectMany(a => ExtractServicioIds(a))
-            .Concat(agendamientos.Where(a => a.ServicioId.HasValue).Select(a => a.ServicioId!.Value))
             .Distinct()
             .ToList();
         if (ids.Count == 0) return new Dictionary<int, Servicio>();
@@ -101,21 +106,45 @@ public class AgendamientoService : IAgendamientoService
             .ToDictionaryAsync(s => s.Id);
     }
 
-    private AgendamientoDTO MapToDto(Agendamiento agendamiento, Dictionary<int, Servicio> serviciosMap)
+    private async Task<Dictionary<int, Producto>> LoadProductosMapAsync(IEnumerable<Agendamiento> agendamientos)
+    {
+        var ids = agendamientos
+            .SelectMany(a => ExtractProductoIds(a))
+            .Distinct()
+            .ToList();
+        if (ids.Count == 0) return new Dictionary<int, Producto>();
+        return await _context.Productos
+            .AsNoTracking()
+            .Where(p => ids.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id);
+    }
+
+    private AgendamientoDTO MapToDto(Agendamiento agendamiento, Dictionary<int, Servicio> serviciosMap, Dictionary<int, Producto> productosMap)
     {
         var servicioIds = ExtractServicioIds(agendamiento);
+        var productoIds = ExtractProductoIds(agendamiento);
+        
         var serviciosNombres = servicioIds
             .Select(id => serviciosMap.TryGetValue(id, out var servicio) ? servicio.Nombre : null)
             .Where(nombre => !string.IsNullOrWhiteSpace(nombre))
             .Select(nombre => nombre!)
             .ToList();
+
+        var productosNombres = productoIds
+            .Select(id => productosMap.TryGetValue(id, out var producto) ? producto.Nombre : null)
+            .Where(nombre => !string.IsNullOrWhiteSpace(nombre))
+            .Select(nombre => nombre!)
+            .ToList();
+
         var servicioNombre = serviciosNombres.Count > 0
             ? string.Join(", ", serviciosNombres)
             : (agendamiento.Servicio != null ? agendamiento.Servicio.Nombre : null);
+        
         if (string.IsNullOrWhiteSpace(servicioNombre) && agendamiento.Paquete != null)
         {
             servicioNombre = agendamiento.Paquete.Nombre;
         }
+
         return new AgendamientoDTO
         {
             Id = agendamiento.Id,
@@ -123,11 +152,13 @@ public class AgendamientoService : IAgendamientoService
             BarberoId = agendamiento.BarberoId,
             ServicioId = agendamiento.ServicioId,
             ServicioIds = servicioIds,
+            ProductoIds = productoIds,
             PaqueteId = agendamiento.PaqueteId,
             ClienteNombre = agendamiento.Cliente?.Usuario?.Nombre + " " + agendamiento.Cliente?.Usuario?.Apellido,
             BarberoNombre = agendamiento.Barbero?.Usuario?.Nombre + " " + agendamiento.Barbero?.Usuario?.Apellido,
             ServicioNombre = servicioNombre,
             ServiciosNombres = serviciosNombres,
+            ProductosNombres = productosNombres,
             PaqueteNombre = agendamiento.Paquete?.Nombre,
             FechaHora = agendamiento.FechaHora,
             Estado = agendamiento.Estado,
@@ -147,6 +178,8 @@ public class AgendamientoService : IAgendamientoService
             .Where(a => a.FechaHora >= limite)
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+            .Include(a => a.AgendamientoProductos)
+            .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
             .Include(a => a.Paquete)
             .AsNoTracking()
@@ -176,7 +209,8 @@ public class AgendamientoService : IAgendamientoService
             .Take(pageSize)
             .ToListAsync();
         var serviciosMap = await LoadServiciosMapAsync(rows);
-        var items = rows.Select(a => MapToDto(a, serviciosMap)).ToList();
+        var productosMap = await LoadProductosMapAsync(rows);
+        var items = rows.Select(a => MapToDto(a, serviciosMap, productosMap)).ToList();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
         return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
     }
@@ -186,6 +220,8 @@ public class AgendamientoService : IAgendamientoService
         var agendamiento = await _context.Agendamientos
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+            .Include(a => a.AgendamientoProductos)
+            .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
             .Include(a => a.Paquete)
             .AsNoTracking()
@@ -194,7 +230,8 @@ public class AgendamientoService : IAgendamientoService
 
         if (agendamiento == null) return ServiceResult<object>.NotFound();
         var serviciosMap = await LoadServiciosMapAsync(new[] { agendamiento });
-        return ServiceResult<object>.Ok(MapToDto(agendamiento, serviciosMap));
+        var productosMap = await LoadProductosMapAsync(new[] { agendamiento });
+        return ServiceResult<object>.Ok(MapToDto(agendamiento, serviciosMap, productosMap));
     }
 
     public async Task<ServiceResult<object>> GetByBarberoYFechaAsync(int barberoId, DateTime fecha)
@@ -205,6 +242,8 @@ public class AgendamientoService : IAgendamientoService
         var rows = await _context.Agendamientos
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+            .Include(a => a.AgendamientoProductos)
+            .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
             .Include(a => a.Paquete)
             .Where(a => a.BarberoId == barberoId && a.FechaHora >= inicioDia && a.FechaHora < finDia)
@@ -212,7 +251,8 @@ public class AgendamientoService : IAgendamientoService
             .AsSplitQuery()
             .ToListAsync();
         var serviciosMap = await LoadServiciosMapAsync(rows);
-        return ServiceResult<object>.Ok(rows.Select(a => MapToDto(a, serviciosMap)).ToList());
+        var productosMap = await LoadProductosMapAsync(rows);
+        return ServiceResult<object>.Ok(rows.Select(a => MapToDto(a, serviciosMap, productosMap)).ToList());
     }
 
     public async Task<ServiceResult<object>> GetByClienteAsync(int clienteId, int page, int pageSize, string? q)
@@ -225,6 +265,8 @@ public class AgendamientoService : IAgendamientoService
             .Where(a => a.ClienteId == clienteId)
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+            .Include(a => a.AgendamientoProductos)
+            .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
             .Include(a => a.Paquete)
             .AsNoTracking()
@@ -252,7 +294,8 @@ public class AgendamientoService : IAgendamientoService
             .Take(pageSize)
             .ToListAsync();
         var serviciosMap = await LoadServiciosMapAsync(rows);
-        var items = rows.Select(a => MapToDto(a, serviciosMap)).ToList();
+        var productosMap = await LoadProductosMapAsync(rows);
+        var items = rows.Select(a => MapToDto(a, serviciosMap, productosMap)).ToList();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
         return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
@@ -285,6 +328,12 @@ public class AgendamientoService : IAgendamientoService
             if (paquete == null) return ServiceResult<object>.Fail("Paquete no encontrado.");
             duracionMinutos = paquete.DuracionMinutos;
             precioCalculado = paquete.Precio;
+        }
+
+        if (input.ProductoIds != null && input.ProductoIds.Count > 0)
+        {
+            var productos = await _context.Productos.Where(p => input.ProductoIds.Contains(p.Id)).ToListAsync();
+            precioCalculado += productos.Sum(p => p.PrecioVenta);
         }
 
         var barbero = await _context.Barberos.Include(b => b.Usuario).FirstOrDefaultAsync(b => b.Id == input.BarberoId);
@@ -324,11 +373,27 @@ public class AgendamientoService : IAgendamientoService
             ServicioId = servicioIds.FirstOrDefault() > 0 ? servicioIds.FirstOrDefault() : null,
             PaqueteId = input.PaqueteId,
             FechaHora = input.FechaHora,
-            Notas = BuildNotasWithServicios(input.Notas, servicioIds),
+            Notas = BuildNotasWithMetadata(input.Notas, servicioIds, input.ProductoIds),
             Duracion = input.Duracion ?? $"{duracionMinutos} minutos",
             Precio = input.Precio ?? precioCalculado,
             Estado = "Pendiente"
         };
+
+        if (servicioIds.Count > 0)
+        {
+            foreach (var sid in servicioIds)
+            {
+                agendamiento.AgendamientoServicios.Add(new AgendamientoServicio { ServicioId = sid });
+            }
+        }
+
+        if (input.ProductoIds != null && input.ProductoIds.Count > 0)
+        {
+            foreach (var pid in input.ProductoIds)
+            {
+                agendamiento.AgendamientoProductos.Add(new AgendamientoProducto { ProductoId = pid });
+            }
+        }
 
         _context.Agendamientos.Add(agendamiento);
         await _context.SaveChangesAsync();
@@ -336,11 +401,15 @@ public class AgendamientoService : IAgendamientoService
         var created = await _context.Agendamientos
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+            .Include(a => a.AgendamientoProductos)
+            .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
             .Include(a => a.Paquete)
+            .Include(a => a.AgendamientoServicios)
             .FirstOrDefaultAsync(a => a.Id == agendamiento.Id);
         var serviciosMap = await LoadServiciosMapAsync(new[] { created! });
-        return ServiceResult<object>.Ok(MapToDto(created!, serviciosMap));
+        var productosMap = await LoadProductosMapAsync(new[] { created! });
+        return ServiceResult<object>.Ok(MapToDto(created!, serviciosMap, productosMap));
     }
 
     public async Task<ServiceResult<object>> UpdateAsync(int id, AgendamientoInput input)
@@ -348,6 +417,8 @@ public class AgendamientoService : IAgendamientoService
         var agendamientoExistente = await _context.Agendamientos
             .Include(a => a.Cliente)
             .Include(a => a.Barbero)
+            .Include(a => a.AgendamientoProductos)
+            .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
             .Include(a => a.Paquete)
             .FirstOrDefaultAsync(a => a.Id == id);
@@ -377,6 +448,12 @@ public class AgendamientoService : IAgendamientoService
             if (paquete == null) return ServiceResult<object>.Fail("Paquete no encontrado.");
             duracionMinutos = paquete.DuracionMinutos;
             precioCalculado = paquete.Precio;
+        }
+
+        if (input.ProductoIds != null && input.ProductoIds.Count > 0)
+        {
+            var productos = await _context.Productos.Where(p => input.ProductoIds.Contains(p.Id)).ToListAsync();
+            precioCalculado += productos.Sum(p => p.PrecioVenta);
         }
 
         var barberoNuevo = await _context.Barberos.Include(b => b.Usuario).FirstOrDefaultAsync(b => b.Id == input.BarberoId);
@@ -414,9 +491,27 @@ public class AgendamientoService : IAgendamientoService
         agendamientoExistente.ServicioId = servicioIds.FirstOrDefault() > 0 ? servicioIds.FirstOrDefault() : null;
         agendamientoExistente.PaqueteId = input.PaqueteId;
         agendamientoExistente.FechaHora = input.FechaHora;
-        agendamientoExistente.Notas = BuildNotasWithServicios(input.Notas, servicioIds);
+        agendamientoExistente.Notas = BuildNotasWithMetadata(input.Notas, servicioIds, input.ProductoIds);
         agendamientoExistente.Duracion = input.Duracion ?? $"{duracionMinutos} minutos";
         agendamientoExistente.Precio = input.Precio ?? precioCalculado;
+
+        _context.AgendamientoServicios.RemoveRange(agendamientoExistente.AgendamientoServicios);
+        if (servicioIds.Count > 0)
+        {
+            foreach (var sid in servicioIds)
+            {
+                agendamientoExistente.AgendamientoServicios.Add(new AgendamientoServicio { ServicioId = sid });
+            }
+        }
+
+        _context.AgendamientoProductos.RemoveRange(agendamientoExistente.AgendamientoProductos);
+        if (input.ProductoIds != null && input.ProductoIds.Count > 0)
+        {
+            foreach (var pid in input.ProductoIds)
+            {
+                agendamientoExistente.AgendamientoProductos.Add(new AgendamientoProducto { ProductoId = pid });
+            }
+        }
 
         try
         {
@@ -437,6 +532,8 @@ public class AgendamientoService : IAgendamientoService
         var agendamiento = await _context.Agendamientos
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+            .Include(a => a.AgendamientoProductos)
+            .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
             .Include(a => a.Paquete)
             .FirstOrDefaultAsync(a => a.Id == id);
@@ -461,15 +558,20 @@ public class AgendamientoService : IAgendamientoService
                 if (usuarioId == 0) return ServiceResult<object>.Fail("El barbero asociado a la cita no tiene usuario válido.");
 
                 var servicioIdsCita = ExtractServicioIds(agendamiento);
+                var productoIdsCita = ExtractProductoIds(agendamiento);
                 var serviciosCita = servicioIdsCita.Count > 0
                     ? await _context.Servicios.Where(s => servicioIdsCita.Contains(s.Id)).ToListAsync()
                     : new List<Servicio>();
+                var productosCita = productoIdsCita.Count > 0
+                    ? await _context.Productos.Where(p => productoIdsCita.Contains(p.Id)).ToListAsync()
+                    : new List<Producto>();
+
                 var serviciosPrecioMap = serviciosCita.ToDictionary(s => s.Id, s => s.Precio);
+                var productosPrecioMap = productosCita.ToDictionary(p => p.Id, p => p.PrecioVenta);
+
                 decimal precio = agendamiento.Precio.HasValue
                     ? agendamiento.Precio.Value
-                    : (serviciosCita.Count > 0
-                        ? serviciosCita.Sum(s => s.Precio)
-                        : (agendamiento.Paquete != null ? agendamiento.Paquete.Precio : 0m));
+                    : (serviciosCita.Sum(s => s.Precio) + productosCita.Sum(p => p.PrecioVenta));
 
                 var ventaExistente = await _context.Ventas
                     .Include(v => v.DetalleVenta)
@@ -477,6 +579,7 @@ public class AgendamientoService : IAgendamientoService
                                 && v.UsuarioId == usuarioId)
                     .Where(v => v.DetalleVenta.Any(d =>
                         (servicioIdsCita.Count > 0 && d.ServicioId.HasValue && servicioIdsCita.Contains(d.ServicioId.Value)) ||
+                        (productoIdsCita.Count > 0 && d.ProductoId.HasValue && productoIdsCita.Contains(d.ProductoId.Value)) ||
                         (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
                     .OrderByDescending(v => v.Id)
                     .FirstOrDefaultAsync();
@@ -499,20 +602,38 @@ public class AgendamientoService : IAgendamientoService
                                     VentaId = ventaExistente.Id,
                                     ServicioId = servicioId,
                                     PaqueteId = null,
+                                    ProductoId = null,
                                     Cantidad = 1,
-                                    PrecioUnitario = serviciosPrecioMap.TryGetValue(servicioId, out var precioServicio) ? precioServicio : 0m
+                                    PrecioUnitario = serviciosPrecioMap.TryGetValue(servicioId, out var pS) ? pS : 0m,
+                                    Subtotal = serviciosPrecioMap.TryGetValue(servicioId, out var sSub) ? sSub : 0m
                                 });
                                 _context.DetalleVentas.AddRange(detallesReactivados);
                             }
-                            else
+                            if (productoIdsCita.Count > 0)
+                            {
+                                var detallesProds = productoIdsCita.Select(prodId => new DetalleVenta
+                                {
+                                    VentaId = ventaExistente.Id,
+                                    ServicioId = null,
+                                    PaqueteId = null,
+                                    ProductoId = prodId,
+                                    Cantidad = 1,
+                                    PrecioUnitario = productosPrecioMap.TryGetValue(prodId, out var pV) ? pV : 0m,
+                                    Subtotal = productosPrecioMap.TryGetValue(prodId, out var pSub) ? pSub : 0m
+                                });
+                                _context.DetalleVentas.AddRange(detallesProds);
+                            }
+                            if (servicioIdsCita.Count == 0 && productoIdsCita.Count == 0 && agendamiento.PaqueteId.HasValue)
                             {
                                 var detalleReactivado = new DetalleVenta
                                 {
                                     VentaId = ventaExistente.Id,
                                     ServicioId = agendamiento.ServicioId,
                                     PaqueteId = agendamiento.PaqueteId,
+                                    ProductoId = null,
                                     Cantidad = 1,
-                                    PrecioUnitario = precio
+                                    PrecioUnitario = precio,
+                                    Subtotal = precio
                                 };
                                 _context.DetalleVentas.Add(detalleReactivado);
                             }
@@ -589,20 +710,38 @@ public class AgendamientoService : IAgendamientoService
                         VentaId = venta.Id,
                         ServicioId = servicioId,
                         PaqueteId = null,
+                        ProductoId = null,
                         Cantidad = 1,
-                        PrecioUnitario = serviciosPrecioMap.TryGetValue(servicioId, out var precioServicio) ? precioServicio : 0m
+                        PrecioUnitario = serviciosPrecioMap.TryGetValue(servicioId, out var pS) ? pS : 0m,
+                        Subtotal = serviciosPrecioMap.TryGetValue(servicioId, out var sSub) ? sSub : 0m
                     });
                     _context.DetalleVentas.AddRange(detalles);
                 }
-                else
+                if (productoIdsCita.Count > 0)
+                {
+                    var detallesProds = productoIdsCita.Select(prodId => new DetalleVenta
+                    {
+                        VentaId = venta.Id,
+                        ServicioId = null,
+                        PaqueteId = null,
+                        ProductoId = prodId,
+                        Cantidad = 1,
+                        PrecioUnitario = productosPrecioMap.TryGetValue(prodId, out var pV) ? pV : 0m,
+                        Subtotal = productosPrecioMap.TryGetValue(prodId, out var pSub) ? pSub : 0m
+                    });
+                    _context.DetalleVentas.AddRange(detallesProds);
+                }
+                if (servicioIdsCita.Count == 0 && productoIdsCita.Count == 0 && agendamiento.PaqueteId.HasValue)
                 {
                     var detalle = new DetalleVenta
                     {
                         VentaId = venta.Id,
                         ServicioId = agendamiento.ServicioId,
                         PaqueteId = agendamiento.PaqueteId,
+                        ProductoId = null,
                         Cantidad = 1,
-                        PrecioUnitario = precio
+                        PrecioUnitario = precio,
+                        Subtotal = precio
                     };
                     _context.DetalleVentas.Add(detalle);
                 }
@@ -615,6 +754,7 @@ public class AgendamientoService : IAgendamientoService
 
                 var usuarioId = agendamiento.Barbero?.UsuarioId ?? 0;
                 var servicioIdsCitaCancel = ExtractServicioIds(agendamiento);
+                var productoIdsCitaCancel = ExtractProductoIds(agendamiento);
                 var ventaRelacionada = await _context.Ventas
                     .Include(v => v.DetalleVenta)
                     .Where(v => v.ClienteId == agendamiento.ClienteId
@@ -622,6 +762,7 @@ public class AgendamientoService : IAgendamientoService
                                 && v.Estado != "Anulada")
                     .Where(v => v.DetalleVenta.Any(d =>
                         (servicioIdsCitaCancel.Count > 0 && d.ServicioId.HasValue && servicioIdsCitaCancel.Contains(d.ServicioId.Value)) ||
+                        (productoIdsCitaCancel.Count > 0 && d.ProductoId.HasValue && productoIdsCitaCancel.Contains(d.ProductoId.Value)) ||
                         (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
                     .OrderByDescending(v => v.Id)
                     .FirstOrDefaultAsync();
@@ -692,6 +833,8 @@ public class AgendamientoService : IAgendamientoService
         var agendamiento = await _context.Agendamientos
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+            .Include(a => a.AgendamientoProductos)
+            .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
             .Include(a => a.Paquete)
             .FirstOrDefaultAsync(a => a.Id == id);

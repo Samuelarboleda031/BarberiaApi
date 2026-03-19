@@ -15,7 +15,9 @@ public static class ServiceCollectionExtensions
     {
         // Database
         services.AddDbContextPool<BarberiaContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection"))
+            options.UseSqlServer(
+                configuration.GetConnectionString("DefaultConnection"),
+                b => b.MigrationsAssembly("BarberiaApi"))
         );
 
         // Unit of Work & Repositories

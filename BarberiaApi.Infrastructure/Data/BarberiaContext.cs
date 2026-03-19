@@ -17,6 +17,8 @@ public partial class BarberiaContext : DbContext
     }
 
     public virtual DbSet<Agendamiento> Agendamientos { get; set; }
+    public virtual DbSet<AgendamientoProducto> AgendamientoProductos { get; set; }
+    public virtual DbSet<AgendamientoServicio> AgendamientoServicios { get; set; }
     public virtual DbSet<Barbero> Barberos { get; set; }
     public virtual DbSet<Categoria> Categorias { get; set; }
     public virtual DbSet<Cliente> Clientes { get; set; }
@@ -54,6 +56,38 @@ public partial class BarberiaContext : DbContext
             entity.HasOne(d => d.Cliente).WithMany(p => p.Agendamientos).HasForeignKey(d => d.ClienteId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(d => d.Servicio).WithMany(p => p.Agendamientos).HasForeignKey(d => d.ServicioId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(d => d.Paquete).WithMany(p => p.Agendamientos).HasForeignKey(d => d.PaqueteId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AgendamientoProducto>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("AgendamientoProductos");
+
+            entity.HasOne(d => d.Agendamiento)
+                .WithMany(p => p.AgendamientoProductos)
+                .HasForeignKey(d => d.AgendamientoId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Producto)
+                .WithMany()
+                .HasForeignKey(d => d.ProductoId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AgendamientoServicio>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("AgendamientoServicios");
+
+            entity.HasOne(d => d.Agendamiento)
+                .WithMany(p => p.AgendamientoServicios)
+                .HasForeignKey(d => d.AgendamientoId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Servicio)
+                .WithMany()
+                .HasForeignKey(d => d.ServicioId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Barbero>(entity =>
