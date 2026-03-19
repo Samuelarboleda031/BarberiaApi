@@ -34,6 +34,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("por-agendamiento/{agendamientoId}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult> GetByAgendamiento(int agendamientoId)
         {
             var result = await _ventaService.GetByAgendamientoAsync(agendamientoId);

@@ -25,21 +25,21 @@ public class VentaService : IVentaService
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
-            var term = searchTerm.Trim().ToLower();
+            var term = $"%{searchTerm.Trim()}%";
             baseQ = baseQ.Where(v =>
-                (v.Estado != null && v.Estado.ToLower().Contains(term)) ||
-                (v.MetodoPago != null && v.MetodoPago.ToLower().Contains(term)) ||
+                (v.Estado != null && EF.Functions.Like(v.Estado, term)) ||
+                (v.MetodoPago != null && EF.Functions.Like(v.MetodoPago, term)) ||
                 (v.Cliente != null && v.Cliente.Usuario != null && (
-                    (v.Cliente.Usuario.Nombre != null && v.Cliente.Usuario.Nombre.ToLower().Contains(term)) ||
-                    (v.Cliente.Usuario.Apellido != null && v.Cliente.Usuario.Apellido.ToLower().Contains(term))
+                    (v.Cliente.Usuario.Nombre != null && EF.Functions.Like(v.Cliente.Usuario.Nombre, term)) ||
+                    (v.Cliente.Usuario.Apellido != null && EF.Functions.Like(v.Cliente.Usuario.Apellido, term))
                 )) ||
                 (v.Usuario != null && (
-                    (v.Usuario.Nombre != null && v.Usuario.Nombre.ToLower().Contains(term)) ||
-                    (v.Usuario.Apellido != null && v.Usuario.Apellido.ToLower().Contains(term))
+                    (v.Usuario.Nombre != null && EF.Functions.Like(v.Usuario.Nombre, term)) ||
+                    (v.Usuario.Apellido != null && EF.Functions.Like(v.Usuario.Apellido, term))
                 )) ||
                 (v.Barbero != null && v.Barbero.Usuario != null && (
-                    (v.Barbero.Usuario.Nombre != null && v.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
-                    (v.Barbero.Usuario.Apellido != null && v.Barbero.Usuario.Apellido.ToLower().Contains(term))
+                    (v.Barbero.Usuario.Nombre != null && EF.Functions.Like(v.Barbero.Usuario.Nombre, term)) ||
+                    (v.Barbero.Usuario.Apellido != null && EF.Functions.Like(v.Barbero.Usuario.Apellido, term))
                 ))
             );
         }

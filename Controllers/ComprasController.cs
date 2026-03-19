@@ -1,6 +1,7 @@
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace BarberiaApi.Controllers
 {
@@ -16,6 +17,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             var result = await _compraService.GetAllAsync(page, pageSize, q);
@@ -23,6 +25,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("{id}")]
+        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult> GetById(int id)
         {
             var result = await _compraService.GetByIdAsync(id);

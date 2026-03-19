@@ -30,14 +30,15 @@ namespace BarberiaApi.Controllers
                 .Include(d => d.Producto)
                 .Include(d => d.Servicio)
                 .Include(d => d.Paquete)
+                .AsNoTracking()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
-                var term = q.Trim().ToLower();
+                var term = $"%{q.Trim()}%";
                 baseQ = baseQ.Where(d =>
-                    (d.Producto != null && d.Producto.Nombre != null && d.Producto.Nombre.ToLower().Contains(term)) ||
-                    (d.Servicio != null && d.Servicio.Nombre != null && d.Servicio.Nombre.ToLower().Contains(term)) ||
-                    (d.Paquete != null && d.Paquete.Nombre != null && d.Paquete.Nombre.ToLower().Contains(term))
+                    (d.Producto != null && d.Producto.Nombre != null && EF.Functions.Like(d.Producto.Nombre, term)) ||
+                    (d.Servicio != null && d.Servicio.Nombre != null && EF.Functions.Like(d.Servicio.Nombre, term)) ||
+                    (d.Paquete != null && d.Paquete.Nombre != null && EF.Functions.Like(d.Paquete.Nombre, term))
                 );
             }
             var totalCount = await baseQ.CountAsync();
@@ -53,6 +54,7 @@ namespace BarberiaApi.Controllers
                 .Include(d => d.Producto)
                 .Include(d => d.Servicio)
                 .Include(d => d.Paquete)
+                .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.Id == id);
 
             if (detalle == null) return NotFound();
@@ -68,21 +70,54 @@ namespace BarberiaApi.Controllers
                 .Include(d => d.Producto)
                 .Include(d => d.Servicio)
                 .Include(d => d.Paquete)
+                .AsNoTracking()
                 .Where(d => d.VentaId == ventaId)
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
-                var term = q.Trim().ToLower();
+                var term = $"%{q.Trim()}%";
                 baseQ = baseQ.Where(d =>
-                    (d.Producto != null && d.Producto.Nombre != null && d.Producto.Nombre.ToLower().Contains(term)) ||
-                    (d.Servicio != null && d.Servicio.Nombre != null && d.Servicio.Nombre.ToLower().Contains(term)) ||
-                    (d.Paquete != null && d.Paquete.Nombre != null && d.Paquete.Nombre.ToLower().Contains(term))
+                    (d.Producto != null && d.Producto.Nombre != null && EF.Functions.Like(d.Producto.Nombre, term)) ||
+                    (d.Servicio != null && d.Servicio.Nombre != null && EF.Functions.Like(d.Servicio.Nombre, term)) ||
+                    (d.Paquete != null && d.Paquete.Nombre != null && EF.Functions.Like(d.Paquete.Nombre, term))
                 );
             }
             var totalCount = await baseQ.CountAsync();
             var items = await baseQ.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return Ok(new { items, totalCount, page, pageSize, totalPages });
+        }
+
+        // B5: Endpoint bulk para obtener detalles de múltiples ventas en una sola petición
+        [HttpGet("por-ventas")]
+        public async Task<ActionResult<object>> GetByVentas([FromQuery] string ids)
+        {
+            if (string.IsNullOrWhiteSpace(ids))
+                return BadRequest("Se requiere el parámetro 'ids' con IDs de ventas separados por coma");
+
+            var ventaIds = ids.Split(',')
+                .Select(s => int.TryParse(s.Trim(), out var id) ? id : (int?)null)
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .Distinct()
+                .Take(100) // Limitar a 100 ventas máximo
+                .ToList();
+
+            if (ventaIds.Count == 0)
+                return BadRequest("No se proporcionaron IDs válidos");
+
+            var detalles = await _context.DetalleVentas
+                .Include(d => d.Producto)
+                .Include(d => d.Servicio)
+                .Include(d => d.Paquete)
+                .AsNoTracking()
+                .Where(d => ventaIds.Contains(d.VentaId))
+                .ToListAsync();
+
+            var agrupados = detalles.GroupBy(d => d.VentaId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            return Ok(agrupados);
         }
 
         [HttpPost]

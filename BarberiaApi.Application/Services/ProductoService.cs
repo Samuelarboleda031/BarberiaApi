@@ -28,12 +28,12 @@ public class ProductoService : IProductoService
             .AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))
         {
-            var term = q.Trim().ToLower();
+            var term = $"%{q.Trim()}%";
             baseQ = baseQ.Where(p =>
-                (p.Nombre != null && p.Nombre.ToLower().Contains(term)) ||
-                (p.Descripcion != null && p.Descripcion.ToLower().Contains(term)) ||
-                (p.Marca != null && p.Marca.ToLower().Contains(term)) ||
-                (p.Categoria != null && p.Categoria.Nombre != null && p.Categoria.Nombre.ToLower().Contains(term))
+                (p.Nombre != null && EF.Functions.Like(p.Nombre, term)) ||
+                (p.Descripcion != null && EF.Functions.Like(p.Descripcion, term)) ||
+                (p.Marca != null && EF.Functions.Like(p.Marca, term)) ||
+                (p.Categoria != null && p.Categoria.Nombre != null && EF.Functions.Like(p.Categoria.Nombre, term))
             );
         }
         var totalCount = await baseQ.CountAsync();
