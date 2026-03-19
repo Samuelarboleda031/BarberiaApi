@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using BarberiaApi.Services;
+using BarberiaApi.Infrastructure.Services;
 
 namespace BarberiaApi.Controllers
 {
@@ -17,10 +17,10 @@ namespace BarberiaApi.Controllers
     public class UploadController : ControllerBase
     {
         private readonly IPhotoService _photoService;
-        private readonly BarberiaApi.Helpers.CloudinarySettings _cloudinarySettings;
+        private readonly BarberiaApi.Infrastructure.Helpers.CloudinarySettings _cloudinarySettings;
         private readonly IHostEnvironment _env;
 
-        public UploadController(IPhotoService photoService, Microsoft.Extensions.Options.IOptions<BarberiaApi.Helpers.CloudinarySettings> options, IHostEnvironment env)
+        public UploadController(IPhotoService photoService, Microsoft.Extensions.Options.IOptions<BarberiaApi.Infrastructure.Helpers.CloudinarySettings> options, IHostEnvironment env)
         {
             _photoService = photoService;
             _cloudinarySettings = options.Value;

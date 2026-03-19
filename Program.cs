@@ -1,35 +1,31 @@
-using Microsoft.EntityFrameworkCore;
-using BarberiaApi.Models;
 using System.Text.Json.Serialization;
-using BarberiaApi.Helpers;
-using BarberiaApi.Services;
-using BarberiaApi.Authorization;
-using FirebaseAdmin;
-using Google.Apis.Auth.OAuth2;
-using Microsoft.AspNetCore.Authorization;
-using System.IO;
-using Microsoft.AspNetCore.Http.Features;
 using System.IO.Compression;
+using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using System.Security.Claims;
+using BarberiaApi.Authorization;
+using BarberiaApi.Extensions;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// =======================
+// Firebase Admin SDK
+// =======================
 try
 {
     var serviceAccountPath = builder.Configuration["Firebase:ServiceAccountPath"];
     GoogleCredential credential;
     if (!string.IsNullOrWhiteSpace(serviceAccountPath) && File.Exists(serviceAccountPath))
-    {
         credential = GoogleCredential.FromFile(serviceAccountPath);
-    }
     else
-    {
         credential = GoogleCredential.GetApplicationDefault();
-    }
 
     FirebaseApp.Create(new AppOptions { Credential = credential });
 }
@@ -39,39 +35,32 @@ catch (Exception ex)
 }
 
 // =======================
-// 🔧 SERVICES
+// SERVICES (DI)
 // =======================
 
-// 📦 Base de datos
-builder.Services.AddDbContextPool<BarberiaContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-);
+// Infrastructure: DbContext, Repositories, Cloudinary, Notificaciones
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
-// 🌐 CORS (permitir frontend)
+// Application: Business logic services
+builder.Services.AddApplicationServices();
+
+// CORS
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
         if (allowedOrigins.Length > 0)
-        {
-            policy.WithOrigins(allowedOrigins)
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
-        }
+            policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
         else
-        {
-            policy
-                .AllowAnyOrigin()
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        }
+            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
     });
 });
 
-// Registrar el Handler en el contenedor de dependencias
+// Authorization Handler
 builder.Services.AddSingleton<IAuthorizationHandler, ValidPasswordHandler>();
 
+// Firebase JWT Authentication
 var firebaseProjectId = builder.Configuration["Firebase:ProjectId"]
     ?? Environment.GetEnvironmentVariable("FIREBASE_PROJECT_ID");
 
@@ -105,12 +94,9 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
                         {
                             identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
                         }
-
                         var explicitRole = identity.FindFirst("role")?.Value ?? identity.FindFirst("rol")?.Value;
                         if (!string.IsNullOrWhiteSpace(explicitRole))
-                        {
                             identity.AddClaim(new Claim(ClaimTypes.Role, explicitRole));
-                        }
                     }
                     return Task.CompletedTask;
                 }
@@ -118,7 +104,7 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
         });
 }
 
-// Configurar la Política de Autorización
+// Authorization Policies
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("ActivePasswordOnly", policy =>
@@ -128,7 +114,7 @@ builder.Services.AddAuthorization(options =>
     });
 });
 
-// 🎮 Controllers + JSON config
+// Controllers + JSON config
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -145,37 +131,30 @@ builder.Services.AddControllers()
                 "Producto", "Venta", "Compra", "DetalleVenta", "DetalleCompras",
                 "Categoria", "Rol", "Empleado", "UsuarioRegistra", "Modulo"
             };
-
             foreach (var prop in navigationProperties)
             {
                 if (context.ModelState.ContainsKey(prop))
                     context.ModelState.Remove(prop);
             }
-
             if (context.ModelState.IsValid)
                 return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(context.ModelState);
-
             var result = new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(context.ModelState);
             result.ContentTypes.Add("application/json");
             return result;
         };
     });
 
-// 📘 Swagger
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ✨ Cloudinary Configuration
-builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
-builder.Services.AddScoped<IPhotoService, PhotoService>();
-builder.Services.AddScoped<INotificacionCitasService, NotificacionCitasService>();
-
+// Form Options
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 15728640;
 });
 
-// 🗜️ Compresión de respuestas (JSON)
+// Response Compression
 builder.Services.AddResponseCompression(opt =>
 {
     opt.EnableForHttps = true;
@@ -186,7 +165,7 @@ builder.Services.AddResponseCompression(opt =>
 builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 
-// 🧠 Cache de salida para GET
+// Output Cache
 builder.Services.AddOutputCache(options =>
 {
     options.AddPolicy("short", policy =>
@@ -200,12 +179,10 @@ builder.Services.AddOutputCache(options =>
     );
 });
 
-// ✉️ Email & Password Reset deshabilitado
-
 var app = builder.Build();
 
 // =======================
-// 🚀 MIDDLEWARE
+// MIDDLEWARE PIPELINE
 // =======================
 
 if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:Enable"))
@@ -220,21 +197,14 @@ if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swa
 
 var httpsRedirect = builder.Configuration.GetValue<bool>("Https:Redirect", true);
 if (httpsRedirect)
-{
     app.UseHttpsRedirection();
-}
 
-// 🌐 CORS (IMPORTANTE: antes de Authorization)
 app.UseCors("AllowFrontend");
-
 app.UseResponseCompression();
 app.UseOutputCache();
-
 app.UseStaticFiles();
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();

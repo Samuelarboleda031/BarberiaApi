@@ -5,7 +5,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using BarberiaApi.Models;
+using BarberiaApi.Domain.Entities;
+using BarberiaApi.Infrastructure.Data;
+using BarberiaApi.Application.DTOs;
 
 namespace BarberiaApi.Controllers
 {

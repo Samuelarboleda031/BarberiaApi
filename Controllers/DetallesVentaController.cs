@@ -1,4 +1,6 @@
-using BarberiaApi.Models;
+using BarberiaApi.Domain.Entities;
+using BarberiaApi.Infrastructure.Data;
+using BarberiaApi.Application.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;

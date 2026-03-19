@@ -4,6 +4,7 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<DefaultItemExcludes>$(DefaultItemExcludes);BarberiaApi.Domain\**;BarberiaApi.Application\**;BarberiaApi.Infrastructure\**</DefaultItemExcludes>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -34,6 +35,12 @@
 		<Content Update="swagger\**\*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="BarberiaApi.Domain\BarberiaApi.Domain.csproj" />
+	  <ProjectReference Include="BarberiaApi.Application\BarberiaApi.Application.csproj" />
+	  <ProjectReference Include="BarberiaApi.Infrastructure\BarberiaApi.Infrastructure.csproj" />
 	</ItemGroup>
 
 </Project>
