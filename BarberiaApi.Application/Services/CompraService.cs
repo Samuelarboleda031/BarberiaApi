@@ -90,15 +90,27 @@ public class CompraService : ICompraService
                 Estado = "Completada"
             };
 
+            foreach (var det in input.Detalles)
+            {
+                if (det.Cantidad <= 0)
+                    return ServiceResult<object>.Fail("La cantidad de cada detalle debe ser mayor a 0");
+                if (det.PrecioUnitario < 0)
+                    return ServiceResult<object>.Fail("El precio unitario no puede ser negativo");
+            }
+
+            var productIds = input.Detalles.Select(d => d.ProductoId).Distinct().ToList();
+            var productos = await _context.Productos.Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
+
+            foreach (var pid in productIds)
+            {
+                if (!productos.ContainsKey(pid))
+                    return ServiceResult<object>.Fail($"El producto {pid} no existe");
+            }
+
             decimal subtotal = 0;
             foreach (var detInput in input.Detalles)
             {
-                var producto = await _context.Productos.FindAsync(detInput.ProductoId);
-                if (producto == null)
-                {
-                    await transaction.RollbackAsync();
-                    return ServiceResult<object>.Fail($"El producto {detInput.ProductoId} no existe");
-                }
+                var producto = productos[detInput.ProductoId];
 
                 var detalle = new DetalleCompra
                 {
@@ -148,10 +160,12 @@ public class CompraService : ICompraService
 
         compra.Estado = "Anulada";
 
+        var anularProductIds = compra.DetalleCompras.Select(d => d.ProductoId).Distinct().ToList();
+        var anularProductos = await _context.Productos.Where(p => anularProductIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
+
         foreach (var detalle in compra.DetalleCompras)
         {
-            var productoVal = await _context.Productos.FindAsync(detalle.ProductoId);
-            if (productoVal == null) continue;
+            if (!anularProductos.TryGetValue(detalle.ProductoId, out var productoVal)) continue;
             if (productoVal.StockVentas < detalle.CantidadVentas || productoVal.StockInsumos < detalle.CantidadInsumos)
             {
                 await transaction.RollbackAsync();
@@ -161,13 +175,10 @@ public class CompraService : ICompraService
 
         foreach (var detalle in compra.DetalleCompras)
         {
-            var producto = await _context.Productos.FindAsync(detalle.ProductoId);
-            if (producto != null)
-            {
-                producto.StockVentas -= detalle.CantidadVentas;
-                producto.StockInsumos -= detalle.CantidadInsumos;
-                producto.StockTotal = producto.StockVentas + producto.StockInsumos;
-            }
+            if (!anularProductos.TryGetValue(detalle.ProductoId, out var producto)) continue;
+            producto.StockVentas -= detalle.CantidadVentas;
+            producto.StockInsumos -= detalle.CantidadInsumos;
+            producto.StockTotal = producto.StockVentas + producto.StockInsumos;
         }
 
         await _context.SaveChangesAsync();

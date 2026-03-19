@@ -16,7 +16,7 @@ public partial class DetallePaquete
 
     public virtual Paquete Paquete { get; set; } = null!;
 
-    public virtual Servicio? Servicio { get; set; }
+    public virtual Servicio Servicio { get; set; } = null!;
 
     public virtual Producto? Producto { get; set; }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BarberiaApi.Domain.Entities;
 
@@ -13,7 +14,8 @@ public partial class Servicio
 
     public decimal Precio { get; set; }
 
-    public int? DuracionMinutes { get; set; }
+    [Column("DuracionMinutes")]
+    public int? DuracionMinutos { get; set; }
 
     public bool? Estado { get; set; }
     

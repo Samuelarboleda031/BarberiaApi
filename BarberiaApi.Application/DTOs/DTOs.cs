@@ -414,6 +414,7 @@ public class DevolucionBatchInput
     public int UsuarioId { get; set; }
     public int? BarberoId { get; set; }
     public string MotivoCategoria { get; set; } = string.Empty;
+    public string? MotivoDetalle { get; set; }
     public string? Observaciones { get; set; }
     public List<DevolucionItem> Items { get; set; } = new();
 }
@@ -423,6 +424,13 @@ public class DevolucionItem
     public int ProductoId { get; set; }
     public int Cantidad { get; set; }
     public decimal MontoDevuelto { get; set; }
+}
+
+public class TransferirStockInput
+{
+    public int Cantidad { get; set; }
+    public string Origen { get; set; } = string.Empty;
+    public string Destino { get; set; } = string.Empty;
 }
 
 // DTOs para Productos

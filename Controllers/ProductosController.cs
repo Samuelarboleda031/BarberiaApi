@@ -47,6 +47,10 @@ namespace BarberiaApi.Controllers
         public async Task<IActionResult> Update(int id, [FromBody] Producto producto)
         { var r = await _productoService.UpdateAsync(id, producto); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }
 
+        [HttpPost("{id}/transferir-stock")]
+        public async Task<ActionResult> TransferirStock(int id, [FromBody] TransferirStockInput input)
+        { var r = await _productoService.TransferirStockAsync(id, input); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }
+
         [HttpPut("{id}/estado")]
         public async Task<ActionResult> CambiarEstado(int id, [FromBody] CambioEstadoBooleanInput input)
         { var r = await _productoService.CambiarEstadoAsync(id, input); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }

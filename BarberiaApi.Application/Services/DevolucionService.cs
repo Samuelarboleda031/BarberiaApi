@@ -394,6 +394,13 @@ public class DevolucionService : IDevolucionService
                     return ServiceResult<object>.Fail($"Cantidad propuesta a devolver para producto {pid} ({propuesto}) excede disponible ({disponible}). Vendidos: {vendidos}, ya devueltos: {yaDev}.");
             }
 
+            Dictionary<int, Domain.Entities.Producto> batchProductos = null!;
+            if (esErrorCompraBatch)
+            {
+                var batchPids = input.Items.Select(i => i.ProductoId).Distinct().ToList();
+                batchProductos = await _context.Productos.Where(p => batchPids.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
+            }
+
             foreach (var it in input.Items)
             {
                 var dev = new Devolucion
@@ -404,7 +411,7 @@ public class DevolucionService : IDevolucionService
                     ProductoId = it.ProductoId,
                     Cantidad = it.Cantidad,
                     MotivoCategoria = input.MotivoCategoria,
-                    MotivoDetalle = input.MotivoCategoria,
+                    MotivoDetalle = input.MotivoDetalle,
                     Observaciones = input.Observaciones,
                     MontoDevuelto = it.MontoDevuelto,
                     SaldoAFavor = it.MontoDevuelto,
@@ -414,14 +421,10 @@ public class DevolucionService : IDevolucionService
 
                 _context.Devoluciones.Add(dev);
 
-                if (esErrorCompraBatch)
+                if (esErrorCompraBatch && batchProductos.TryGetValue(it.ProductoId, out var p))
                 {
-                    var p = await _context.Productos.FindAsync(it.ProductoId);
-                    if (p != null)
-                    {
-                        p.StockVentas += it.Cantidad;
-                        p.StockTotal = p.StockVentas + p.StockInsumos;
-                    }
+                    p.StockVentas += it.Cantidad;
+                    p.StockTotal = p.StockVentas + p.StockInsumos;
                 }
             }
 

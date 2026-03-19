@@ -276,7 +276,7 @@ public class AgendamientoService : IAgendamientoService
                 .Where(s => servicioIds.Contains(s.Id))
                 .ToListAsync();
             if (servicios.Count != servicioIds.Count) return ServiceResult<object>.Fail("Uno o más servicios no fueron encontrados.");
-            duracionMinutos = servicios.Sum(s => s.DuracionMinutes ?? 30);
+            duracionMinutos = servicios.Sum(s => s.DuracionMinutos ?? 30);
             precioCalculado = servicios.Sum(s => s.Precio);
         }
         else if (input.PaqueteId.HasValue)
@@ -368,7 +368,7 @@ public class AgendamientoService : IAgendamientoService
                 .Where(s => servicioIds.Contains(s.Id))
                 .ToListAsync();
             if (servicios.Count != servicioIds.Count) return ServiceResult<object>.Fail("Uno o más servicios no fueron encontrados.");
-            duracionMinutos = servicios.Sum(s => s.DuracionMinutes ?? 30);
+            duracionMinutos = servicios.Sum(s => s.DuracionMinutos ?? 30);
             precioCalculado = servicios.Sum(s => s.Precio);
         }
         else if (input.PaqueteId.HasValue)

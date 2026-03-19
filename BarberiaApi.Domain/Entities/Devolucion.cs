@@ -35,7 +35,7 @@ public partial class Devolucion
 
     public decimal? SaldoAFavor { get; set; }
 
-    public virtual Producto Producto { get; set; } = null!;
+    public virtual Producto? Producto { get; set; }
 
     public virtual Usuario Usuario { get; set; } = null!;
 

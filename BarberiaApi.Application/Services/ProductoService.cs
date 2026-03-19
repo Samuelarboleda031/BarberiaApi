@@ -243,6 +243,54 @@ public class ProductoService : IProductoService
         return ServiceResult<object>.Ok(response);
     }
 
+    public async Task<ServiceResult<object>> TransferirStockAsync(int id, TransferirStockInput input)
+    {
+        if (input == null)
+            return ServiceResult<object>.Fail("Input requerido");
+
+        var producto = await _context.Productos.FindAsync(id);
+        if (producto == null) return ServiceResult<object>.NotFound();
+
+        var origen = input.Origen?.ToLower();
+        var destino = input.Destino?.ToLower();
+
+        if (origen == destino)
+            return ServiceResult<object>.Fail("Origen y destino no pueden ser iguales");
+
+        if (input.Cantidad <= 0)
+            return ServiceResult<object>.Fail("La cantidad debe ser mayor a 0");
+
+        if (origen == "ventas")
+        {
+            if (producto.StockVentas < input.Cantidad)
+                return ServiceResult<object>.Fail($"Stock de ventas insuficiente. Disponible: {producto.StockVentas}");
+            producto.StockVentas -= input.Cantidad;
+            producto.StockInsumos += input.Cantidad;
+        }
+        else if (origen == "insumos")
+        {
+            if (producto.StockInsumos < input.Cantidad)
+                return ServiceResult<object>.Fail($"Stock de insumos insuficiente. Disponible: {producto.StockInsumos}");
+            producto.StockInsumos -= input.Cantidad;
+            producto.StockVentas += input.Cantidad;
+        }
+        else
+        {
+            return ServiceResult<object>.Fail("Origen debe ser 'ventas' o 'insumos'");
+        }
+
+        producto.StockTotal = producto.StockVentas + producto.StockInsumos;
+        await _context.SaveChangesAsync();
+
+        return ServiceResult<object>.Ok(new ProductoDto
+        {
+            Id = producto.Id, Nombre = producto.Nombre, Descripcion = producto.Descripcion, Marca = producto.Marca,
+            PrecioVenta = producto.PrecioVenta, PrecioCompra = producto.PrecioCompra,
+            StockVentas = producto.StockVentas, StockInsumos = producto.StockInsumos, StockTotal = producto.StockTotal,
+            CategoriaId = producto.CategoriaId, Estado = producto.Estado, ImagenProduc = producto.ImagenProduc
+        });
+    }
+
     public async Task<ServiceResult<object>> DeleteAsync(int id)
     {
         var producto = await _context.Productos

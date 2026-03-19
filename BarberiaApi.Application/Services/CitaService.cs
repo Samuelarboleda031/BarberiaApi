@@ -59,7 +59,7 @@ public class CitaService : ICitaService
             barbero = a.Barbero?.Usuario?.Nombre + " " + a.Barbero?.Usuario?.Apellido ?? "Barbero",
             fecha = a.FechaHora.ToString("yyyy-MM-dd"),
             hora = a.FechaHora.ToString("HH:mm"),
-            duracion = a.Servicio?.DuracionMinutes ?? a.Paquete?.DuracionMinutos ?? 30,
+            duracion = a.Servicio?.DuracionMinutos ?? a.Paquete?.DuracionMinutos ?? 30,
             precio = a.Servicio?.Precio ?? a.Paquete?.Precio ?? 0,
             estado = a.Estado ?? "Pendiente",
             notas = a.Notas ?? ""
@@ -89,7 +89,7 @@ public class CitaService : ICitaService
             barbero = agendamiento.Barbero?.Usuario?.Nombre + " " + agendamiento.Barbero?.Usuario?.Apellido ?? "Barbero",
             fecha = agendamiento.FechaHora.ToString("yyyy-MM-dd"),
             hora = agendamiento.FechaHora.ToString("HH:mm"),
-            duracion = agendamiento.Servicio?.DuracionMinutes ?? agendamiento.Paquete?.DuracionMinutos ?? 30,
+            duracion = agendamiento.Servicio?.DuracionMinutos ?? agendamiento.Paquete?.DuracionMinutos ?? 30,
             precio = agendamiento.Servicio?.Precio ?? agendamiento.Paquete?.Precio ?? 0,
             estado = agendamiento.Estado ?? "Pendiente",
             notas = agendamiento.Notas ?? ""
@@ -154,7 +154,7 @@ public class CitaService : ICitaService
         if (servicio != null)
         {
             precio = servicio.Precio;
-            duracion = servicio.DuracionMinutes ?? 30;
+            duracion = servicio.DuracionMinutos ?? 30;
         }
         else
         {
@@ -257,7 +257,7 @@ public class CitaService : ICitaService
         if (servicio != null)
         {
             precio = servicio.Precio;
-            duracion = servicio.DuracionMinutes ?? 30;
+            duracion = servicio.DuracionMinutos ?? 30;
         }
         else
         {
@@ -346,7 +346,7 @@ public class CitaService : ICitaService
             barbero = agendamiento.Barbero?.Usuario?.Nombre + " " + agendamiento.Barbero?.Usuario?.Apellido ?? "Barbero",
             fecha = agendamiento.FechaHora.ToString("yyyy-MM-dd"),
             hora = agendamiento.FechaHora.ToString("HH:mm"),
-            duracion = agendamiento.Servicio?.DuracionMinutes ?? agendamiento.Paquete?.DuracionMinutos ?? 30,
+            duracion = agendamiento.Servicio?.DuracionMinutos ?? agendamiento.Paquete?.DuracionMinutos ?? 30,
             precio = agendamiento.Servicio?.Precio ?? agendamiento.Paquete?.Precio ?? 0,
             estado = agendamiento.Estado ?? "Pendiente",
             notas = agendamiento.Notas ?? ""

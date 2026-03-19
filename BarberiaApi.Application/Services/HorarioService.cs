@@ -72,9 +72,9 @@ public class HorarioService : IHorarioService
             }
         }
 
-        if (agendamiento.Servicio?.DuracionMinutes.HasValue == true && agendamiento.Servicio.DuracionMinutes.Value > 0)
+        if (agendamiento.Servicio?.DuracionMinutos.HasValue == true && agendamiento.Servicio.DuracionMinutos.Value > 0)
         {
-            return agendamiento.Servicio.DuracionMinutes.Value;
+            return agendamiento.Servicio.DuracionMinutos.Value;
         }
         if (agendamiento.Paquete?.DuracionMinutos > 0) return agendamiento.Paquete.DuracionMinutos;
         return 30;

@@ -169,6 +169,19 @@ public class VentaService : IVentaService
                 Estado = "Completada"
             };
 
+            foreach (var det in input.Detalles)
+            {
+                if (det.Cantidad <= 0)
+                    return ServiceResult<object>.Fail("La cantidad de cada detalle debe ser mayor a 0");
+                if (det.PrecioUnitario < 0)
+                    return ServiceResult<object>.Fail("El precio unitario no puede ser negativo");
+            }
+
+            var ventaProductIds = input.Detalles.Where(d => d.ProductoId.HasValue).Select(d => d.ProductoId!.Value).Distinct().ToList();
+            var ventaProductos = ventaProductIds.Count > 0
+                ? await _context.Productos.Where(p => ventaProductIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id)
+                : new Dictionary<int, Domain.Entities.Producto>();
+
             decimal subtotal = 0;
             foreach (var detInput in input.Detalles)
             {
@@ -185,8 +198,8 @@ public class VentaService : IVentaService
 
                 if (detInput.ProductoId.HasValue)
                 {
-                    var producto = await _context.Productos.FindAsync(detInput.ProductoId.Value);
-                    if (producto == null) return ServiceResult<object>.Fail($"Producto {detInput.ProductoId} no encontrado");
+                    if (!ventaProductos.TryGetValue(detInput.ProductoId.Value, out var producto))
+                        return ServiceResult<object>.Fail($"Producto {detInput.ProductoId} no encontrado");
                     if (producto.StockVentas < detInput.Cantidad)
                         return ServiceResult<object>.Fail($"Stock insuficiente para el producto {producto.Nombre}");
                     producto.StockVentas -= detInput.Cantidad;
