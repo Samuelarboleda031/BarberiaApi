@@ -43,14 +43,21 @@ public class AgendamientoService : IAgendamientoService
         {
             ids.AddRange(agendamiento.AgendamientoServicios.Select(s => s.ServicioId));
         }
+        // Incluir servicios del paquete si existe
+        if (agendamiento.Paquete != null && agendamiento.Paquete.DetallePaquetes != null)
+        {
+            ids.AddRange(agendamiento.Paquete.DetallePaquetes.Select(dp => dp.ServicioId));
+        }
         return ids.Distinct().ToList();
     }
     
     private List<int> ExtractProductoIds(Agendamiento agendamiento)
     {
-        return agendamiento.AgendamientoProductos != null 
-            ? agendamiento.AgendamientoProductos.Select(ap => ap.ProductoId).ToList() 
-            : new List<int>();
+        if (agendamiento.AgendamientoProductos == null) return new List<int>();
+        // Expand quantities: if Cantidad=3 for ProductoId=5, return [5, 5, 5]
+        return agendamiento.AgendamientoProductos
+            .SelectMany(ap => Enumerable.Repeat(ap.ProductoId, Math.Max(ap.Cantidad, 1)))
+            .ToList();
     }
 
     private List<int> ExtractMetaIds(string? notas, string prefix, int? singleId)
@@ -181,7 +188,7 @@ public class AgendamientoService : IAgendamientoService
             .Include(a => a.AgendamientoProductos)
             .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
-            .Include(a => a.Paquete)
+            .Include(a => a.Paquete).ThenInclude(p => p.DetallePaquetes).ThenInclude(dp => dp.Servicio)
             .AsNoTracking()
             .AsSplitQuery()
             .AsQueryable();
@@ -223,7 +230,7 @@ public class AgendamientoService : IAgendamientoService
             .Include(a => a.AgendamientoProductos)
             .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
-            .Include(a => a.Paquete)
+            .Include(a => a.Paquete).ThenInclude(p => p.DetallePaquetes).ThenInclude(dp => dp.Servicio)
             .AsNoTracking()
             .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.Id == id);
@@ -245,7 +252,7 @@ public class AgendamientoService : IAgendamientoService
             .Include(a => a.AgendamientoProductos)
             .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
-            .Include(a => a.Paquete)
+            .Include(a => a.Paquete).ThenInclude(p => p.DetallePaquetes).ThenInclude(dp => dp.Servicio)
             .Where(a => a.BarberoId == barberoId && a.FechaHora >= inicioDia && a.FechaHora < finDia)
             .AsNoTracking()
             .AsSplitQuery()
@@ -268,7 +275,7 @@ public class AgendamientoService : IAgendamientoService
             .Include(a => a.AgendamientoProductos)
             .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
-            .Include(a => a.Paquete)
+            .Include(a => a.Paquete).ThenInclude(p => p.DetallePaquetes).ThenInclude(dp => dp.Servicio)
             .AsNoTracking()
             .AsSplitQuery()
             .AsQueryable();
@@ -389,9 +396,11 @@ public class AgendamientoService : IAgendamientoService
 
         if (input.ProductoIds != null && input.ProductoIds.Count > 0)
         {
-            foreach (var pid in input.ProductoIds)
+            var productosAgrupados = input.ProductoIds.GroupBy(pid => pid)
+                .Select(g => new { ProductoId = g.Key, Cantidad = g.Count() });
+            foreach (var pg in productosAgrupados)
             {
-                agendamiento.AgendamientoProductos.Add(new AgendamientoProducto { ProductoId = pid });
+                agendamiento.AgendamientoProductos.Add(new AgendamientoProducto { ProductoId = pg.ProductoId, Cantidad = pg.Cantidad });
             }
         }
 
@@ -404,7 +413,7 @@ public class AgendamientoService : IAgendamientoService
             .Include(a => a.AgendamientoProductos)
             .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
-            .Include(a => a.Paquete)
+            .Include(a => a.Paquete).ThenInclude(p => p.DetallePaquetes).ThenInclude(dp => dp.Servicio)
             .Include(a => a.AgendamientoServicios)
             .FirstOrDefaultAsync(a => a.Id == agendamiento.Id);
         var serviciosMap = await LoadServiciosMapAsync(new[] { created! });
@@ -507,9 +516,11 @@ public class AgendamientoService : IAgendamientoService
         _context.AgendamientoProductos.RemoveRange(agendamientoExistente.AgendamientoProductos);
         if (input.ProductoIds != null && input.ProductoIds.Count > 0)
         {
-            foreach (var pid in input.ProductoIds)
+            var productosAgrupados = input.ProductoIds.GroupBy(pid => pid)
+                .Select(g => new { ProductoId = g.Key, Cantidad = g.Count() });
+            foreach (var pg in productosAgrupados)
             {
-                agendamientoExistente.AgendamientoProductos.Add(new AgendamientoProducto { ProductoId = pid });
+                agendamientoExistente.AgendamientoProductos.Add(new AgendamientoProducto { ProductoId = pg.ProductoId, Cantidad = pg.Cantidad });
             }
         }
 
@@ -535,7 +546,7 @@ public class AgendamientoService : IAgendamientoService
             .Include(a => a.AgendamientoProductos)
             .Include(a => a.AgendamientoServicios)
             .Include(a => a.Servicio)
-            .Include(a => a.Paquete)
+            .Include(a => a.Paquete).ThenInclude(p => p.DetallePaquetes).ThenInclude(dp => dp.Servicio)
             .FirstOrDefaultAsync(a => a.Id == id);
         if (agendamiento == null) return ServiceResult<object>.NotFound();
 

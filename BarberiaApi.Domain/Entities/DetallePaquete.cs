@@ -14,6 +14,7 @@ public partial class DetallePaquete
 
     public int? ProductoId { get; set; }
 
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual Paquete Paquete { get; set; } = null!;
 
     public virtual Servicio Servicio { get; set; } = null!;

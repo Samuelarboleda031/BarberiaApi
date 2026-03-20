@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace BarberiaApi.Domain.Entities;
@@ -17,8 +17,10 @@ public partial class Paquete
 
     public bool? Estado { get; set; }
 
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<Agendamiento> Agendamientos { get; set; } = new List<Agendamiento>();
 
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<DetalleVenta> DetalleVenta { get; set; } = new List<DetalleVenta>();
 
     public virtual ICollection<DetallePaquete> DetallePaquetes { get; set; } = new List<DetallePaquete>();

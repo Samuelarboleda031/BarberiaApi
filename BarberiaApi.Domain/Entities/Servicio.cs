@@ -21,9 +21,12 @@ public partial class Servicio
     
     public string? Imagen { get; set; }
 
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<Agendamiento> Agendamientos { get; set; } = new List<Agendamiento>();
 
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<DetalleVenta> DetalleVenta { get; set; } = new List<DetalleVenta>();
 
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<DetallePaquete> DetallePaquetes { get; set; } = new List<DetallePaquete>();
 }

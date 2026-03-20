@@ -13,6 +13,7 @@ public partial class AgendamientoProducto
 
     public int Cantidad { get; set; } = 1;
 
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual Agendamiento Agendamiento { get; set; } = null!;
 
     public virtual Producto Producto { get; set; } = null!;

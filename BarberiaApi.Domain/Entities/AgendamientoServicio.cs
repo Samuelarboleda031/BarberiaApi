@@ -11,6 +11,7 @@ public partial class AgendamientoServicio
 
     public int ServicioId { get; set; }
 
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual Agendamiento Agendamiento { get; set; } = null!;
 
     public virtual Servicio Servicio { get; set; } = null!;

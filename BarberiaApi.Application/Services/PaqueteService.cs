@@ -14,7 +14,7 @@ public class PaqueteService : IPaqueteService
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
         if (page < 1) page = 1; if (pageSize < 1) pageSize = 5;
-        var baseQ = _context.Paquetes.Include(p => p.DetallePaquetes).AsNoTracking().AsQueryable();
+        var baseQ = _context.Paquetes.Include(p => p.DetallePaquetes).ThenInclude(d => d.Servicio).AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim().ToLower();
