@@ -375,6 +375,8 @@ public partial class BarberiaContext : DbContext
             entity.Property(e => e.Total).HasPrecision(18, 2);
             entity.Property(e => e.MetodoPago).HasMaxLength(50).HasDefaultValue("Efectivo");
             entity.Property(e => e.Estado).HasMaxLength(20).HasDefaultValue("Completada");
+            entity.Property(e => e.TipoVenta).HasMaxLength(50).HasDefaultValue("Venta Invitado");
+            entity.Property(e => e.ClienteNombre).HasMaxLength(200);
             entity.Property(e => e.SaldoAFavorUsado).HasPrecision(18, 2).HasDefaultValue(0m);
 
             entity.HasOne(d => d.Usuario).WithMany(p => p.Ventas).HasForeignKey(d => d.UsuarioId).OnDelete(DeleteBehavior.Restrict);

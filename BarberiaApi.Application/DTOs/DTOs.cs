@@ -121,6 +121,7 @@ public class VentaInput
     public int? ClienteId { get; set; }
     public int? BarberoId { get; set; }
     public string? TipoVenta { get; set; }
+    public string? ClienteNombre { get; set; }
     public string? MetodoPago { get; set; }
     public decimal? Descuento { get; set; }
     public decimal? IVA { get; set; }

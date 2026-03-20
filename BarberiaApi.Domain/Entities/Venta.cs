@@ -26,7 +26,11 @@ public partial class Venta
     public string? MetodoPago { get; set; }
 
     public string? Estado { get; set; }
-    
+
+    public string? TipoVenta { get; set; }
+
+    public string? ClienteNombre { get; set; }
+
     public decimal? SaldoAFavorUsado { get; set; }
 
     public virtual Cliente? Cliente { get; set; }

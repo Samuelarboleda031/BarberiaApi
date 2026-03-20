@@ -29,6 +29,8 @@ public class VentaService : IVentaService
             baseQ = baseQ.Where(v =>
                 (v.Estado != null && EF.Functions.Like(v.Estado, term)) ||
                 (v.MetodoPago != null && EF.Functions.Like(v.MetodoPago, term)) ||
+                (v.ClienteNombre != null && EF.Functions.Like(v.ClienteNombre, term)) ||
+                (v.TipoVenta != null && EF.Functions.Like(v.TipoVenta, term)) ||
                 (v.Cliente != null && v.Cliente.Usuario != null && (
                     (v.Cliente.Usuario.Nombre != null && EF.Functions.Like(v.Cliente.Usuario.Nombre, term)) ||
                     (v.Cliente.Usuario.Apellido != null && EF.Functions.Like(v.Cliente.Usuario.Apellido, term))
@@ -52,7 +54,7 @@ public class VentaService : IVentaService
             .Select(v => new
             {
                 v.Id, v.Fecha, v.Subtotal, v.Total, v.Descuento, v.IVA,
-                v.Estado, v.MetodoPago, v.ClienteId, v.BarberoId, v.UsuarioId, v.SaldoAFavorUsado,
+                v.Estado, v.MetodoPago, v.TipoVenta, v.ClienteNombre, v.ClienteId, v.BarberoId, v.UsuarioId, v.SaldoAFavorUsado,
                 Cliente = v.Cliente == null ? null : new
                 {
                     v.Cliente.Id, v.Cliente.UsuarioId, v.Cliente.Telefono,
@@ -164,6 +166,8 @@ public class VentaService : IVentaService
                 BarberoId = input.BarberoId,
                 Fecha = DateTime.Now,
                 MetodoPago = input.MetodoPago ?? "Efectivo",
+                TipoVenta = input.TipoVenta ?? (input.ClienteId.HasValue ? "Venta Cliente" : "Venta Invitado"),
+                ClienteNombre = input.ClienteNombre,
                 Descuento = input.Descuento ?? 0,
                 IVA = 0,
                 Estado = "Completada"
