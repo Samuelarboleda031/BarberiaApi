@@ -193,7 +193,7 @@ public class ProductoService : IProductoService
         productoExistente.Nombre = producto.Nombre?.Trim() ?? productoExistente.Nombre;
         productoExistente.Descripcion = producto.Descripcion ?? "";
         productoExistente.Marca = producto.Marca ?? "";
-        productoExistente.Tipo = producto.Tipo ?? "";
+        productoExistente.Tipo = producto.Tipo ?? productoExistente.Tipo;
         productoExistente.PrecioVenta = producto.PrecioVenta;
         productoExistente.PrecioCompra = producto.PrecioCompra;
         productoExistente.StockVentas = producto.StockVentas;
