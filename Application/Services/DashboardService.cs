@@ -16,8 +16,9 @@ public class DashboardService : IDashboardService
         var desdeVentas = hoy.AddDays(-365);
         var limiteAgendas = DateTime.Now.AddDays(-7);
 
-        var ventas = await _context.Ventas.AsNoTracking().AsSplitQuery()
-            .Where(v => v.Fecha >= desdeVentas)
+        // Obtener solo las ventas de los últimos 30 días activas
+        var ventasRecientes = await _context.Ventas.AsNoTracking().AsSplitQuery()
+            .Where(v => v.Fecha >= hoy.AddDays(-30) && v.Estado != "Anulada" && v.Estado != "Cancelada")
             .Include(v => v.Cliente).ThenInclude(c => c.Usuario)
             .Include(v => v.DetalleVenta).ThenInclude(d => d.Producto)
             .Include(v => v.DetalleVenta).ThenInclude(d => d.Servicio)
@@ -31,6 +32,18 @@ public class DashboardService : IDashboardService
                     nombre = d.Servicio != null ? d.Servicio.Nombre : (d.Paquete != null ? d.Paquete.Nombre : "Servicio"),
                     tipo = d.PaqueteId != null ? "Paquete" : "Servicio", cantidad = d.Cantidad, precio = d.PrecioUnitario })
             }).ToListAsync();
+
+        // Para el histórico anual, enviamos totales desglosados solo de ventas activas
+        var ventasHistoricas = await _context.Ventas.AsNoTracking()
+            .Where(v => v.Fecha >= desdeVentas && v.Fecha < hoy.AddDays(-30) && v.Estado != "Anulada" && v.Estado != "Cancelada")
+            .Select(v => new { 
+                fecha = v.Fecha, 
+                total = v.Total, 
+                estado = v.Estado,
+                totalProductos = v.DetalleVenta.Where(d => d.ProductoId != null).Sum(d => (decimal?)d.PrecioUnitario * d.Cantidad) ?? 0,
+                totalServicios = v.DetalleVenta.Where(d => d.ServicioId != null || d.PaqueteId != null).Sum(d => (decimal?)d.PrecioUnitario * d.Cantidad) ?? 0
+            })
+            .ToListAsync();
 
         var agendamientos = await _context.Agendamientos.AsNoTracking().AsSplitQuery()
             .Where(a => a.FechaHora >= limiteAgendas)
@@ -51,6 +64,11 @@ public class DashboardService : IDashboardService
             .Select(p => new { nombre = p.Nombre, stockVentas = p.StockVentas, stockInsumos = p.StockInsumos, stockTotal = p.StockTotal, minimo = 5,
                 categoria = p.Categoria != null ? p.Categoria.Nombre : (string?)null }).ToListAsync();
 
-        return ServiceResult<object>.Ok(new { ventas, agendamientos, inventarioBajo });
+        return ServiceResult<object>.Ok(new { 
+            ventas = ventasRecientes, 
+            ventasHistoricas,
+            agendamientos, 
+            inventarioBajo 
+        });
     }
 }
