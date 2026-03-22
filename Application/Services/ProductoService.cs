@@ -43,9 +43,9 @@ public class ProductoService : IProductoService
             .Take(pageSize)
             .Select(p => new ProductoDto
             {
-                Id = p.Id, Nombre = p.Nombre, Descripcion = p.Descripcion, Marca = p.Marca,
+                Id = p.Id, Nombre = p.Nombre, Descripcion = p.Descripcion, Marca = p.Marca, Tipo = p.Tipo,
                 PrecioVenta = p.PrecioVenta, PrecioCompra = p.PrecioCompra,
-                StockVentas = p.StockVentas, StockInsumos = p.StockInsumos, StockTotal = p.StockTotal,
+                StockVentas = p.StockVentas, StockInsumos = p.StockInsumos, StockTotal = p.StockTotal, StockMinimo = p.StockMinimo,
                 CategoriaId = p.CategoriaId,
                 CategoriaNombre = p.Categoria != null ? p.Categoria.Nombre : null,
                 Estado = p.Estado, ImagenProduc = p.ImagenProduc
@@ -81,9 +81,9 @@ public class ProductoService : IProductoService
             .Take(pageSize)
             .Select(p => new ProductoDto
             {
-                Id = p.Id, Nombre = p.Nombre, Descripcion = p.Descripcion, Marca = p.Marca,
+                Id = p.Id, Nombre = p.Nombre, Descripcion = p.Descripcion, Marca = p.Marca, Tipo = p.Tipo,
                 PrecioVenta = p.PrecioVenta, PrecioCompra = p.PrecioCompra,
-                StockVentas = p.StockVentas, StockInsumos = p.StockInsumos, StockTotal = p.StockTotal,
+                StockVentas = p.StockVentas, StockInsumos = p.StockInsumos, StockTotal = p.StockTotal, StockMinimo = p.StockMinimo,
                 CategoriaId = p.CategoriaId,
                 CategoriaNombre = p.Categoria != null ? p.Categoria.Nombre : null,
                 Estado = p.Estado, ImagenProduc = p.ImagenProduc
@@ -101,9 +101,9 @@ public class ProductoService : IProductoService
             .Where(p => p.Id == id)
             .Select(p => new ProductoDto
             {
-                Id = p.Id, Nombre = p.Nombre, Descripcion = p.Descripcion, Marca = p.Marca,
+                Id = p.Id, Nombre = p.Nombre, Descripcion = p.Descripcion, Marca = p.Marca, Tipo = p.Tipo,
                 PrecioVenta = p.PrecioVenta, PrecioCompra = p.PrecioCompra,
-                StockVentas = p.StockVentas, StockInsumos = p.StockInsumos, StockTotal = p.StockTotal,
+                StockVentas = p.StockVentas, StockInsumos = p.StockInsumos, StockTotal = p.StockTotal, StockMinimo = p.StockMinimo,
                 CategoriaId = p.CategoriaId,
                 CategoriaNombre = p.Categoria != null ? p.Categoria.Nombre : null,
                 Estado = p.Estado, ImagenProduc = p.ImagenProduc
@@ -193,10 +193,12 @@ public class ProductoService : IProductoService
         productoExistente.Nombre = producto.Nombre?.Trim() ?? productoExistente.Nombre;
         productoExistente.Descripcion = producto.Descripcion ?? "";
         productoExistente.Marca = producto.Marca ?? "";
+        productoExistente.Tipo = producto.Tipo ?? "";
         productoExistente.PrecioVenta = producto.PrecioVenta;
         productoExistente.PrecioCompra = producto.PrecioCompra;
         productoExistente.StockVentas = producto.StockVentas;
         productoExistente.StockInsumos = producto.StockInsumos;
+        productoExistente.StockMinimo = producto.StockMinimo;
         productoExistente.StockTotal = productoExistente.StockVentas + productoExistente.StockInsumos;
         productoExistente.CategoriaId = producto.CategoriaId;
         productoExistente.Estado = producto.Estado;
@@ -284,9 +286,9 @@ public class ProductoService : IProductoService
 
         return ServiceResult<object>.Ok(new ProductoDto
         {
-            Id = producto.Id, Nombre = producto.Nombre, Descripcion = producto.Descripcion, Marca = producto.Marca,
+            Id = producto.Id, Nombre = producto.Nombre, Descripcion = producto.Descripcion, Marca = producto.Marca, Tipo = producto.Tipo,
             PrecioVenta = producto.PrecioVenta, PrecioCompra = producto.PrecioCompra,
-            StockVentas = producto.StockVentas, StockInsumos = producto.StockInsumos, StockTotal = producto.StockTotal,
+            StockVentas = producto.StockVentas, StockInsumos = producto.StockInsumos, StockTotal = producto.StockTotal, StockMinimo = producto.StockMinimo,
             CategoriaId = producto.CategoriaId, Estado = producto.Estado, ImagenProduc = producto.ImagenProduc
         });
     }

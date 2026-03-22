@@ -1,15 +1,15 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.36310.24
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BarberiaApi", "BarberiaApi.csproj", "{222D94E8-93A8-19C7-0BEB-C3D6462964AC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BarberiaApi", "API\BarberiaApi.csproj", "{222D94E8-93A8-19C7-0BEB-C3D6462964AC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BarberiaApi.Domain", "BarberiaApi.Domain\BarberiaApi.Domain.csproj", "{4B3AF736-CA24-43A7-8244-41743147AF03}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BarberiaApi.Domain", "Domain\BarberiaApi.Domain.csproj", "{4B3AF736-CA24-43A7-8244-41743147AF03}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BarberiaApi.Application", "BarberiaApi.Application\BarberiaApi.Application.csproj", "{BD40DB43-141B-4CF7-877F-875F6E6FA92A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BarberiaApi.Application", "Application\BarberiaApi.Application.csproj", "{BD40DB43-141B-4CF7-877F-875F6E6FA92A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BarberiaApi.Infrastructure", "BarberiaApi.Infrastructure\BarberiaApi.Infrastructure.csproj", "{CA6291E7-08E6-4E42-A69D-43304B67A2F0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BarberiaApi.Infrastructure", "Infrastructure\BarberiaApi.Infrastructure.csproj", "{CA6291E7-08E6-4E42-A69D-43304B67A2F0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

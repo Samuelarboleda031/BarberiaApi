@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace BarberiaApi.Domain.Entities;
@@ -12,6 +12,7 @@ public partial class Producto
     public string? Descripcion { get; set; }
     
     public string? Marca { get; set; }
+    public string? Tipo { get; set; }
     public decimal PrecioVenta { get; set; }
 
     public decimal PrecioCompra { get; set; } = 0;
@@ -21,6 +22,7 @@ public partial class Producto
     public int StockInsumos { get; set; } = 0;
 
     public int StockTotal { get; set; } = 0;
+    public int StockMinimo { get; set; } = 0;
 
     public int? CategoriaId { get; set; }
 
