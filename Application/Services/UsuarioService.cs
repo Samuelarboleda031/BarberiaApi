@@ -371,45 +371,108 @@ public class UsuarioService : IUsuarioService
             return ServiceResult<object>.Fail(imgErrorUpdate!);
         }
 
-        usuarioExistente.Nombre = input.Nombre;
-        usuarioExistente.Apellido = input.Apellido;
-        usuarioExistente.Correo = input.Correo;
-        if (!string.IsNullOrWhiteSpace(input.Contrasena))
-            usuarioExistente.Contrasena = input.Contrasena;
-        usuarioExistente.RolId = input.RolId;
-        usuarioExistente.TipoDocumento = input.TipoDocumento;
-        usuarioExistente.Documento = input.Documento;
-        usuarioExistente.FotoPerfil = input.FotoPerfil;
-        usuarioExistente.Estado = input.Estado;
-        usuarioExistente.FechaModificacion = DateTime.Now;
-
-        if (usuarioExistente.Cliente != null)
-        {
-            usuarioExistente.Cliente.Telefono = input.Telefono;
-            usuarioExistente.Cliente.Direccion = input.Direccion;
-            usuarioExistente.Cliente.Barrio = input.Barrio;
-            usuarioExistente.Cliente.FechaNacimiento = input.FechaNacimiento;
-        }
-        if (usuarioExistente.Barbero != null)
-        {
-            usuarioExistente.Barbero.Telefono = input.Telefono;
-            usuarioExistente.Barbero.Direccion = input.Direccion;
-            usuarioExistente.Barbero.Barrio = input.Barrio;
-            usuarioExistente.Barbero.FechaNacimiento = input.FechaNacimiento;
-        }
-
+        using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
+            usuarioExistente.Nombre = input.Nombre;
+            usuarioExistente.Apellido = input.Apellido;
+            usuarioExistente.Correo = input.Correo;
+            if (!string.IsNullOrWhiteSpace(input.Contrasena))
+                usuarioExistente.Contrasena = input.Contrasena;
+            
+            var oldRolId = usuarioExistente.RolId;
+            usuarioExistente.RolId = input.RolId;
+            usuarioExistente.TipoDocumento = input.TipoDocumento;
+            usuarioExistente.Documento = input.Documento;
+            usuarioExistente.FotoPerfil = input.FotoPerfil;
+            usuarioExistente.Estado = input.Estado;
+            usuarioExistente.FechaModificacion = DateTime.Now;
+
+            // Actualizar o Crear perfiles asociados según el rol
+            if (input.RolId == 3) // Cliente
+            {
+                if (usuarioExistente.Cliente != null)
+                {
+                    usuarioExistente.Cliente.Telefono = input.Telefono;
+                    usuarioExistente.Cliente.Direccion = input.Direccion;
+                    usuarioExistente.Cliente.Barrio = input.Barrio;
+                    usuarioExistente.Cliente.FechaNacimiento = input.FechaNacimiento;
+                }
+                else
+                {
+                    var nuevoCliente = new Cliente
+                    {
+                        UsuarioId = usuarioExistente.Id,
+                        Telefono = input.Telefono,
+                        Direccion = input.Direccion,
+                        Barrio = input.Barrio,
+                        FechaNacimiento = input.FechaNacimiento,
+                        Estado = true,
+                        FechaRegistro = DateTime.Now
+                    };
+                    _context.Clientes.Add(nuevoCliente);
+                }
+            }
+            else if (input.RolId == 2) // Barbero
+            {
+                if (usuarioExistente.Barbero != null)
+                {
+                    usuarioExistente.Barbero.Telefono = input.Telefono;
+                    usuarioExistente.Barbero.Direccion = input.Direccion;
+                    usuarioExistente.Barbero.Barrio = input.Barrio;
+                    usuarioExistente.Barbero.FechaNacimiento = input.FechaNacimiento;
+                }
+                else
+                {
+                    var nuevoBarbero = new Barbero
+                    {
+                        UsuarioId = usuarioExistente.Id,
+                        Telefono = input.Telefono,
+                        Direccion = input.Direccion,
+                        Barrio = input.Barrio,
+                        FechaNacimiento = input.FechaNacimiento,
+                        Especialidad = "General",
+                        Estado = true,
+                        FechaContratacion = DateTime.Now
+                    };
+                    _context.Barberos.Add(nuevoBarbero);
+                }
+            }
+            else
+            {
+                // Para otros roles (Admin, SuperAdmin), si existían perfiles previos, solo actualizamos los datos de contacto si el objeto no es nulo
+                if (usuarioExistente.Cliente != null)
+                {
+                    usuarioExistente.Cliente.Telefono = input.Telefono;
+                    usuarioExistente.Cliente.Direccion = input.Direccion;
+                    usuarioExistente.Cliente.Barrio = input.Barrio;
+                    usuarioExistente.Cliente.FechaNacimiento = input.FechaNacimiento;
+                }
+                if (usuarioExistente.Barbero != null)
+                {
+                    usuarioExistente.Barbero.Telefono = input.Telefono;
+                    usuarioExistente.Barbero.Direccion = input.Direccion;
+                    usuarioExistente.Barbero.Barrio = input.Barrio;
+                    usuarioExistente.Barbero.FechaNacimiento = input.FechaNacimiento;
+                }
+            }
+
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return ServiceResult<object>.Ok(new { success = true });
         }
         catch (DbUpdateConcurrencyException)
         {
+            await transaction.RollbackAsync();
             if (!await _context.Usuarios.AnyAsync(e => e.Id == id))
                 return ServiceResult<object>.NotFound();
             throw;
         }
-
-        return ServiceResult<object>.Ok(new { success = true });
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            return ServiceResult<object>.Fail($"Error al actualizar: {ex.Message}", 500);
+        }
     }
 
     public async Task<ServiceResult<object>> CambiarEstadoAsync(int id, CambioEstadoBooleanInput input)
