@@ -112,8 +112,7 @@ public class VentaService : IVentaService
                     v.BarberoId,
                     v.UsuarioId,
                     v.SaldoAFavorUsado,
-                    v.GarantiaMeses,
-                    v.NumeroVenta,
+                    // NumeroVenta y GarantiaMeses no existen en este commit base, se omiten o se usan fallbacks
                     // Proyección plana
                     ClienteNombreCompleto = v.Cliente != null && v.Cliente.Usuario != null 
                         ? v.Cliente.Usuario.Nombre + " " + v.Cliente.Usuario.Apellido 
@@ -136,7 +135,8 @@ public class VentaService : IVentaService
                         ProductoNombre = d.Producto != null ? d.Producto.Nombre : null,
                         ServicioNombre = d.Servicio != null ? d.Servicio.Nombre : null,
                         PaqueteNombre = d.Paquete != null ? d.Paquete.Nombre : null,
-                        FotoUrl = d.Producto != null ? d.Producto.FotoUrl : (d.Servicio != null ? d.Servicio.FotoUrl : null)
+                        // Corrección de nombres de campo de imagen según la entidad en d4474de
+                        FotoUrl = d.Producto != null ? d.Producto.ImagenProduc : (d.Servicio != null ? d.Servicio.Imagen : null)
                     }).ToList()
                 })
                 .FirstOrDefaultAsync(v => v.Id == id);
