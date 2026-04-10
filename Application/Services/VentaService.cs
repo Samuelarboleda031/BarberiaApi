@@ -18,61 +18,76 @@ public class VentaService : IVentaService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? searchTerm)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 5;
-
-        var baseQ = _context.Ventas.AsNoTracking().AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(searchTerm))
+        try
         {
-            var term = $"%{searchTerm.Trim()}%";
-            baseQ = baseQ.Where(v =>
-                (v.Estado != null && EF.Functions.Like(v.Estado, term)) ||
-                (v.MetodoPago != null && EF.Functions.Like(v.MetodoPago, term)) ||
-                (v.ClienteNombre != null && EF.Functions.Like(v.ClienteNombre, term)) ||
-                (v.TipoVenta != null && EF.Functions.Like(v.TipoVenta, term)) ||
-                (v.Cliente != null && v.Cliente.Usuario != null && (
-                    (v.Cliente.Usuario.Nombre != null && EF.Functions.Like(v.Cliente.Usuario.Nombre, term)) ||
-                    (v.Cliente.Usuario.Apellido != null && EF.Functions.Like(v.Cliente.Usuario.Apellido, term))
-                )) ||
-                (v.Usuario != null && (
-                    (v.Usuario.Nombre != null && EF.Functions.Like(v.Usuario.Nombre, term)) ||
-                    (v.Usuario.Apellido != null && EF.Functions.Like(v.Usuario.Apellido, term))
-                )) ||
-                (v.Barbero != null && v.Barbero.Usuario != null && (
-                    (v.Barbero.Usuario.Nombre != null && EF.Functions.Like(v.Barbero.Usuario.Nombre, term)) ||
-                    (v.Barbero.Usuario.Apellido != null && EF.Functions.Like(v.Barbero.Usuario.Apellido, term))
-                ))
-            );
-        }
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 5;
 
-        var totalCount = await baseQ.CountAsync();
-        var items = await baseQ
-            .OrderByDescending(v => v.Fecha)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(v => new
+            var baseQ = _context.Ventas.AsNoTracking().AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
             {
-                v.Id, v.Fecha, v.Subtotal, v.Total, v.Descuento, v.IVA,
-                v.Estado, v.MetodoPago, v.TipoVenta, v.ClienteNombre, v.ClienteId, v.BarberoId, v.UsuarioId, v.SaldoAFavorUsado,
-                Cliente = v.Cliente == null ? null : new
-                {
-                    v.Cliente.Id, v.Cliente.UsuarioId, v.Cliente.Telefono,
-                    Usuario = v.Cliente.Usuario == null ? null : new
-                    { v.Cliente.Usuario.Id, v.Cliente.Usuario.Nombre, v.Cliente.Usuario.Apellido, v.Cliente.Usuario.Correo }
-                },
-                Usuario = v.Usuario == null ? null : new { v.Usuario.Id, v.Usuario.Nombre, v.Usuario.Apellido },
-                Barbero = v.Barbero == null ? null : new
-                {
-                    v.Barbero.Id, v.Barbero.UsuarioId,
-                    Usuario = v.Barbero.Usuario == null ? null : new
-                    { v.Barbero.Usuario.Id, v.Barbero.Usuario.Nombre, v.Barbero.Usuario.Apellido }
-                }
-            })
-            .ToListAsync();
+                var term = $"%{searchTerm.Trim()}%";
+                baseQ = baseQ.Where(v =>
+                    (v.Estado != null && EF.Functions.Like(v.Estado, term)) ||
+                    (v.MetodoPago != null && EF.Functions.Like(v.MetodoPago, term)) ||
+                    (v.ClienteNombre != null && EF.Functions.Like(v.ClienteNombre, term)) ||
+                    (v.TipoVenta != null && EF.Functions.Like(v.TipoVenta, term)) ||
+                    (v.Cliente != null && v.Cliente.Usuario != null && (
+                        (v.Cliente.Usuario.Nombre != null && EF.Functions.Like(v.Cliente.Usuario.Nombre, term)) ||
+                        (v.Cliente.Usuario.Apellido != null && EF.Functions.Like(v.Cliente.Usuario.Apellido, term))
+                    )) ||
+                    (v.Usuario != null && (
+                        (v.Usuario.Nombre != null && EF.Functions.Like(v.Usuario.Nombre, term)) ||
+                        (v.Usuario.Apellido != null && EF.Functions.Like(v.Usuario.Apellido, term))
+                    )) ||
+                    (v.Barbero != null && v.Barbero.Usuario != null && (
+                        (v.Barbero.Usuario.Nombre != null && EF.Functions.Like(v.Barbero.Usuario.Nombre, term)) ||
+                        (v.Barbero.Usuario.Apellido != null && EF.Functions.Like(v.Barbero.Usuario.Apellido, term))
+                    ))
+                );
+            }
 
-        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-        return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ
+                .OrderByDescending(v => v.Fecha)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(v => new
+                {
+                    v.Id,
+                    v.Fecha,
+                    v.Subtotal,
+                    v.Total,
+                    v.Descuento,
+                    v.IVA,
+                    v.Estado,
+                    v.MetodoPago,
+                    v.TipoVenta,
+                    v.ClienteNombre,
+                    v.ClienteId,
+                    v.BarberoId,
+                    v.UsuarioId,
+                    v.SaldoAFavorUsado,
+                    ClienteNombreCompleto = v.Cliente != null && v.Cliente.Usuario != null 
+                        ? v.Cliente.Usuario.Nombre + " " + v.Cliente.Usuario.Apellido 
+                        : (v.ClienteNombre ?? "Cliente"),
+                    BarberoNombreCompleto = v.Barbero != null && v.Barbero.Usuario != null 
+                        ? v.Barbero.Usuario.Nombre + " " + v.Barbero.Usuario.Apellido 
+                        : "Sin asignar",
+                    UsuarioNombreCompleto = v.Usuario != null 
+                        ? v.Usuario.Nombre + " " + v.Usuario.Apellido 
+                        : null
+                })
+                .ToListAsync();
+
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
+        }
+        catch (Exception ex)
+        {
+            return ServiceResult<object>.Fail($"Error al obtener ventas [Optimized]: {ex.Message} | {ex.InnerException?.Message}", 500);
+        }
     }
 
     public async Task<ServiceResult<object>> GetByIdAsync(int id)
@@ -113,9 +128,15 @@ public class VentaService : IVentaService
             ventaId = ventaRelacionada.Id,
             venta = new
             {
-                ventaRelacionada.Id, ventaRelacionada.ClienteId, ventaRelacionada.UsuarioId,
-                ventaRelacionada.BarberoId, ventaRelacionada.Fecha, ventaRelacionada.Subtotal,
-                ventaRelacionada.Total, ventaRelacionada.Estado, ventaRelacionada.MetodoPago
+                ventaRelacionada.Id,
+                ventaRelacionada.ClienteId,
+                ventaRelacionada.UsuarioId,
+                ventaRelacionada.BarberoId,
+                ventaRelacionada.Fecha,
+                ventaRelacionada.Subtotal,
+                ventaRelacionada.Total,
+                ventaRelacionada.Estado,
+                ventaRelacionada.MetodoPago
             }
         });
     }

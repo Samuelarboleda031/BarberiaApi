@@ -142,81 +142,83 @@ public class DevolucionService : IDevolucionService
 
     public async Task<ServiceResult<object>> GetAllAsync(int? barberoId, int? clienteId, int? productoId, int? entregaId, DateTime? desde, DateTime? hasta, int page, int pageSize, string? q)
     {
-        var query = _context.Devoluciones
-            .AsNoTracking()
-            .AsQueryable();
-
-        if (barberoId.HasValue) query = query.Where(d => d.BarberoId == barberoId.Value);
-        if (clienteId.HasValue) query = query.Where(d => d.ClienteId == clienteId.Value);
-        if (productoId.HasValue) query = query.Where(d => d.ProductoId == productoId.Value);
-        if (entregaId.HasValue) query = query.Where(d => d.EntregaId == entregaId.Value);
-        if (desde.HasValue) query = query.Where(d => d.Fecha >= desde.Value);
-        if (hasta.HasValue)
+        try
         {
-            var h = hasta.Value.Date.AddDays(1).AddTicks(-1);
-            query = query.Where(d => d.Fecha <= h);
-        }
+            var query = _context.Devoluciones
+                .AsNoTracking()
+                .AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(q))
+            if (barberoId.HasValue) query = query.Where(d => d.BarberoId == barberoId.Value);
+            if (clienteId.HasValue) query = query.Where(d => d.ClienteId == clienteId.Value);
+            if (productoId.HasValue) query = query.Where(d => d.ProductoId == productoId.Value);
+            if (entregaId.HasValue) query = query.Where(d => d.EntregaId == entregaId.Value);
+            if (desde.HasValue) query = query.Where(d => d.Fecha >= desde.Value);
+            if (hasta.HasValue)
+            {
+                var h = hasta.Value.Date.AddDays(1).AddTicks(-1);
+                query = query.Where(d => d.Fecha <= h);
+            }
+
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLower();
+                query = query.Where(d =>
+                    (d.MotivoCategoria != null && d.MotivoCategoria.ToLower().Contains(term)) ||
+                    (d.MotivoDetalle != null && d.MotivoDetalle.ToLower().Contains(term)) ||
+                    (d.Observaciones != null && d.Observaciones.ToLower().Contains(term)) ||
+                    (d.Estado != null && d.Estado.ToLower().Contains(term)) ||
+                    (d.Producto != null && d.Producto.Nombre != null && d.Producto.Nombre.ToLower().Contains(term)) ||
+                    (d.Usuario != null && d.Usuario.Nombre != null && d.Usuario.Nombre.ToLower().Contains(term)) ||
+                    (d.Cliente != null && d.Cliente.Usuario != null && (
+                        (d.Cliente.Usuario.Nombre != null && d.Cliente.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (d.Cliente.Usuario.Apellido != null && d.Cliente.Usuario.Apellido.ToLower().Contains(term))
+                    )) ||
+                    (d.Barbero != null && d.Barbero.Usuario != null && (
+                        (d.Barbero.Usuario.Nombre != null && d.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
+                        (d.Barbero.Usuario.Apellido != null && d.Barbero.Usuario.Apellido.ToLower().Contains(term))
+                    ))
+                );
+            }
+
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 5;
+            
+            var totalCount = await query.CountAsync();
+            var items = await query
+                    .OrderByDescending(d => d.Fecha)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(d => new
+                    {
+                        d.Id,
+                        d.VentaId,
+                        d.EntregaId,
+                        d.ClienteId,
+                        d.UsuarioId,
+                        d.BarberoId,
+                        d.ProductoId,
+                        d.Cantidad,
+                        d.MotivoCategoria,
+                        d.MotivoDetalle,
+                        d.Observaciones,
+                        d.MontoDevuelto,
+                        d.SaldoAFavor,
+                        d.Fecha,
+                        d.Estado,
+                        ProductoNombre = d.Producto != null ? d.Producto.Nombre : "Producto",
+                        UsuarioNombre = d.Usuario != null ? d.Usuario.Nombre : "Sistema",
+                        ClienteNombre = d.Cliente != null && d.Cliente.Usuario != null ? d.Cliente.Usuario.Nombre + " " + d.Cliente.Usuario.Apellido : null,
+                        BarberoNombre = d.Barbero != null && d.Barbero.Usuario != null ? d.Barbero.Usuario.Nombre + " " + d.Barbero.Usuario.Apellido : null
+                    })
+                    .ToListAsync();
+            
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
+        }
+        catch (Exception ex)
         {
-            var term = q.Trim().ToLower();
-            query = query.Where(d =>
-                (d.MotivoCategoria != null && d.MotivoCategoria.ToLower().Contains(term)) ||
-                (d.MotivoDetalle != null && d.MotivoDetalle.ToLower().Contains(term)) ||
-                (d.Observaciones != null && d.Observaciones.ToLower().Contains(term)) ||
-                (d.Estado != null && d.Estado.ToLower().Contains(term)) ||
-                (d.Producto != null && d.Producto.Nombre != null && d.Producto.Nombre.ToLower().Contains(term)) ||
-                (d.Usuario != null && d.Usuario.Nombre != null && d.Usuario.Nombre.ToLower().Contains(term)) ||
-                (d.Cliente != null && d.Cliente.Usuario != null && (
-                    (d.Cliente.Usuario.Nombre != null && d.Cliente.Usuario.Nombre.ToLower().Contains(term)) ||
-                    (d.Cliente.Usuario.Apellido != null && d.Cliente.Usuario.Apellido.ToLower().Contains(term))
-                )) ||
-                (d.Barbero != null && d.Barbero.Usuario != null && (
-                    (d.Barbero.Usuario.Nombre != null && d.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
-                    (d.Barbero.Usuario.Apellido != null && d.Barbero.Usuario.Apellido.ToLower().Contains(term))
-                ))
-            );
+            return ServiceResult<object>.Fail($"Error al obtener devoluciones: {ex.Message} | {ex.InnerException?.Message}", 500);
         }
-
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 5;
-        var queryOrdered = query.OrderByDescending(d => d.Fecha);
-        var totalCount = await queryOrdered.CountAsync();
-        var items = await queryOrdered
-                .Select(d => new
-                {
-                    d.Id,
-                    d.VentaId,
-                    d.EntregaId,
-                    d.ClienteId,
-                    d.UsuarioId,
-                    d.BarberoId,
-                    d.ProductoId,
-                    d.Cantidad,
-                    d.MotivoCategoria,
-                    d.MotivoDetalle,
-                    d.Observaciones,
-                    d.MontoDevuelto,
-                    d.SaldoAFavor,
-                    d.Fecha,
-                    d.Estado,
-                    Producto = d.ProductoId.HasValue ? new { d.Producto.Id, d.Producto.Nombre } : null,
-                    Usuario = new { d.Usuario.Id, d.Usuario.Nombre },
-                    Cliente = d.ClienteId.HasValue && d.Cliente != null && d.Cliente.Usuario != null
-                        ? new { d.Cliente.Id, Nombre = d.Cliente.Usuario.Nombre }
-                        : null,
-                    Barbero = d.BarberoId.HasValue && d.Barbero != null && d.Barbero.Usuario != null
-                        ? new { d.Barbero.Id, Nombre = d.Barbero.Usuario.Nombre }
-                        : null,
-                    Entrega = d.EntregaId.HasValue && d.Entrega != null
-                        ? new { d.Entrega.Id, d.Entrega.Estado, d.Entrega.Fecha }
-                        : null
-                })
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-        return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
     }
 
     public async Task<ServiceResult<object>> GetByIdAsync(int id)
