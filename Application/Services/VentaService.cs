@@ -92,16 +92,62 @@ public class VentaService : IVentaService
 
     public async Task<ServiceResult<object>> GetByIdAsync(int id)
     {
-        var venta = await _context.Ventas
-            .AsNoTracking().AsSplitQuery()
-            .Include(v => v.Cliente).Include(v => v.Usuario).Include(v => v.Barbero)
-            .Include(v => v.DetalleVenta).ThenInclude(d => d.Producto)
-            .Include(v => v.DetalleVenta).ThenInclude(d => d.Servicio)
-            .Include(v => v.DetalleVenta).ThenInclude(d => d.Paquete)
-            .FirstOrDefaultAsync(v => v.Id == id);
+        try
+        {
+            var venta = await _context.Ventas
+                .AsNoTracking().AsSplitQuery()
+                .Select(v => new
+                {
+                    v.Id,
+                    v.Fecha,
+                    v.Subtotal,
+                    v.Total,
+                    v.Descuento,
+                    v.IVA,
+                    v.Estado,
+                    v.MetodoPago,
+                    v.TipoVenta,
+                    v.ClienteNombre,
+                    v.ClienteId,
+                    v.BarberoId,
+                    v.UsuarioId,
+                    v.SaldoAFavorUsado,
+                    v.GarantiaMeses,
+                    v.NumeroVenta,
+                    // Proyección plana
+                    ClienteNombreCompleto = v.Cliente != null && v.Cliente.Usuario != null 
+                        ? v.Cliente.Usuario.Nombre + " " + v.Cliente.Usuario.Apellido 
+                        : (v.ClienteNombre ?? "Cliente"),
+                    BarberoNombreCompleto = v.Barbero != null && v.Barbero.Usuario != null 
+                        ? v.Barbero.Usuario.Nombre + " " + v.Barbero.Usuario.Apellido 
+                        : "Sin asignar",
+                    UsuarioNombreCompleto = v.Usuario != null 
+                        ? v.Usuario.Nombre + " " + v.Usuario.Apellido 
+                        : null,
+                    Detalles = v.DetalleVenta.Select(d => new
+                    {
+                        d.Id,
+                        d.ProductoId,
+                        d.ServicioId,
+                        d.PaqueteId,
+                        d.Cantidad,
+                        d.PrecioUnitario,
+                        d.Subtotal,
+                        ProductoNombre = d.Producto != null ? d.Producto.Nombre : null,
+                        ServicioNombre = d.Servicio != null ? d.Servicio.Nombre : null,
+                        PaqueteNombre = d.Paquete != null ? d.Paquete.Nombre : null,
+                        FotoUrl = d.Producto != null ? d.Producto.FotoUrl : (d.Servicio != null ? d.Servicio.FotoUrl : null)
+                    }).ToList()
+                })
+                .FirstOrDefaultAsync(v => v.Id == id);
 
-        if (venta == null) return ServiceResult<object>.NotFound();
-        return ServiceResult<object>.Ok(venta);
+            if (venta == null) return ServiceResult<object>.NotFound();
+            return ServiceResult<object>.Ok(venta);
+        }
+        catch (Exception ex)
+        {
+            return ServiceResult<object>.Fail($"Error al obtener detalle de venta: {ex.Message}", 500);
+        }
     }
 
     public async Task<ServiceResult<object>> GetByAgendamientoAsync(int agendamientoId)
