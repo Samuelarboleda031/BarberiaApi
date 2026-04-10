@@ -21,7 +21,7 @@ namespace BarberiaApi.Controllers
         {
             var result = await _devolucionService.DevolucionInsumosBarberoAsync(input);
             if (!result.Success) return StatusCode(result.StatusCode, result.Error);
-            return CreatedAtAction("GetById", new { id = ((dynamic)result.Data!).Id }, result.Data);
+            return Ok(result.Data);
         }
 
         [HttpGet]
