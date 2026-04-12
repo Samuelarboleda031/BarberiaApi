@@ -20,6 +20,7 @@ public class DashboardService : IDashboardService
         var ventasRecientes = await _context.Ventas.AsNoTracking().AsSplitQuery()
             .Where(v => v.Fecha >= hoy.AddDays(-30) && v.Estado != "Anulada" && v.Estado != "Cancelada")
             .Include(v => v.Cliente).ThenInclude(c => c.Usuario)
+            .Include(v => v.Barbero).ThenInclude(b => b.Usuario)
             .Include(v => v.DetalleVenta).ThenInclude(d => d.Producto)
             .Include(v => v.DetalleVenta).ThenInclude(d => d.Servicio)
             .Include(v => v.DetalleVenta).ThenInclude(d => d.Paquete)
@@ -27,6 +28,8 @@ public class DashboardService : IDashboardService
             .Select(v => new {
                 id = v.Id, fecha = v.Fecha, estado = v.Estado, total = v.Total, clienteId = v.ClienteId,
                 cliente = v.Cliente != null && v.Cliente.Usuario != null ? (v.Cliente.Usuario.Nombre + " " + v.Cliente.Usuario.Apellido) : (string?)null,
+                barberoId = v.BarberoId,
+                barbero = v.Barbero != null && v.Barbero.Usuario != null ? (v.Barbero.Usuario.Nombre + " " + v.Barbero.Usuario.Apellido) : (string?)null,
                 productosDetalle = v.DetalleVenta.Where(d => d.ProductoId != null).Select(d => new { nombre = d.Producto != null ? d.Producto.Nombre : "Producto", cantidad = d.Cantidad, precio = d.PrecioUnitario }),
                 serviciosDetalle = v.DetalleVenta.Where(d => d.ServicioId != null || d.PaqueteId != null).Select(d => new {
                     nombre = d.Servicio != null ? d.Servicio.Nombre : (d.Paquete != null ? d.Paquete.Nombre : "Servicio"),
@@ -36,10 +39,13 @@ public class DashboardService : IDashboardService
         // Para el histórico anual, enviamos totales desglosados solo de ventas activas
         var ventasHistoricas = await _context.Ventas.AsNoTracking()
             .Where(v => v.Fecha >= desdeVentas && v.Fecha < hoy.AddDays(-30) && v.Estado != "Anulada" && v.Estado != "Cancelada")
+            .Include(v => v.Barbero).ThenInclude(b => b.Usuario)
             .Select(v => new { 
                 fecha = v.Fecha, 
                 total = v.Total, 
                 estado = v.Estado,
+                barberoId = v.BarberoId,
+                barbero = v.Barbero != null && v.Barbero.Usuario != null ? (v.Barbero.Usuario.Nombre + " " + v.Barbero.Usuario.Apellido) : (string?)null,
                 totalProductos = v.DetalleVenta.Where(d => d.ProductoId != null).Sum(d => (decimal?)d.PrecioUnitario * d.Cantidad) ?? 0,
                 totalServicios = v.DetalleVenta.Where(d => d.ServicioId != null || d.PaqueteId != null).Sum(d => (decimal?)d.PrecioUnitario * d.Cantidad) ?? 0
             })
