@@ -3,13 +3,21 @@ using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 
 namespace BarberiaApi.Application.Services;
 
 public class ServicioService : IServicioService
 {
     private readonly BarberiaContext _context;
-    public ServicioService(BarberiaContext context) => _context = context;
+    private readonly IMapper _mapper;
+
+    public ServicioService(BarberiaContext context, IMapper mapper)
+    {
+        _context = context;
+        _mapper = mapper;
+    }
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
@@ -35,10 +43,7 @@ public class ServicioService : IServicioService
 
     public async Task<ServiceResult<object>> CreateAsync(Servicio servicio)
     {
-        if (servicio == null) return ServiceResult<object>.Fail("El objeto servicio es requerido");
-        if (string.IsNullOrWhiteSpace(servicio.Nombre)) return ServiceResult<object>.Fail("El nombre del servicio es requerido");
-        if (servicio.Precio <= 0) return ServiceResult<object>.Fail("El precio debe ser mayor a cero");
-        if (!Helpers.ValidationHelper.ValidarUrlImagen(servicio.Imagen, out var imgError)) return ServiceResult<object>.Fail(imgError!);
+        // NOTA: Validación estructural básica manejada por FluentValidation.
         servicio.Id = 0; servicio.Estado = true;
         _context.Servicios.Add(servicio); await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(servicio);

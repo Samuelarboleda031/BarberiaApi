@@ -4,6 +4,8 @@ using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 
 namespace BarberiaApi.Application.Services;
 
@@ -11,11 +13,13 @@ public class ProductoService : IProductoService
 {
     private readonly BarberiaContext _context;
     private readonly IPhotoService _photoService;
+    private readonly IMapper _mapper;
 
-    public ProductoService(BarberiaContext context, IPhotoService photoService)
+    public ProductoService(BarberiaContext context, IPhotoService photoService, IMapper mapper)
     {
         _context = context;
         _photoService = photoService;
+        _mapper = mapper;
     }
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
@@ -41,15 +45,7 @@ public class ProductoService : IProductoService
             .OrderBy(p => p.Nombre)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(p => new ProductoDto
-            {
-                Id = p.Id, Nombre = p.Nombre, Descripcion = p.Descripcion, Marca = p.Marca, Tipo = p.Tipo,
-                PrecioVenta = p.PrecioVenta, PrecioCompra = p.PrecioCompra,
-                StockVentas = p.StockVentas, StockInsumos = p.StockInsumos, StockTotal = p.StockTotal, StockMinimo = p.StockMinimo,
-                CategoriaId = p.CategoriaId,
-                CategoriaNombre = p.Categoria != null ? p.Categoria.Nombre : null,
-                Estado = p.Estado, ImagenProduc = p.ImagenProduc
-            })
+            .ProjectTo<ProductoDto>(_mapper.ConfigurationProvider)
             .ToListAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
         return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
@@ -79,15 +75,7 @@ public class ProductoService : IProductoService
             .OrderBy(p => p.StockTotal)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(p => new ProductoDto
-            {
-                Id = p.Id, Nombre = p.Nombre, Descripcion = p.Descripcion, Marca = p.Marca, Tipo = p.Tipo,
-                PrecioVenta = p.PrecioVenta, PrecioCompra = p.PrecioCompra,
-                StockVentas = p.StockVentas, StockInsumos = p.StockInsumos, StockTotal = p.StockTotal, StockMinimo = p.StockMinimo,
-                CategoriaId = p.CategoriaId,
-                CategoriaNombre = p.Categoria != null ? p.Categoria.Nombre : null,
-                Estado = p.Estado, ImagenProduc = p.ImagenProduc
-            })
+            .ProjectTo<ProductoDto>(_mapper.ConfigurationProvider)
             .ToListAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
         return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
@@ -97,17 +85,8 @@ public class ProductoService : IProductoService
     {
         var producto = await _context.Productos
             .AsNoTracking()
-            .Include(p => p.Categoria)
             .Where(p => p.Id == id)
-            .Select(p => new ProductoDto
-            {
-                Id = p.Id, Nombre = p.Nombre, Descripcion = p.Descripcion, Marca = p.Marca, Tipo = p.Tipo,
-                PrecioVenta = p.PrecioVenta, PrecioCompra = p.PrecioCompra,
-                StockVentas = p.StockVentas, StockInsumos = p.StockInsumos, StockTotal = p.StockTotal, StockMinimo = p.StockMinimo,
-                CategoriaId = p.CategoriaId,
-                CategoriaNombre = p.Categoria != null ? p.Categoria.Nombre : null,
-                Estado = p.Estado, ImagenProduc = p.ImagenProduc
-            })
+            .ProjectTo<ProductoDto>(_mapper.ConfigurationProvider)
             .FirstOrDefaultAsync();
 
         if (producto == null) return ServiceResult<object>.NotFound();

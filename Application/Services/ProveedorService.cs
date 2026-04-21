@@ -3,13 +3,21 @@ using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 
 namespace BarberiaApi.Application.Services;
 
 public class ProveedorService : IProveedorService
 {
     private readonly BarberiaContext _context;
-    public ProveedorService(BarberiaContext context) => _context = context;
+    private readonly IMapper _mapper;
+
+    public ProveedorService(BarberiaContext context, IMapper mapper)
+    {
+        _context = context;
+        _mapper = mapper;
+    }
 
     private async Task<ServiceResult<object>> GetByTipoAsync(string? tipo, int page, int pageSize, string? q)
     {
@@ -42,7 +50,7 @@ public class ProveedorService : IProveedorService
 
     public async Task<ServiceResult<object>> CreateNaturalAsync(ProveedorNaturalInput input)
     {
-        if (input == null) return ServiceResult<object>.Fail("El objeto proveedor natural es requerido");
+        // NOTA: Validación estructural básica manejada por FluentValidation.
         if (await _context.Proveedores.AnyAsync(p => p.NIT == input.NIT)) return ServiceResult<object>.Fail("Ya existe un proveedor con ese NIT");
         var proveedor = new Proveedor { Nombre = input.Nombre, Contacto = input.Contacto, NumeroIdentificacion = input.NumeroIdentificacion,
             TipoIdentificacion = input.TipoIdentificacion, Correo = input.Correo, Telefono = input.Telefono, Direccion = input.Direccion,
@@ -53,7 +61,7 @@ public class ProveedorService : IProveedorService
 
     public async Task<ServiceResult<object>> CreateJuridicoAsync(ProveedorJuridicoInput input)
     {
-        if (input == null) return ServiceResult<object>.Fail("El objeto proveedor jurídico es requerido");
+        // NOTA: Validación estructural básica manejada por FluentValidation.
         if (await _context.Proveedores.AnyAsync(p => p.NIT == input.NIT)) return ServiceResult<object>.Fail("Ya existe un proveedor con ese NIT");
         var proveedor = new Proveedor { Nombre = input.Nombre, NIT = input.NIT, Correo = input.Correo, Telefono = input.Telefono,
             Direccion = input.Direccion, Contacto = input.Contacto, NumeroIdentificacion = input.NumeroIdentificacion,
@@ -65,7 +73,7 @@ public class ProveedorService : IProveedorService
 
     public async Task<ServiceResult<object>> CreateAsync(ProveedorCreateInput input)
     {
-        if (input == null) return ServiceResult<object>.Fail("El objeto proveedor es requerido");
+        // NOTA: Validación estructural básica manejada por FluentValidation.
         var tipo = (input.TipoProveedor ?? "").Trim();
         if (tipo != "Natural" && tipo != "Juridico") return ServiceResult<object>.Fail("TipoProveedor debe ser 'Natural' o 'Juridico'");
         if (await _context.Proveedores.AnyAsync(p => p.NIT == input.NIT)) return ServiceResult<object>.Fail("Ya existe un proveedor con ese NIT");

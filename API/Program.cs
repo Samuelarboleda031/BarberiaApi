@@ -10,6 +10,11 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using BarberiaApi.Authorization;
 using BarberiaApi.Extensions;
+using BarberiaApi.Middlewares;
+using BarberiaApi.Application.Mappings;
+using BarberiaApi.Application.Validators;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 
@@ -43,6 +48,11 @@ builder.Services.AddInfrastructureServices(builder.Configuration);
 
 // Application: Business logic services
 builder.Services.AddApplicationServices();
+
+// AutoMapper & FluentValidation
+builder.Services.AddAutoMapper(typeof(MappingProfile).Assembly);
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssembly(typeof(VentaInputValidator).Assembly);
 
 // CORS
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
@@ -206,6 +216,7 @@ app.UseOutputCache();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<ExceptionMiddleware>();
 app.MapControllers();
 
 app.Run();

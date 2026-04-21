@@ -3,16 +3,20 @@ using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 
 namespace BarberiaApi.Application.Services;
 
 public class CompraService : ICompraService
 {
     private readonly BarberiaContext _context;
+    private readonly IMapper _mapper;
 
-    public CompraService(BarberiaContext context)
+    public CompraService(BarberiaContext context, IMapper mapper)
     {
         _context = context;
+        _mapper = mapper;
     }
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? searchTerm)
@@ -44,6 +48,7 @@ public class CompraService : ICompraService
             .OrderByDescending(c => c.FechaRegistro)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .ProjectTo<CompraDto>(_mapper.ConfigurationProvider)
             .ToListAsync();
 
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
@@ -53,8 +58,8 @@ public class CompraService : ICompraService
     public async Task<ServiceResult<object>> GetByIdAsync(int id)
     {
         var compra = await _context.Compras
-            .Include(c => c.Proveedor).Include(c => c.Usuario)
-            .Include(c => c.DetalleCompras).ThenInclude(d => d.Producto)
+            .AsNoTracking()
+            .ProjectTo<CompraDto>(_mapper.ConfigurationProvider)
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (compra == null) return ServiceResult<object>.NotFound();
@@ -63,8 +68,8 @@ public class CompraService : ICompraService
 
     public async Task<ServiceResult<object>> CreateAsync(CompraInput input)
     {
-        if (input == null || input.Detalles == null || !input.Detalles.Any())
-            return ServiceResult<object>.Fail("La compra debe tener al menos un detalle");
+        // NOTA: Validación estructural (Detalles != null, Cantidad > 0, etc) 
+        // ahora se maneja automáticamente por FluentValidation.
 
         var proveedorVal = await _context.Proveedores.FindAsync(input.ProveedorId);
         if (proveedorVal == null) return ServiceResult<object>.Fail("El proveedor no existe");
@@ -90,13 +95,7 @@ public class CompraService : ICompraService
                 Estado = "Completada"
             };
 
-            foreach (var det in input.Detalles)
-            {
-                if (det.Cantidad <= 0)
-                    return ServiceResult<object>.Fail("La cantidad de cada detalle debe ser mayor a 0");
-                if (det.PrecioUnitario < 0)
-                    return ServiceResult<object>.Fail("El precio unitario no puede ser negativo");
-            }
+            // NOTA: Cantidad <= 0 y PrecioUnitario < 0 ya validados por FluentValidation.
 
             var productIds = input.Detalles.Select(d => d.ProductoId).Distinct().ToList();
             var productos = await _context.Productos.Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id);

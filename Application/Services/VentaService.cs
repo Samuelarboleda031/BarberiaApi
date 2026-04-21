@@ -3,6 +3,8 @@ using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using System.Data;
 
 namespace BarberiaApi.Application.Services;
@@ -10,10 +12,12 @@ namespace BarberiaApi.Application.Services;
 public class VentaService : IVentaService
 {
     private readonly BarberiaContext _context;
+    private readonly IMapper _mapper;
 
-    public VentaService(BarberiaContext context)
+    public VentaService(BarberiaContext context, IMapper mapper)
     {
         _context = context;
+        _mapper = mapper;
     }
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? searchTerm)
@@ -53,32 +57,7 @@ public class VentaService : IVentaService
                 .OrderByDescending(v => v.Fecha)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(v => new
-                {
-                    v.Id,
-                    v.Fecha,
-                    v.Subtotal,
-                    v.Total,
-                    v.Descuento,
-                    v.IVA,
-                    v.Estado,
-                    v.MetodoPago,
-                    v.TipoVenta,
-                    v.ClienteNombre,
-                    v.ClienteId,
-                    v.BarberoId,
-                    v.UsuarioId,
-                    v.SaldoAFavorUsado,
-                    ClienteNombreCompleto = v.Cliente != null && v.Cliente.Usuario != null 
-                        ? v.Cliente.Usuario.Nombre + " " + v.Cliente.Usuario.Apellido 
-                        : (v.ClienteNombre ?? "Cliente"),
-                    BarberoNombreCompleto = v.Barbero != null && v.Barbero.Usuario != null 
-                        ? v.Barbero.Usuario.Nombre + " " + v.Barbero.Usuario.Apellido 
-                        : "Sin asignar",
-                    UsuarioNombreCompleto = v.Usuario != null 
-                        ? v.Usuario.Nombre + " " + v.Usuario.Apellido 
-                        : null
-                })
+                .ProjectTo<VentaDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
 
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
@@ -96,49 +75,7 @@ public class VentaService : IVentaService
         {
             var venta = await _context.Ventas
                 .AsNoTracking().AsSplitQuery()
-                .Select(v => new
-                {
-                    v.Id,
-                    v.Fecha,
-                    v.Subtotal,
-                    v.Total,
-                    v.Descuento,
-                    v.IVA,
-                    v.Estado,
-                    v.MetodoPago,
-                    v.TipoVenta,
-                    v.ClienteNombre,
-                    v.ClienteId,
-                    v.BarberoId,
-                    v.UsuarioId,
-                    v.SaldoAFavorUsado,
-                    // NumeroVenta y GarantiaMeses no existen en este commit base, se omiten o se usan fallbacks
-                    // Proyección plana
-                    ClienteNombreCompleto = v.Cliente != null && v.Cliente.Usuario != null 
-                        ? v.Cliente.Usuario.Nombre + " " + v.Cliente.Usuario.Apellido 
-                        : (v.ClienteNombre ?? "Cliente"),
-                    BarberoNombreCompleto = v.Barbero != null && v.Barbero.Usuario != null 
-                        ? v.Barbero.Usuario.Nombre + " " + v.Barbero.Usuario.Apellido 
-                        : "Sin asignar",
-                    UsuarioNombreCompleto = v.Usuario != null 
-                        ? v.Usuario.Nombre + " " + v.Usuario.Apellido 
-                        : null,
-                    Detalles = v.DetalleVenta.Select(d => new
-                    {
-                        d.Id,
-                        d.ProductoId,
-                        d.ServicioId,
-                        d.PaqueteId,
-                        d.Cantidad,
-                        d.PrecioUnitario,
-                        d.Subtotal,
-                        ProductoNombre = d.Producto != null ? d.Producto.Nombre : null,
-                        ServicioNombre = d.Servicio != null ? d.Servicio.Nombre : null,
-                        PaqueteNombre = d.Paquete != null ? d.Paquete.Nombre : null,
-                        // Corrección de nombres de campo de imagen según la entidad en d4474de
-                        FotoUrl = d.Producto != null ? d.Producto.ImagenProduc : (d.Servicio != null ? d.Servicio.Imagen : null)
-                    }).ToList()
-                })
+                .ProjectTo<VentaDto>(_mapper.ConfigurationProvider)
                 .FirstOrDefaultAsync(v => v.Id == id);
 
             if (venta == null) return ServiceResult<object>.NotFound();
@@ -189,8 +126,8 @@ public class VentaService : IVentaService
 
     public async Task<ServiceResult<object>> CreateAsync(VentaInput input)
     {
-        if (input == null || input.Detalles == null || !input.Detalles.Any())
-            return ServiceResult<object>.Fail("La venta debe tener al menos un detalle");
+        // NOTA: La validación estructural (Detalles != null, Cantidad > 0, etc) 
+        // ahora se maneja automáticamente por FluentValidation en el Controller.
 
         using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         try
@@ -240,14 +177,8 @@ public class VentaService : IVentaService
                 Estado = "Completada"
             };
 
-            foreach (var det in input.Detalles)
-            {
-                if (det.Cantidad <= 0)
-                    return ServiceResult<object>.Fail("La cantidad de cada detalle debe ser mayor a 0");
-                if (det.PrecioUnitario < 0)
-                    return ServiceResult<object>.Fail("El precio unitario no puede ser negativo");
-            }
-
+            // NOTA: Cantidad <= 0 y PrecioUnitario < 0 ya validados por FluentValidation.
+            
             var ventaProductIds = input.Detalles.Where(d => d.ProductoId.HasValue).Select(d => d.ProductoId!.Value).Distinct().ToList();
             var ventaProductos = ventaProductIds.Count > 0
                 ? await _context.Productos.Where(p => ventaProductIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id)

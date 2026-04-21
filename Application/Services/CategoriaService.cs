@@ -3,13 +3,21 @@ using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using AutoMapper;
+using AutoMapper.QueryableExtensions;
 
 namespace BarberiaApi.Application.Services;
 
 public class CategoriaService : ICategoriaService
 {
     private readonly BarberiaContext _context;
-    public CategoriaService(BarberiaContext context) => _context = context;
+    private readonly IMapper _mapper;
+
+    public CategoriaService(BarberiaContext context, IMapper mapper)
+    {
+        _context = context;
+        _mapper = mapper;
+    }
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
@@ -35,10 +43,7 @@ public class CategoriaService : ICategoriaService
 
     public async Task<ServiceResult<object>> CreateAsync(Categoria categoria)
     {
-        if (categoria == null) return ServiceResult<object>.Fail("El objeto categoria es requerido");
-        if (string.IsNullOrWhiteSpace(categoria.Nombre)) return ServiceResult<object>.Fail("El nombre de la categoría es requerido");
-        if (await _context.Categorias.AnyAsync(c => c.Nombre == categoria.Nombre && c.Estado == true))
-            return ServiceResult<object>.Fail("Ya existe una categoría con ese nombre");
+        // NOTA: Validación estructural básica manejada por FluentValidation.
         categoria.Id = 0; categoria.Estado = true;
         _context.Categorias.Add(categoria); await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(categoria);

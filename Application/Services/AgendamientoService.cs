@@ -4,6 +4,7 @@ using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using AutoMapper;
 
 namespace BarberiaApi.Application.Services;
 
@@ -11,11 +12,13 @@ public class AgendamientoService : IAgendamientoService
 {
     private readonly BarberiaContext _context;
     private readonly INotificacionCitasService _notificacionService;
+    private readonly IMapper _mapper;
 
-    public AgendamientoService(BarberiaContext context, INotificacionCitasService notificacionService)
+    public AgendamientoService(BarberiaContext context, INotificacionCitasService notificacionService, IMapper mapper)
     {
         _context = context;
         _notificacionService = notificacionService;
+        _mapper = mapper;
     }
 
     private List<int> BuildServicioIds(AgendamientoInput input)
@@ -310,7 +313,8 @@ public class AgendamientoService : IAgendamientoService
 
     public async Task<ServiceResult<object>> CreateAsync(AgendamientoInput input)
     {
-        if (input == null) return ServiceResult<object>.Fail("Input requerido");
+        // NOTA: Validación estructural básica (ClienteId, BarberoId, FechaHora) 
+        // ahora se maneja automáticamente por FluentValidation.
 
         var servicioIds = BuildServicioIds(input);
         if (servicioIds.Count > 0 && input.PaqueteId.HasValue)
