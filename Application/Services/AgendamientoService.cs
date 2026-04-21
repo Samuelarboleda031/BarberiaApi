@@ -178,14 +178,13 @@ public class AgendamientoService : IAgendamientoService
         };
     }
 
-    public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
+    public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q, bool? estaSemana)
     {
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 100;
         if (pageSize > 300) pageSize = 300;
-        var limite = DateTime.Now.AddDays(-7);
+        
         var baseQ = _context.Agendamientos
-            .Where(a => a.FechaHora >= limite)
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
             .Include(a => a.AgendamientoProductos)
@@ -195,6 +194,25 @@ public class AgendamientoService : IAgendamientoService
             .AsNoTracking()
             .AsSplitQuery()
             .AsQueryable();
+
+        if (estaSemana == true)
+        {
+            var now = DateTime.Now;
+            int diff = (7 + (now.DayOfWeek - DayOfWeek.Monday)) % 7;
+            var startOfWeek = now.AddDays(-1 * diff).Date;
+            var endOfWeek = startOfWeek.AddDays(7);
+            baseQ = baseQ.Where(a => a.FechaHora >= startOfWeek && a.FechaHora < endOfWeek);
+        }
+        else if (estaSemana == false)
+        {
+            // Omitir filtro de tiempo para mostrar "todas"
+        }
+        else 
+        {
+            // Comportamiento por defecto (ej. últimos 30 días para no saturar si no se pide "todas")
+            // Pero según el requerimiento, "todas" es sin el filtro de semana.
+        }
+
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim().ToLower();
@@ -265,7 +283,7 @@ public class AgendamientoService : IAgendamientoService
         return ServiceResult<object>.Ok(rows.Select(a => MapToDto(a, serviciosMap, productosMap)).ToList());
     }
 
-    public async Task<ServiceResult<object>> GetByClienteAsync(int clienteId, int page, int pageSize, string? q)
+    public async Task<ServiceResult<object>> GetByClienteAsync(int clienteId, int page, int pageSize, string? q, bool? estaSemana)
     {
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 100;
@@ -282,6 +300,16 @@ public class AgendamientoService : IAgendamientoService
             .AsNoTracking()
             .AsSplitQuery()
             .AsQueryable();
+
+        if (estaSemana == true)
+        {
+            var now = DateTime.Now;
+            int diff = (7 + (now.DayOfWeek - DayOfWeek.Monday)) % 7;
+            var startOfWeek = now.AddDays(-1 * diff).Date;
+            var endOfWeek = startOfWeek.AddDays(7);
+            baseQ = baseQ.Where(a => a.FechaHora >= startOfWeek && a.FechaHora < endOfWeek);
+        }
+
 
         if (!string.IsNullOrWhiteSpace(q))
         {

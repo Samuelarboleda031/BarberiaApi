@@ -18,9 +18,9 @@ namespace BarberiaApi.Controllers
 
         [HttpGet]
         [OutputCache(PolicyName = "short")]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 100, [FromQuery] string? q = null)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 100, [FromQuery] string? q = null, [FromQuery] bool? estaSemana = null)
         {
-            var result = await _agendamientoService.GetAllAsync(page, pageSize, q);
+            var result = await _agendamientoService.GetAllAsync(page, pageSize, q, estaSemana);
             return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
         }
 
@@ -43,9 +43,9 @@ namespace BarberiaApi.Controllers
 
         [HttpGet("cliente/{clienteId}")]
         [OutputCache(PolicyName = "short")]
-        public async Task<ActionResult<object>> GetByCliente(int clienteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 100, [FromQuery] string? q = null)
+        public async Task<ActionResult<object>> GetByCliente(int clienteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 100, [FromQuery] string? q = null, [FromQuery] bool? estaSemana = null)
         {
-            var result = await _agendamientoService.GetByClienteAsync(clienteId, page, pageSize, q);
+            var result = await _agendamientoService.GetByClienteAsync(clienteId, page, pageSize, q, estaSemana);
             return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
         }
 
