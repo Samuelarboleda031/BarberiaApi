@@ -16,7 +16,6 @@ namespace BarberiaApi.Controllers
         { var r = await _dashboardService.GetDashboardAsync(); return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error); }
 
         [HttpGet("ganancias")]
-        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult> GetGanancias([FromQuery] string periodo = "hoy", [FromQuery] string barbero = "Todos")
         {
             var r = await _dashboardService.GetGananciasAsync(periodo, barbero);
