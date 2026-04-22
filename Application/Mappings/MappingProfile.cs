@@ -68,6 +68,8 @@ public class MappingProfile : Profile
         CreateMap<Cliente, ClienteDto>()
             .ForMember(dest => dest.Nombre, opt => opt.MapFrom(src => src.Usuario.Nombre))
             .ForMember(dest => dest.Apellido, opt => opt.MapFrom(src => src.Usuario.Apellido))
+            .ForMember(dest => dest.Documento, opt => opt.MapFrom(src => src.Usuario.Documento))
+            .ForMember(dest => dest.FotoPerfil, opt => opt.MapFrom(src => src.Usuario.FotoPerfil))
             .ForMember(dest => dest.Correo, opt => opt.MapFrom(src => src.Usuario.Correo));
 
         CreateMap<ClienteInput, Cliente>();
@@ -78,6 +80,8 @@ public class MappingProfile : Profile
         CreateMap<Barbero, BarberoDto>()
             .ForMember(dest => dest.Nombre, opt => opt.MapFrom(src => src.Usuario.Nombre))
             .ForMember(dest => dest.Apellido, opt => opt.MapFrom(src => src.Usuario.Apellido))
+            .ForMember(dest => dest.Documento, opt => opt.MapFrom(src => src.Usuario.Documento))
+            .ForMember(dest => dest.FotoPerfil, opt => opt.MapFrom(src => src.Usuario.FotoPerfil))
             .ForMember(dest => dest.Correo, opt => opt.MapFrom(src => src.Usuario.Correo));
 
         CreateMap<BarberoInput, Barbero>();
