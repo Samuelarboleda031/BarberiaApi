@@ -181,7 +181,7 @@ builder.Services.AddOutputCache(options =>
 {
     options.AddPolicy("short", policy =>
         policy.Expire(TimeSpan.FromSeconds(30))
-              .SetVaryByQuery(new[] { "page", "pageSize", "q", "desde", "hasta", "barberoId", "clienteId", "productoId", "entregaId" })
+              .SetVaryByQuery(new[] { "page", "pageSize", "q", "desde", "hasta", "barberoId", "clienteId", "productoId", "entregaId", "estaSemana" })
               .SetVaryByRouteValue("id")
               .SetVaryByRouteValue("barberoId")
               .SetVaryByRouteValue("clienteId")
