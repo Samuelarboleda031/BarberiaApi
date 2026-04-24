@@ -29,7 +29,7 @@ public static class ServiceCollectionExtensions
 
         // Notificaciones
         services.AddScoped<INotificacionCitasService, NotificacionCitasService>();
-        services.AddHttpClient<IEmailProxyService, EmailProxyService>();
+        services.AddScoped<IEmailProxyService, EmailProxyService>();
 
         return services;
     }

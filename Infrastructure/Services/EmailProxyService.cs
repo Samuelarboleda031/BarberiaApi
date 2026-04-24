@@ -1,5 +1,6 @@
 using System.Globalization;
-using System.Net.Http.Json;
+using System.Net;
+using System.Net.Mail;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -7,16 +8,13 @@ namespace BarberiaApi.Infrastructure.Services;
 
 public sealed class EmailProxyService : IEmailProxyService
 {
-    private readonly HttpClient _httpClient;
     private readonly ILogger<EmailProxyService> _logger;
     private readonly IConfiguration _configuration;
 
     public EmailProxyService(
-        HttpClient httpClient,
         ILogger<EmailProxyService> logger,
         IConfiguration configuration)
     {
-        _httpClient = httpClient;
         _logger = logger;
         _configuration = configuration;
     }
@@ -25,67 +23,103 @@ public sealed class EmailProxyService : IEmailProxyService
         CancelacionEmailProxyRequest request,
         CancellationToken cancellationToken = default)
     {
-        var serviceId = _configuration["EmailJs:ServiceId"];
-        var templateId = _configuration["EmailJs:TemplateIdCancelacion"];
-        var publicKey = _configuration["EmailJs:PublicKey"];
-        var privateKey = _configuration["EmailJs:PrivateKey"];
-        var endpoint = _configuration["EmailJs:Endpoint"] ?? "https://api.emailjs.com/api/v1.0/email/send";
+        var habilitadoRaw = GetConfig("Smtp:Habilitado", "Notificaciones:Correo:Habilitado");
+        var habilitado = string.IsNullOrWhiteSpace(habilitadoRaw) ||
+                         (bool.TryParse(habilitadoRaw, out var parsedEnabled) && parsedEnabled);
+        if (!habilitado)
+        {
+            return new ProxyEmailResult
+            {
+                Enviado = false,
+                CodigoRespuesta = 503,
+                Mensaje = "Envío de correo deshabilitado por configuración."
+            };
+        }
 
-        if (string.IsNullOrWhiteSpace(serviceId) ||
-            string.IsNullOrWhiteSpace(templateId) ||
-            string.IsNullOrWhiteSpace(publicKey))
+        var host = GetConfig("Smtp:Host", "Notificaciones:Correo:Host");
+        var username = GetConfig("Smtp:Username", "Notificaciones:Correo:Usuario");
+        var password = GetConfig("Smtp:Password", "Notificaciones:Correo:Contrasena");
+        var fromEmail = GetConfig("Smtp:FromEmail", "Notificaciones:Correo:Remitente");
+        var fromName = GetConfig("Smtp:FromName", "Notificaciones:Correo:NombreRemitente") ?? "Barbería App";
+        var portRaw = GetConfig("Smtp:Port", "Notificaciones:Correo:Puerto");
+        var sslRaw = GetConfig("Smtp:EnableSsl", "Notificaciones:Correo:UseSsl");
+        var port = int.TryParse(portRaw, out var parsedPort) ? parsedPort : 587;
+        var enableSsl = !string.IsNullOrWhiteSpace(sslRaw) && bool.TryParse(sslRaw, out var parsedSsl)
+            ? parsedSsl
+            : true;
+
+        if (string.IsNullOrWhiteSpace(host) ||
+            string.IsNullOrWhiteSpace(username) ||
+            string.IsNullOrWhiteSpace(password) ||
+            string.IsNullOrWhiteSpace(fromEmail))
         {
             return new ProxyEmailResult
             {
                 Enviado = false,
                 CodigoRespuesta = 500,
-                Mensaje = "Configuración EmailJs incompleta en backend."
+                Mensaje = "Configuración SMTP incompleta en backend."
             };
         }
 
-        var templateParams = new
+        try
         {
-            to_name = request.ClienteNombre,
-            to_email = request.ClienteEmail,
-            barbero_name = request.BarberoNombre,
-            fecha_hora = FormatFecha(request.FechaOriginal),
-            motivo = request.Motivo,
-            sugerencias = request.SugerenciasReprogramacion is { Count: > 0 }
+            cancellationToken.ThrowIfCancellationRequested();
+
+            using var smtpClient = new SmtpClient(host, port)
+            {
+                EnableSsl = enableSsl,
+                UseDefaultCredentials = false,
+                Credentials = new NetworkCredential(username, password),
+            };
+
+            var appName = string.IsNullOrWhiteSpace(request.AppName) ? "Barbería App" : request.AppName;
+            var fechaFormateada = FormatFecha(request.FechaOriginal);
+            var sugerencias = request.SugerenciasReprogramacion is { Count: > 0 }
                 ? string.Join(" | ", request.SugerenciasReprogramacion.Select(FormatFecha))
-                : "No disponibles",
-            app_name = string.IsNullOrWhiteSpace(request.AppName) ? "Barbería App" : request.AppName
-        };
+                : "No disponibles";
 
-        var payload = new Dictionary<string, object?>
-        {
-            ["service_id"] = serviceId,
-            ["template_id"] = templateId,
-            ["user_id"] = publicKey,
-            ["template_params"] = templateParams
-        };
-        if (!string.IsNullOrWhiteSpace(privateKey))
-            payload["accessToken"] = privateKey;
+            var subject = $"{appName} - Cancelación de cita";
+            var body = $@"
+Hola {WebUtility.HtmlEncode(request.ClienteNombre)},
 
-        using var response = await _httpClient.PostAsJsonAsync(endpoint, payload, cancellationToken);
-        var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+Tu cita fue cancelada.
 
-        if (response.IsSuccessStatusCode)
-        {
+Barbero: {WebUtility.HtmlEncode(request.BarberoNombre)}
+Fecha original: {WebUtility.HtmlEncode(fechaFormateada)}
+Motivo: {WebUtility.HtmlEncode(request.Motivo)}
+Sugerencias de reprogramación: {WebUtility.HtmlEncode(sugerencias)}
+
+Gracias por tu comprensión.
+{WebUtility.HtmlEncode(appName)}";
+
+            using var message = new MailMessage
+            {
+                From = new MailAddress(fromEmail, fromName),
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = false
+            };
+            message.To.Add(new MailAddress(request.ClienteEmail, request.ClienteNombre));
+
+            await smtpClient.SendMailAsync(message);
+
             return new ProxyEmailResult
             {
                 Enviado = true,
-                CodigoRespuesta = (int)response.StatusCode,
-                Mensaje = "Correo enviado vía EmailJS desde backend."
+                CodigoRespuesta = 200,
+                Mensaje = "Correo enviado vía SMTP desde backend."
             };
         }
-
-        _logger.LogWarning("EmailJS proxy falló. Status: {Status}. Body: {Body}", (int)response.StatusCode, raw);
-        return new ProxyEmailResult
+        catch (Exception ex)
         {
-            Enviado = false,
-            CodigoRespuesta = (int)response.StatusCode,
-            Mensaje = $"EmailJS rechazó la solicitud: {raw}"
-        };
+            _logger.LogWarning(ex, "SMTP proxy falló al enviar correo de cancelación.");
+            return new ProxyEmailResult
+            {
+                Enviado = false,
+                CodigoRespuesta = 500,
+                Mensaje = $"SMTP rechazó la solicitud: {ex.Message}"
+            };
+        }
     }
 
     private static string FormatFecha(string input)
@@ -97,5 +131,12 @@ public sealed class EmailProxyService : IEmailProxyService
             return input;
 
         return dt.ToString("dddd, d 'de' MMMM, hh:mm tt", new CultureInfo("es-ES"));
+    }
+
+    private string? GetConfig(string primary, string fallback)
+    {
+        var value = _configuration[primary];
+        if (!string.IsNullOrWhiteSpace(value)) return value;
+        return _configuration[fallback];
     }
 }
