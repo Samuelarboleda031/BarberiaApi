@@ -21,11 +21,15 @@ public partial class Proveedor
 
     public string TipoProveedor { get; set; } = "Natural"; // "Natural" o "Juridico"
 
-    public string? Contacto { get; set; }
+    public string? RepresentanteLegal { get; set; }
     public string? NumeroIdentificacion { get; set; }
     public string? TipoIdentificacion { get; set; } // "CC", "CE", "TI", "Pasaporte"
-    public string? CorreoContacto { get; set; }
-    public string? TelefonoContacto { get; set; }
+    public string? CorreoRepresentante { get; set; }
+    public string? TelefonoRepresentante { get; set; }
+
+    // Información adicional jurídica
+    public string? Ciudad { get; set; }
+    public string? Departamento { get; set; }
 
     public virtual ICollection<Compra> Compras { get; set; } = new List<Compra>();
 }

@@ -45,6 +45,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IProductoService, ProductoService>();
         services.AddScoped<IHorarioService, HorarioService>();
+        services.AddScoped<ISolicitudCambioHorarioService, SolicitudCambioHorarioService>();
         services.AddScoped<IClienteService, ClienteService>();
         services.AddScoped<IBarberoService, BarberoService>();
         services.AddScoped<IProveedorService, ProveedorService>();

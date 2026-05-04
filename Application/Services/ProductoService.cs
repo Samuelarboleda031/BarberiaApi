@@ -297,4 +297,47 @@ public class ProductoService : IProductoService
         await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(new { message = "Producto eliminado físicamente de la base de datos", eliminado = true, fisico = true });
     }
+
+    public async Task<ServiceResult<object>> GetPrecioCompraPromedioAsync(int id)
+    {
+        var producto = await _context.Productos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+        if (producto == null) return ServiceResult<object>.NotFound();
+
+        var ultimasCompras = await _context.DetalleCompras
+            .AsNoTracking()
+            .Where(d => d.ProductoId == id)
+            .Include(d => d.Compra).ThenInclude(c => c!.Proveedor)
+            .OrderByDescending(d => d.Compra!.FechaRegistro)
+            .Take(5)
+            .Select(d => new
+            {
+                d.Id,
+                CompraId = d.CompraId,
+                FechaRegistro = d.Compra!.FechaRegistro,
+                FechaFactura = d.Compra.FechaFactura,
+                NumeroFactura = d.Compra.NumeroFactura,
+                ProveedorNombre = d.Compra.Proveedor != null ? d.Compra.Proveedor.Nombre : null,
+                d.Cantidad,
+                d.PrecioUnitario
+            })
+            .ToListAsync();
+
+        decimal promedio = 0;
+        int cantidadTotal = 0;
+        if (ultimasCompras.Count > 0)
+        {
+            promedio = ultimasCompras.Average(c => c.PrecioUnitario);
+            cantidadTotal = ultimasCompras.Sum(c => c.Cantidad);
+        }
+
+        return ServiceResult<object>.Ok(new
+        {
+            productoId = id,
+            productoNombre = producto.Nombre,
+            precioCompraPromedio = decimal.Round(promedio, 2),
+            cantidadComprasConsideradas = ultimasCompras.Count,
+            cantidadTotalComprada = cantidadTotal,
+            ultimasCompras
+        });
+    }
 }

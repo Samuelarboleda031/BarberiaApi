@@ -578,4 +578,18 @@ public class DevolucionService : IDevolucionService
         await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(new { success = true });
     }
+
+    public async Task<ServiceResult<object>> AnularAsync(int id)
+    {
+        var devolucion = await _context.Devoluciones
+            .Include(d => d.Producto)
+            .FirstOrDefaultAsync(d => d.Id == id);
+
+        if (devolucion == null) return ServiceResult<object>.NotFound();
+        if (string.Equals(devolucion.Estado, "Anulado", StringComparison.OrdinalIgnoreCase))
+            return ServiceResult<object>.Fail("La devolución ya está anulada", 409);
+
+        var input = new CambioEstadoInput { estado = "Anulado" };
+        return await CambiarEstadoAsync(id, input);
+    }
 }

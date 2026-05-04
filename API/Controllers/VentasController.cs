@@ -57,5 +57,13 @@ namespace BarberiaApi.Controllers
             if (!result.Success) return StatusCode(result.StatusCode, result.Error);
             return Ok(result.Data);
         }
+
+        [HttpPost("{id}/anular")]
+        public async Task<ActionResult> AnularVentaPost(int id)
+        {
+            var result = await _ventaService.AnularAsync(id);
+            if (!result.Success) return StatusCode(result.StatusCode, result.Error);
+            return Ok(result.Data);
+        }
     }
 }

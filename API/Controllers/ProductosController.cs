@@ -58,5 +58,9 @@ namespace BarberiaApi.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         { var r = await _productoService.DeleteAsync(id); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }
+
+        [HttpGet("{id}/precio-compra-promedio")] [OutputCache(PolicyName = "short")]
+        public async Task<ActionResult> GetPrecioCompraPromedio(int id)
+        { var r = await _productoService.GetPrecioCompraPromedioAsync(id); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }
     }
 }

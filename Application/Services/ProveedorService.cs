@@ -28,7 +28,7 @@ public class ProveedorService : IProveedorService
         {
             var term = q.Trim().ToLower();
             baseQ = baseQ.Where(p => (p.Nombre != null && p.Nombre.ToLower().Contains(term)) ||
-                (p.NIT != null && p.NIT.ToLower().Contains(term)) || (p.Contacto != null && p.Contacto.ToLower().Contains(term)) ||
+                (p.NIT != null && p.NIT.ToLower().Contains(term)) || (p.RepresentanteLegal != null && p.RepresentanteLegal.ToLower().Contains(term)) ||
                 (p.Correo != null && p.Correo.ToLower().Contains(term)) || (p.Telefono != null && p.Telefono.ToLower().Contains(term)));
         }
         var totalCount = await baseQ.CountAsync();
@@ -50,37 +50,85 @@ public class ProveedorService : IProveedorService
 
     public async Task<ServiceResult<object>> CreateNaturalAsync(ProveedorNaturalInput input)
     {
-        // NOTA: Validación estructural básica manejada por FluentValidation.
         if (await _context.Proveedores.AnyAsync(p => p.NIT == input.NIT)) return ServiceResult<object>.Fail("Ya existe un proveedor con ese NIT");
-        var proveedor = new Proveedor { Nombre = input.Nombre, Contacto = input.Contacto, NumeroIdentificacion = input.NumeroIdentificacion,
-            TipoIdentificacion = input.TipoIdentificacion, Correo = input.Correo, Telefono = input.Telefono, Direccion = input.Direccion,
-            NIT = input.NIT, CorreoContacto = input.CorreoContacto, TelefonoContacto = input.TelefonoContacto, TipoProveedor = "Natural", Estado = true };
+        var proveedor = new Proveedor
+        {
+            Nombre = input.Nombre,
+            RepresentanteLegal = input.RepresentanteLegal,
+            NumeroIdentificacion = input.NumeroIdentificacion,
+            TipoIdentificacion = input.TipoIdentificacion,
+            Correo = input.Correo,
+            Telefono = input.Telefono,
+            Direccion = input.Direccion,
+            NIT = input.NIT,
+            CorreoRepresentante = input.CorreoRepresentante,
+            TelefonoRepresentante = input.TelefonoRepresentante,
+            TipoProveedor = "Natural",
+            Estado = true
+        };
         _context.Proveedores.Add(proveedor); await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(proveedor);
     }
 
     public async Task<ServiceResult<object>> CreateJuridicoAsync(ProveedorJuridicoInput input)
     {
-        // NOTA: Validación estructural básica manejada por FluentValidation.
         if (await _context.Proveedores.AnyAsync(p => p.NIT == input.NIT)) return ServiceResult<object>.Fail("Ya existe un proveedor con ese NIT");
-        var proveedor = new Proveedor { Nombre = input.Nombre, NIT = input.NIT, Correo = input.Correo, Telefono = input.Telefono,
-            Direccion = input.Direccion, Contacto = input.Contacto, NumeroIdentificacion = input.NumeroIdentificacion,
-            TipoIdentificacion = input.TipoIdentificacion, CorreoContacto = input.CorreoContacto, TelefonoContacto = input.TelefonoContacto,
-            TipoProveedor = "Juridico", Estado = true };
+        var proveedor = new Proveedor
+        {
+            Nombre = input.Nombre,
+            NIT = input.NIT,
+            Correo = input.Correo,
+            Telefono = input.Telefono,
+            Direccion = input.Direccion,
+            RepresentanteLegal = input.RepresentanteLegal,
+            NumeroIdentificacion = input.NumeroIdentificacion,
+            TipoIdentificacion = input.TipoIdentificacion,
+            CorreoRepresentante = input.CorreoRepresentante,
+            TelefonoRepresentante = input.TelefonoRepresentante,
+            Ciudad = input.Ciudad,
+            Departamento = input.Departamento,
+            TipoProveedor = "Juridico",
+            Estado = true
+        };
         _context.Proveedores.Add(proveedor); await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(proveedor);
     }
 
     public async Task<ServiceResult<object>> CreateAsync(ProveedorCreateInput input)
     {
-        // NOTA: Validación estructural básica manejada por FluentValidation.
         var tipo = (input.TipoProveedor ?? "").Trim();
         if (tipo != "Natural" && tipo != "Juridico") return ServiceResult<object>.Fail("TipoProveedor debe ser 'Natural' o 'Juridico'");
         if (await _context.Proveedores.AnyAsync(p => p.NIT == input.NIT)) return ServiceResult<object>.Fail("Ya existe un proveedor con ese NIT");
-        var proveedor = new Proveedor { Nombre = input.Nombre, NIT = input.NIT, Correo = input.Correo, Telefono = input.Telefono,
-            Direccion = input.Direccion, Contacto = input.Contacto, NumeroIdentificacion = input.NumeroIdentificacion,
+
+        if (tipo == "Juridico")
+        {
+            if (string.IsNullOrWhiteSpace(input.RepresentanteLegal))
+                return ServiceResult<object>.Fail("RepresentanteLegal es obligatorio para proveedores jurídicos");
+            if (string.IsNullOrWhiteSpace(input.NumeroIdentificacion))
+                return ServiceResult<object>.Fail("NumeroIdentificacion del representante es obligatorio");
+            if (string.IsNullOrWhiteSpace(input.Ciudad))
+                return ServiceResult<object>.Fail("Ciudad es obligatoria");
+            if (string.IsNullOrWhiteSpace(input.Departamento))
+                return ServiceResult<object>.Fail("Departamento es obligatorio");
+        }
+
+        var proveedor = new Proveedor
+        {
+            Nombre = input.Nombre,
+            NIT = input.NIT,
+            Correo = input.Correo,
+            Telefono = input.Telefono,
+            Direccion = input.Direccion,
+            RepresentanteLegal = input.RepresentanteLegal,
+            NumeroIdentificacion = input.NumeroIdentificacion,
             TipoIdentificacion = string.IsNullOrWhiteSpace(input.TipoIdentificacion) ? (tipo == "Natural" ? "CC" : "NIT") : input.TipoIdentificacion,
-            CorreoContacto = input.CorreoContacto, TelefonoContacto = input.TelefonoContacto, TipoProveedor = tipo, Estado = true };
+            CorreoRepresentante = input.CorreoRepresentante,
+            TelefonoRepresentante = input.TelefonoRepresentante,
+            Ciudad = input.Ciudad,
+            Departamento = input.Departamento,
+            TipoProveedor = tipo,
+            Estado = true
+        };
         _context.Proveedores.Add(proveedor); await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(proveedor);
     }
@@ -97,8 +145,13 @@ public class ProveedorService : IProveedorService
         }
         p.Correo = input.Correo; p.Telefono = input.Telefono; p.Direccion = input.Direccion;
         if (input.Estado.HasValue) p.Estado = input.Estado.Value;
-        p.Contacto = input.Contacto; p.NumeroIdentificacion = input.NumeroIdentificacion;
-        p.TipoIdentificacion = input.TipoIdentificacion; p.CorreoContacto = input.CorreoContacto; p.TelefonoContacto = input.TelefonoContacto;
+        p.RepresentanteLegal = input.RepresentanteLegal;
+        p.NumeroIdentificacion = input.NumeroIdentificacion;
+        p.TipoIdentificacion = input.TipoIdentificacion;
+        p.CorreoRepresentante = input.CorreoRepresentante;
+        p.TelefonoRepresentante = input.TelefonoRepresentante;
+        p.Ciudad = input.Ciudad;
+        p.Departamento = input.Departamento;
         await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(new { message = "Proveedor actualizado" });
     }

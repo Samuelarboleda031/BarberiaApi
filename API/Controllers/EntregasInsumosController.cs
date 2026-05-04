@@ -68,5 +68,14 @@ namespace BarberiaApi.Controllers
             if (!result.Success) return result.StatusCode == 404 ? NotFound() : StatusCode(result.StatusCode, result.Error);
             return Ok(result.Data);
         }
+
+        [HttpPost("{id}/anular")]
+        public async Task<ActionResult> Anular(int id)
+        {
+            var input = new CambioEstadoInput { estado = "Anulada" };
+            var result = await _entregaInsumoService.CambiarEstadoAsync(id, input);
+            if (!result.Success) return result.StatusCode == 404 ? NotFound() : StatusCode(result.StatusCode, result.Error);
+            return Ok(result.Data);
+        }
     }
 }

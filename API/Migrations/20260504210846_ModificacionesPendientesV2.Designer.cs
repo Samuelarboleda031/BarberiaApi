@@ -4,6 +4,7 @@ using BarberiaApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BarberiaApi.Migrations
 {
     [DbContext(typeof(BarberiaContext))]
-    partial class BarberiaContextModelSnapshot : ModelSnapshot
+    [Migration("20260504210846_ModificacionesPendientesV2")]
+    partial class ModificacionesPendientesV2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

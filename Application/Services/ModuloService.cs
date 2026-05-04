@@ -13,8 +13,11 @@ public class ModuloService : IModuloService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
-        if (page < 1) page = 1; if (pageSize < 1) pageSize = 5;
-        var baseQ = _context.Modulos.AsQueryable();
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 5;
+        if (pageSize > 1000) pageSize = 1000; // tope explícito para evitar abuso
+
+        var baseQ = _context.Modulos.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim().ToLower();

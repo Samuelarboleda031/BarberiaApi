@@ -163,8 +163,20 @@ public class VentaService : IVentaService
                 if (usuario == null) return ServiceResult<object>.Fail("El usuario especificado no existe");
             }
 
+            string numeroRecibo = input.NumeroRecibo ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(numeroRecibo))
+            {
+                numeroRecibo = await GenerarNumeroReciboAsync();
+            }
+            else
+            {
+                var existe = await _context.Ventas.AnyAsync(v => v.NumeroRecibo == numeroRecibo);
+                if (existe) return ServiceResult<object>.Fail($"NumeroRecibo '{numeroRecibo}' ya existe");
+            }
+
             var venta = new Venta
             {
+                NumeroRecibo = numeroRecibo,
                 UsuarioId = usuarioId,
                 ClienteId = input.ClienteId,
                 BarberoId = input.BarberoId,
@@ -257,6 +269,27 @@ public class VentaService : IVentaService
             await transaction.RollbackAsync();
             return ServiceResult<object>.Fail($"Error interno: {ex.Message}", 500);
         }
+    }
+
+    private async Task<string> GenerarNumeroReciboAsync()
+    {
+        var year = DateTime.Now.Year;
+        var prefijo = $"REC-{year}-";
+
+        var ultimo = await _context.Ventas
+            .Where(v => v.NumeroRecibo != null && v.NumeroRecibo.StartsWith(prefijo))
+            .OrderByDescending(v => v.Id)
+            .Select(v => v.NumeroRecibo)
+            .FirstOrDefaultAsync();
+
+        int siguiente = 1;
+        if (!string.IsNullOrEmpty(ultimo))
+        {
+            var partes = ultimo.Split('-');
+            if (partes.Length == 3 && int.TryParse(partes[2], out int num))
+                siguiente = num + 1;
+        }
+        return $"{prefijo}{siguiente:D6}";
     }
 
     public async Task<ServiceResult<object>> AnularAsync(int id)

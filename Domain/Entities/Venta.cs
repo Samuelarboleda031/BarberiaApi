@@ -7,6 +7,8 @@ public partial class Venta
 {
     public int Id { get; set; }
 
+    public string? NumeroRecibo { get; set; }
+
     public int UsuarioId { get; set; }
 
     public int? ClienteId { get; set; }

@@ -3,6 +3,7 @@ namespace BarberiaApi.Application.DTOs;
 public class VentaDto
 {
     public int Id { get; set; }
+    public string? NumeroRecibo { get; set; }
     public DateTime Fecha { get; set; }
     public decimal Subtotal { get; set; }
     public decimal Total { get; set; }

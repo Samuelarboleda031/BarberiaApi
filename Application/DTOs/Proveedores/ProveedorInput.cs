@@ -8,7 +8,7 @@ public class ProveedorNaturalInput
     public string Nombre { get; set; } = string.Empty;
     [Required]
     public string NIT { get; set; } = string.Empty;
-    public string? Contacto { get; set; }
+    public string? RepresentanteLegal { get; set; }
     [Required]
     public string Correo { get; set; } = string.Empty;
     [Required]
@@ -17,8 +17,8 @@ public class ProveedorNaturalInput
     public string Direccion { get; set; } = string.Empty;
     public string? NumeroIdentificacion { get; set; }
     public string TipoIdentificacion { get; set; } = "CC";
-    public string? CorreoContacto { get; set; }
-    public string? TelefonoContacto { get; set; }
+    public string? CorreoRepresentante { get; set; }
+    public string? TelefonoRepresentante { get; set; }
 }
 
 public class ProveedorJuridicoInput
@@ -27,17 +27,27 @@ public class ProveedorJuridicoInput
     public string Nombre { get; set; } = string.Empty;
     [Required]
     public string NIT { get; set; } = string.Empty;
-    public string? Contacto { get; set; }
+    [Required(ErrorMessage = "RepresentanteLegal es obligatorio para proveedores jurídicos")]
+    public string RepresentanteLegal { get; set; } = string.Empty;
     [Required]
     public string Correo { get; set; } = string.Empty;
     [Required]
     public string Telefono { get; set; } = string.Empty;
     [Required]
     public string Direccion { get; set; } = string.Empty;
-    public string? NumeroIdentificacion { get; set; }
+    [Required(ErrorMessage = "NumeroIdentificacion del representante es obligatorio")]
+    public string NumeroIdentificacion { get; set; } = string.Empty;
     public string TipoIdentificacion { get; set; } = "NIT";
-    public string? CorreoContacto { get; set; }
-    public string? TelefonoContacto { get; set; }
+    [Required(ErrorMessage = "CorreoRepresentante es obligatorio")]
+    public string CorreoRepresentante { get; set; } = string.Empty;
+    [Required(ErrorMessage = "TelefonoRepresentante es obligatorio")]
+    public string TelefonoRepresentante { get; set; } = string.Empty;
+
+    // Información adicional jurídica obligatoria
+    [Required(ErrorMessage = "Ciudad es obligatoria")]
+    public string Ciudad { get; set; } = string.Empty;
+    [Required(ErrorMessage = "Departamento es obligatorio")]
+    public string Departamento { get; set; } = string.Empty;
 }
 
 public class ProveedorUpdateInput
@@ -48,11 +58,13 @@ public class ProveedorUpdateInput
     public string? Telefono { get; set; }
     public string? Direccion { get; set; }
     public bool? Estado { get; set; }
-    public string? Contacto { get; set; }
+    public string? RepresentanteLegal { get; set; }
     public string? NumeroIdentificacion { get; set; }
     public string TipoIdentificacion { get; set; } = "CC";
-    public string? CorreoContacto { get; set; }
-    public string? TelefonoContacto { get; set; }
+    public string? CorreoRepresentante { get; set; }
+    public string? TelefonoRepresentante { get; set; }
+    public string? Ciudad { get; set; }
+    public string? Departamento { get; set; }
 }
 
 public class ProveedorCreateInput
@@ -63,7 +75,7 @@ public class ProveedorCreateInput
     public string Nombre { get; set; } = string.Empty;
     [Required]
     public string NIT { get; set; } = string.Empty;
-    public string? Contacto { get; set; }
+    public string? RepresentanteLegal { get; set; }
     [Required]
     public string Correo { get; set; } = string.Empty;
     [Required]
@@ -72,6 +84,8 @@ public class ProveedorCreateInput
     public string Direccion { get; set; } = string.Empty;
     public string? NumeroIdentificacion { get; set; }
     public string? TipoIdentificacion { get; set; }
-    public string? CorreoContacto { get; set; }
-    public string? TelefonoContacto { get; set; }
+    public string? CorreoRepresentante { get; set; }
+    public string? TelefonoRepresentante { get; set; }
+    public string? Ciudad { get; set; }
+    public string? Departamento { get; set; }
 }

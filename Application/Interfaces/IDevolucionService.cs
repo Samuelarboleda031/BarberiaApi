@@ -11,4 +11,5 @@ public interface IDevolucionService
     Task<ServiceResult<object>> CreateBatchAsync(DevolucionBatchInput input);
     Task<ServiceResult<object>> CambiarEstadoAsync(int id, CambioEstadoInput input);
     Task<ServiceResult<object>> UpdateAsync(int id, DevolucionUpdateInput input);
+    Task<ServiceResult<object>> AnularAsync(int id);
 }

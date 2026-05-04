@@ -39,6 +39,8 @@ public partial class BarberiaContext : DbContext
     public virtual DbSet<Servicio> Servicios { get; set; }
     public virtual DbSet<Usuario> Usuarios { get; set; }
     public virtual DbSet<Venta> Ventas { get; set; }
+    public virtual DbSet<SolicitudCambioHorario> SolicitudesCambioHorario { get; set; }
+    public virtual DbSet<SugerenciaCambioHorario> SugerenciasCambioHorario { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -295,7 +297,7 @@ public partial class BarberiaContext : DbContext
             entity.Property(e => e.Nombre).HasMaxLength(150);
             entity.Property(e => e.NIT).HasMaxLength(50);
             entity.HasIndex(e => e.NIT).IsUnique();
-            entity.Property(e => e.Contacto).HasMaxLength(100);
+            entity.Property(e => e.RepresentanteLegal).HasMaxLength(150);
             entity.Property(e => e.Telefono).HasMaxLength(50);
             entity.Property(e => e.Correo).HasMaxLength(150);
             entity.Property(e => e.Direccion).HasMaxLength(200);
@@ -303,8 +305,10 @@ public partial class BarberiaContext : DbContext
             entity.Property(e => e.TipoProveedor).HasMaxLength(20);
             entity.Property(e => e.NumeroIdentificacion).HasMaxLength(50);
             entity.Property(e => e.TipoIdentificacion).HasMaxLength(20);
-            entity.Property(e => e.CorreoContacto).HasMaxLength(150);
-            entity.Property(e => e.TelefonoContacto).HasMaxLength(50);
+            entity.Property(e => e.CorreoRepresentante).HasMaxLength(150);
+            entity.Property(e => e.TelefonoRepresentante).HasMaxLength(50);
+            entity.Property(e => e.Ciudad).HasMaxLength(100);
+            entity.Property(e => e.Departamento).HasMaxLength(100);
         });
 
         modelBuilder.Entity<Role>(entity =>
@@ -377,6 +381,8 @@ public partial class BarberiaContext : DbContext
             entity.Property(e => e.Estado).HasMaxLength(20).HasDefaultValue("Completada");
             entity.Property(e => e.TipoVenta).HasMaxLength(50).HasDefaultValue("Venta Invitado");
             entity.Property(e => e.ClienteNombre).HasMaxLength(200);
+            entity.Property(e => e.NumeroRecibo).HasMaxLength(50);
+            entity.HasIndex(e => e.NumeroRecibo).IsUnique().HasFilter("[NumeroRecibo] IS NOT NULL");
             entity.Property(e => e.SaldoAFavorUsado).HasPrecision(18, 2).HasDefaultValue(0m);
 
             entity.HasOne(d => d.Usuario).WithMany(p => p.Ventas).HasForeignKey(d => d.UsuarioId).OnDelete(DeleteBehavior.Restrict);
@@ -384,6 +390,44 @@ public partial class BarberiaContext : DbContext
             entity.HasOne(d => d.Barbero).WithMany(p => p.Venta).HasForeignKey(d => d.BarberoId).OnDelete(DeleteBehavior.SetNull);
         });
 
+
+        modelBuilder.Entity<SolicitudCambioHorario>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("SolicitudesCambioHorario");
+
+            entity.Property(e => e.MotivoCategoria).HasMaxLength(100);
+            entity.Property(e => e.MotivoDetalle).HasMaxLength(500);
+            entity.Property(e => e.Estado).HasMaxLength(20).HasDefaultValue("Pendiente");
+            entity.Property(e => e.ObservacionAdmin).HasMaxLength(500);
+            entity.Property(e => e.FechaCreacion).HasColumnType("datetime").HasDefaultValueSql("GETDATE()");
+            entity.Property(e => e.FechaResolucion).HasColumnType("datetime");
+            entity.Property(e => e.FechaReferencia).HasColumnType("datetime");
+
+            entity.HasOne(s => s.Barbero)
+                .WithMany()
+                .HasForeignKey(s => s.BarberoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(s => s.UsuarioResolucion)
+                .WithMany()
+                .HasForeignKey(s => s.UsuarioResolucionId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SugerenciaCambioHorario>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("SugerenciasCambioHorario");
+
+            entity.Property(e => e.DiaSugerido).HasColumnType("datetime");
+            entity.Property(e => e.Origen).HasMaxLength(20).HasDefaultValue("Barbero");
+
+            entity.HasOne(s => s.Solicitud)
+                .WithMany(p => p.Sugerencias)
+                .HasForeignKey(s => s.SolicitudId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         OnModelCreatingPartial(modelBuilder);
     }
