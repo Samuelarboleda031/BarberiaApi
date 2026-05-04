@@ -64,12 +64,12 @@ namespace BarberiaApi.Controllers
             return Ok(result.Data);
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] DevolucionUpdateInput input)
+        [HttpGet("cliente/{clienteId}")]
+        [OutputCache(PolicyName = "short")]
+        public async Task<ActionResult> GetByCliente(int clienteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var result = await _devolucionService.UpdateAsync(id, input);
-            if (!result.Success) return result.StatusCode == 404 ? NotFound() : StatusCode(result.StatusCode, result.Error);
-            return NoContent();
+            var result = await _devolucionService.GetByClienteAsync(clienteId, page, pageSize);
+            return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
         }
 
         [HttpPost("{id}/anular")]

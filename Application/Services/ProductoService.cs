@@ -177,7 +177,6 @@ public class ProductoService : IProductoService
         productoExistente.PrecioCompra = producto.PrecioCompra;
         productoExistente.StockVentas = producto.StockVentas;
         productoExistente.StockInsumos = producto.StockInsumos;
-        productoExistente.StockMinimo = producto.StockMinimo;
         productoExistente.StockTotal = productoExistente.StockVentas + productoExistente.StockInsumos;
         productoExistente.CategoriaId = producto.CategoriaId;
         productoExistente.Estado = producto.Estado;
@@ -267,7 +266,7 @@ public class ProductoService : IProductoService
         {
             Id = producto.Id, Nombre = producto.Nombre, Descripcion = producto.Descripcion, Marca = producto.Marca, Tipo = producto.Tipo,
             PrecioVenta = producto.PrecioVenta, PrecioCompra = producto.PrecioCompra,
-            StockVentas = producto.StockVentas, StockInsumos = producto.StockInsumos, StockTotal = producto.StockTotal, StockMinimo = producto.StockMinimo,
+            StockVentas = producto.StockVentas, StockInsumos = producto.StockInsumos, StockTotal = producto.StockTotal,
             CategoriaId = producto.CategoriaId, Estado = producto.Estado, ImagenProduc = producto.ImagenProduc
         });
     }

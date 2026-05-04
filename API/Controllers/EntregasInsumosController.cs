@@ -53,14 +53,6 @@ namespace BarberiaApi.Controllers
             return CreatedAtAction(nameof(GetById), new { id = ((dynamic)result.Data!).Id }, result.Data);
         }
 
-        [HttpPut("{id}")]
-        public async Task<ActionResult<EntregasInsumo>> Update(int id, [FromBody] EntregasInsumo entrega)
-        {
-            var result = await _entregaInsumoService.UpdateAsync(id, entrega);
-            if (!result.Success) return result.StatusCode == 404 ? NotFound() : BadRequest(result.Error);
-            return Ok(result.Data);
-        }
-
         [HttpPut("{id}/estado")]
         public async Task<ActionResult<CambioEstadoResponse<EntregasInsumo>>> CambiarEstado(int id, [FromBody] CambioEstadoInput input)
         {

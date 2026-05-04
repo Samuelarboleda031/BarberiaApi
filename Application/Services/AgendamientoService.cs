@@ -63,6 +63,31 @@ public class AgendamientoService : IAgendamientoService
             .ToList();
     }
 
+    /// <summary>
+    /// Devuelve [{ProductoId, Cantidad}] desde input.Productos (nuevo) o input.ProductoIds (legacy).
+    /// Si ambos vienen, usa Productos[].
+    /// </summary>
+    private static List<(int ProductoId, int Cantidad)> NormalizarProductosInput(AgendamientoInput input)
+    {
+        if (input.Productos != null && input.Productos.Count > 0)
+        {
+            return input.Productos
+                .GroupBy(p => p.ProductoId)
+                .Select(g => (g.Key, Math.Max(1, g.Sum(x => x.Cantidad))))
+                .ToList();
+        }
+#pragma warning disable CS0618
+        if (input.ProductoIds != null && input.ProductoIds.Count > 0)
+        {
+            return input.ProductoIds
+                .GroupBy(pid => pid)
+                .Select(g => (g.Key, g.Count()))
+                .ToList();
+        }
+#pragma warning restore CS0618
+        return new List<(int, int)>();
+    }
+
     private List<int> ExtractMetaIds(string? notas, string prefix, int? singleId)
     {
         var ids = new List<int>();
@@ -133,7 +158,7 @@ public class AgendamientoService : IAgendamientoService
     {
         var servicioIds = ExtractServicioIds(agendamiento);
         var productoIds = ExtractProductoIds(agendamiento);
-        
+
         var serviciosNombres = servicioIds
             .Select(id => serviciosMap.TryGetValue(id, out var servicio) ? servicio.Nombre : null)
             .Where(nombre => !string.IsNullOrWhiteSpace(nombre))
@@ -149,11 +174,43 @@ public class AgendamientoService : IAgendamientoService
         var servicioNombre = serviciosNombres.Count > 0
             ? string.Join(", ", serviciosNombres)
             : (agendamiento.Servicio != null ? agendamiento.Servicio.Nombre : null);
-        
+
         if (string.IsNullOrWhiteSpace(servicioNombre) && agendamiento.Paquete != null)
         {
             servicioNombre = agendamiento.Paquete.Nombre;
         }
+
+        // Productos con cantidad e imagen (estructura nueva)
+        var productosDetalle = (agendamiento.AgendamientoProductos ?? new List<AgendamientoProducto>())
+            .Select(ap =>
+            {
+                productosMap.TryGetValue(ap.ProductoId, out var p);
+                return new AgendamientoProductoDTO
+                {
+                    ProductoId = ap.ProductoId,
+                    Nombre = p?.Nombre ?? string.Empty,
+                    Cantidad = ap.Cantidad,
+                    Imagen = p?.ImagenProduc,
+                    PrecioVenta = p?.PrecioVenta
+                };
+            })
+            .ToList();
+
+        // Servicios con duración e imagen (estructura nueva)
+        var serviciosDetalle = servicioIds
+            .Select(sid =>
+            {
+                serviciosMap.TryGetValue(sid, out var s);
+                return new AgendamientoServicioDTO
+                {
+                    ServicioId = sid,
+                    Nombre = s?.Nombre ?? string.Empty,
+                    Duracion = s?.DuracionMinutos,
+                    Imagen = s?.Imagen,
+                    Precio = s?.Precio
+                };
+            })
+            .ToList();
 
         return new AgendamientoDTO
         {
@@ -163,6 +220,8 @@ public class AgendamientoService : IAgendamientoService
             ServicioId = agendamiento.ServicioId,
             ServicioIds = servicioIds,
             ProductoIds = productoIds,
+            Productos = productosDetalle,
+            Servicios = serviciosDetalle,
             PaqueteId = agendamiento.PaqueteId,
             ClienteNombre = agendamiento.Cliente?.Usuario?.Nombre + " " + agendamiento.Cliente?.Usuario?.Apellido,
             BarberoNombre = agendamiento.Barbero?.Usuario?.Nombre + " " + agendamiento.Barbero?.Usuario?.Apellido,
@@ -369,10 +428,16 @@ public class AgendamientoService : IAgendamientoService
             precioCalculado = paquete.Precio;
         }
 
-        if (input.ProductoIds != null && input.ProductoIds.Count > 0)
+        var productosCantidad = NormalizarProductosInput(input);
+        if (productosCantidad.Count > 0)
         {
-            var productos = await _context.Productos.Where(p => input.ProductoIds.Contains(p.Id)).ToListAsync();
-            precioCalculado += productos.Sum(p => p.PrecioVenta);
+            var ids = productosCantidad.Select(p => p.ProductoId).Distinct().ToList();
+            var productos = await _context.Productos.Where(p => ids.Contains(p.Id)).ToListAsync();
+            precioCalculado += productosCantidad.Sum(pc =>
+            {
+                var prod = productos.FirstOrDefault(p => p.Id == pc.ProductoId);
+                return (prod?.PrecioVenta ?? 0) * pc.Cantidad;
+            });
         }
 
         var barbero = await _context.Barberos.Include(b => b.Usuario).FirstOrDefaultAsync(b => b.Id == input.BarberoId);
@@ -412,7 +477,7 @@ public class AgendamientoService : IAgendamientoService
             ServicioId = servicioIds.FirstOrDefault() > 0 ? servicioIds.FirstOrDefault() : null,
             PaqueteId = input.PaqueteId,
             FechaHora = input.FechaHora,
-            Notas = BuildNotasWithMetadata(input.Notas, servicioIds, input.ProductoIds),
+            Notas = BuildNotasWithMetadata(input.Notas, servicioIds, productosCantidad.Select(p => p.ProductoId).ToList()),
             Duracion = input.Duracion ?? $"{duracionMinutos} minutos",
             Precio = input.Precio ?? precioCalculado,
             Estado = "Pendiente"
@@ -426,14 +491,9 @@ public class AgendamientoService : IAgendamientoService
             }
         }
 
-        if (input.ProductoIds != null && input.ProductoIds.Count > 0)
+        foreach (var pc in productosCantidad)
         {
-            var productosAgrupados = input.ProductoIds.GroupBy(pid => pid)
-                .Select(g => new { ProductoId = g.Key, Cantidad = g.Count() });
-            foreach (var pg in productosAgrupados)
-            {
-                agendamiento.AgendamientoProductos.Add(new AgendamientoProducto { ProductoId = pg.ProductoId, Cantidad = pg.Cantidad });
-            }
+            agendamiento.AgendamientoProductos.Add(new AgendamientoProducto { ProductoId = pc.ProductoId, Cantidad = pc.Cantidad });
         }
 
         _context.Agendamientos.Add(agendamiento);
@@ -491,10 +551,16 @@ public class AgendamientoService : IAgendamientoService
             precioCalculado = paquete.Precio;
         }
 
-        if (input.ProductoIds != null && input.ProductoIds.Count > 0)
+        var productosCantidad = NormalizarProductosInput(input);
+        if (productosCantidad.Count > 0)
         {
-            var productos = await _context.Productos.Where(p => input.ProductoIds.Contains(p.Id)).ToListAsync();
-            precioCalculado += productos.Sum(p => p.PrecioVenta);
+            var ids = productosCantidad.Select(p => p.ProductoId).Distinct().ToList();
+            var productos = await _context.Productos.Where(p => ids.Contains(p.Id)).ToListAsync();
+            precioCalculado += productosCantidad.Sum(pc =>
+            {
+                var prod = productos.FirstOrDefault(p => p.Id == pc.ProductoId);
+                return (prod?.PrecioVenta ?? 0) * pc.Cantidad;
+            });
         }
 
         var barberoNuevo = await _context.Barberos.Include(b => b.Usuario).FirstOrDefaultAsync(b => b.Id == input.BarberoId);
@@ -532,7 +598,7 @@ public class AgendamientoService : IAgendamientoService
         agendamientoExistente.ServicioId = servicioIds.FirstOrDefault() > 0 ? servicioIds.FirstOrDefault() : null;
         agendamientoExistente.PaqueteId = input.PaqueteId;
         agendamientoExistente.FechaHora = input.FechaHora;
-        agendamientoExistente.Notas = BuildNotasWithMetadata(input.Notas, servicioIds, input.ProductoIds);
+        agendamientoExistente.Notas = BuildNotasWithMetadata(input.Notas, servicioIds, productosCantidad.Select(p => p.ProductoId).ToList());
         agendamientoExistente.Duracion = input.Duracion ?? $"{duracionMinutos} minutos";
         agendamientoExistente.Precio = input.Precio ?? precioCalculado;
 
@@ -546,14 +612,9 @@ public class AgendamientoService : IAgendamientoService
         }
 
         _context.AgendamientoProductos.RemoveRange(agendamientoExistente.AgendamientoProductos);
-        if (input.ProductoIds != null && input.ProductoIds.Count > 0)
+        foreach (var pc in productosCantidad)
         {
-            var productosAgrupados = input.ProductoIds.GroupBy(pid => pid)
-                .Select(g => new { ProductoId = g.Key, Cantidad = g.Count() });
-            foreach (var pg in productosAgrupados)
-            {
-                agendamientoExistente.AgendamientoProductos.Add(new AgendamientoProducto { ProductoId = pg.ProductoId, Cantidad = pg.Cantidad });
-            }
+            agendamientoExistente.AgendamientoProductos.Add(new AgendamientoProducto { ProductoId = pc.ProductoId, Cantidad = pc.Cantidad });
         }
 
         try

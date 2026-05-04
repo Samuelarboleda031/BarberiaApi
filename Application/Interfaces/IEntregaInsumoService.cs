@@ -10,6 +10,5 @@ public interface IEntregaInsumoService
     Task<ServiceResult<object>> GetDevolucionesResumenAsync(int? barberoId, int? entregaId, DateTime? desde, DateTime? hasta);
     Task<ServiceResult<object>> GetByIdAsync(int id);
     Task<ServiceResult<object>> CreateAsync(EntregaInput input);
-    Task<ServiceResult<object>> UpdateAsync(int id, EntregasInsumo entrega);
     Task<ServiceResult<object>> CambiarEstadoAsync(int id, CambioEstadoInput input);
 }

@@ -41,14 +41,6 @@ namespace BarberiaApi.Controllers
             return Ok(result.Data);
         }
 
-        [HttpDelete("{id}")]
-        public async Task<ActionResult> Delete(int id)
-        {
-            var result = await _compraService.AnularAsync(id);
-            if (!result.Success) return result.StatusCode == 404 ? NotFound() : StatusCode(result.StatusCode, result.Error);
-            return NoContent();
-        }
-
         [HttpPost("{id}/anular")]
         public async Task<ActionResult> Anular(int id)
         {

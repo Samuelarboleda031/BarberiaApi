@@ -7,6 +7,7 @@ namespace BarberiaApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [System.Obsolete("CitasController es legacy. Usar AgendamientosController. Será removido en próximas versiones.")]
     public class CitasController : ControllerBase
     {
         private readonly ICitaService _citaService;

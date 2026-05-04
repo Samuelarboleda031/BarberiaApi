@@ -10,6 +10,6 @@ public interface IDevolucionService
     Task<ServiceResult<object>> CreateAsync(DevolucionInput input);
     Task<ServiceResult<object>> CreateBatchAsync(DevolucionBatchInput input);
     Task<ServiceResult<object>> CambiarEstadoAsync(int id, CambioEstadoInput input);
-    Task<ServiceResult<object>> UpdateAsync(int id, DevolucionUpdateInput input);
     Task<ServiceResult<object>> AnularAsync(int id);
+    Task<ServiceResult<object>> GetByClienteAsync(int clienteId, int page, int pageSize);
 }

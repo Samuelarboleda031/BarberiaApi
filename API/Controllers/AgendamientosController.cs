@@ -33,14 +33,6 @@ namespace BarberiaApi.Controllers
             return Ok(result.Data);
         }
 
-        [HttpGet("barbero/{barberoId}/{fecha}")]
-        [OutputCache(PolicyName = "short")]
-        public async Task<ActionResult<IEnumerable<AgendamientoDTO>>> GetByBarberoYFecha(int barberoId, DateTime fecha)
-        {
-            var result = await _agendamientoService.GetByBarberoYFechaAsync(barberoId, fecha);
-            return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
-        }
-
         [HttpGet("cliente/{clienteId}")]
         [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetByCliente(int clienteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 100, [FromQuery] string? q = null, [FromQuery] bool? estaSemana = null)

@@ -224,34 +224,6 @@ public class EntregaInsumoService : IEntregaInsumoService
         }
     }
 
-    public async Task<ServiceResult<object>> UpdateAsync(int id, EntregasInsumo entrega)
-    {
-        if (id != entrega.Id) return ServiceResult<object>.Fail("ID mismatch");
-
-        var entregaExistente = await _context.EntregasInsumos
-            .Include(e => e.Barbero)
-            .Include(e => e.Usuario)
-            .Include(e => e.DetalleEntregasInsumos)
-            .FirstOrDefaultAsync(e => e.Id == id);
-
-        if (entregaExistente == null) return ServiceResult<object>.NotFound();
-
-        entregaExistente.BarberoId = entrega.BarberoId;
-        entregaExistente.UsuarioId = entrega.UsuarioId;
-
-        try
-        {
-            await _context.SaveChangesAsync();
-            return ServiceResult<object>.Ok(entregaExistente);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!await _context.EntregasInsumos.AnyAsync(e => e.Id == id))
-                return ServiceResult<object>.NotFound();
-            throw;
-        }
-    }
-
     public async Task<ServiceResult<object>> CambiarEstadoAsync(int id, CambioEstadoInput input)
     {
         var entrega = await _context.EntregasInsumos

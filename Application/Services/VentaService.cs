@@ -87,6 +87,34 @@ public class VentaService : IVentaService
         }
     }
 
+    public async Task<ServiceResult<object>> GetByClienteAsync(int clienteId, int page, int pageSize)
+    {
+        try
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 5;
+
+            var baseQ = _context.Ventas
+                .AsNoTracking()
+                .Where(v => v.ClienteId == clienteId);
+
+            var totalCount = await baseQ.CountAsync();
+            var items = await baseQ
+                .OrderByDescending(v => v.Fecha)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ProjectTo<VentaDto>(_mapper.ConfigurationProvider)
+                .ToListAsync();
+
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
+        }
+        catch (Exception ex)
+        {
+            return ServiceResult<object>.Fail($"Error al obtener ventas por cliente: {ex.Message}", 500);
+        }
+    }
+
     public async Task<ServiceResult<object>> GetByAgendamientoAsync(int agendamientoId)
     {
         var ag = await _context.Agendamientos

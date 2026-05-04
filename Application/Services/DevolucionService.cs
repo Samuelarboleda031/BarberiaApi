@@ -529,54 +529,18 @@ public class DevolucionService : IDevolucionService
         }
     }
 
-    public async Task<ServiceResult<object>> UpdateAsync(int id, DevolucionUpdateInput input)
+    public async Task<ServiceResult<object>> GetByClienteAsync(int clienteId, int page, int pageSize)
     {
-        if (id != input.Id) return ServiceResult<object>.Fail("ID mismatch");
-
-        var existente = await _context.Devoluciones.FindAsync(id);
-        if (existente == null) return ServiceResult<object>.NotFound();
-
-        if (input.VentaId.HasValue)
-        {
-            if (input.BarberoId.HasValue || input.EntregaId.HasValue)
-                return ServiceResult<object>.Fail("Una devolución de ventas no puede tener BarberoId ni EntregaId");
-
-            existente.VentaId = input.VentaId;
-            existente.ClienteId = input.ClienteId;
-            existente.UsuarioId = input.UsuarioId;
-            existente.BarberoId = null;
-            existente.EntregaId = null;
-            existente.ProductoId = input.ProductoId;
-            existente.Cantidad = input.Cantidad;
-            existente.MotivoCategoria = input.MotivoCategoria;
-            existente.MotivoDetalle = input.MotivoDetalle;
-            existente.Observaciones = input.Observaciones;
-            existente.MontoDevuelto = input.MontoDevuelto;
-            existente.SaldoAFavor = input.SaldoAFavor;
-            existente.Estado = input.Estado;
-        }
-        else
-        {
-            if (!input.BarberoId.HasValue || !input.EntregaId.HasValue)
-                return ServiceResult<object>.Fail("Una devolución de insumos requiere BarberoId y EntregaId, y no debe tener VentaId");
-
-            existente.VentaId = null;
-            existente.ClienteId = null;
-            existente.UsuarioId = input.UsuarioId;
-            existente.BarberoId = input.BarberoId;
-            existente.EntregaId = input.EntregaId;
-            existente.ProductoId = input.ProductoId;
-            existente.Cantidad = input.Cantidad;
-            existente.MotivoCategoria = input.MotivoCategoria;
-            existente.MotivoDetalle = input.MotivoDetalle;
-            existente.Observaciones = input.Observaciones;
-            existente.MontoDevuelto = 0;
-            existente.SaldoAFavor = 0;
-            existente.Estado = input.Estado;
-        }
-
-        await _context.SaveChangesAsync();
-        return ServiceResult<object>.Ok(new { success = true });
+        return await GetAllAsync(
+            barberoId: null,
+            clienteId: clienteId,
+            productoId: null,
+            entregaId: null,
+            desde: null,
+            hasta: null,
+            page: page,
+            pageSize: pageSize,
+            q: null);
     }
 
     public async Task<ServiceResult<object>> AnularAsync(int id)

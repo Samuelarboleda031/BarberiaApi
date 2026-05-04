@@ -13,7 +13,6 @@ public class ProductoDto
     public int StockVentas { get; set; }
     public int StockInsumos { get; set; }
     public int StockTotal { get; set; }
-    public int StockMinimo { get; set; }
     public int? CategoriaId { get; set; }
     public string? CategoriaNombre { get; set; }
     public bool? Estado { get; set; }

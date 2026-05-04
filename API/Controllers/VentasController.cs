@@ -42,6 +42,14 @@ namespace BarberiaApi.Controllers
             return Ok(result.Data);
         }
 
+        [HttpGet("cliente/{clienteId}")]
+        [OutputCache(PolicyName = "short")]
+        public async Task<ActionResult> GetByCliente(int clienteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            var result = await _ventaService.GetByClienteAsync(clienteId, page, pageSize);
+            return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
+        }
+
         [HttpPost]
         public async Task<ActionResult> Create([FromBody] VentaInput input)
         {

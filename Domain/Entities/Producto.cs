@@ -22,7 +22,6 @@ public partial class Producto
     public int StockInsumos { get; set; } = 0;
 
     public int StockTotal { get; set; } = 0;
-    public int StockMinimo { get; set; } = 0;
 
     public int? CategoriaId { get; set; }
 
