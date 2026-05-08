@@ -34,7 +34,7 @@ public class CompraService : ICompraService
                 (c.MetodoPago != null && c.MetodoPago.ToLower().Contains(term)) ||
                 (c.Proveedor != null && (
                     (c.Proveedor.Nombre != null && c.Proveedor.Nombre.ToLower().Contains(term)) ||
-                    (c.Proveedor.NIT != null && c.Proveedor.NIT.ToLower().Contains(term))
+                    (c.Proveedor.Identificacion != null && c.Proveedor.Identificacion.ToLower().Contains(term))
                 )) ||
                 (c.Usuario != null && (
                     (c.Usuario.Nombre != null && c.Usuario.Nombre.ToLower().Contains(term)) ||

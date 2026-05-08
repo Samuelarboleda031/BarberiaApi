@@ -43,7 +43,7 @@ public class MappingProfile : Profile
         // ==========================
         CreateMap<Compra, CompraDto>()
             .ForMember(dest => dest.ProveedorNombre, opt => opt.MapFrom(src => src.Proveedor != null ? src.Proveedor.Nombre : null))
-            .ForMember(dest => dest.ProveedorNIT, opt => opt.MapFrom(src => src.Proveedor != null ? src.Proveedor.NIT : null))
+            .ForMember(dest => dest.ProveedorNIT, opt => opt.MapFrom(src => src.Proveedor != null ? src.Proveedor.Identificacion : null))
             .ForMember(dest => dest.UsuarioNombreCompleto, opt => opt.MapFrom(src => 
                 src.Usuario != null ? $"{src.Usuario.Nombre} {src.Usuario.Apellido}" : null));
 

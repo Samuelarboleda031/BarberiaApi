@@ -294,21 +294,22 @@ public partial class BarberiaContext : DbContext
             entity.HasKey(e => e.Id);
             entity.ToTable("Proveedores");
 
-            entity.Property(e => e.Nombre).HasMaxLength(150);
-            entity.Property(e => e.NIT).HasMaxLength(50);
-            entity.HasIndex(e => e.NIT).IsUnique();
-            entity.Property(e => e.RepresentanteLegal).HasMaxLength(150);
-            entity.Property(e => e.Telefono).HasMaxLength(50);
-            entity.Property(e => e.Correo).HasMaxLength(150);
-            entity.Property(e => e.Direccion).HasMaxLength(200);
-            entity.Property(e => e.Estado).HasDefaultValue(true);
             entity.Property(e => e.TipoProveedor).HasMaxLength(20);
-            entity.Property(e => e.NumeroIdentificacion).HasMaxLength(50);
-            entity.Property(e => e.TipoIdentificacion).HasMaxLength(20);
-            entity.Property(e => e.CorreoRepresentante).HasMaxLength(150);
-            entity.Property(e => e.TelefonoRepresentante).HasMaxLength(50);
+            entity.Property(e => e.Nombre).HasMaxLength(150);
+            entity.Property(e => e.TipoIdentificacionProveedor).HasMaxLength(40);
+            entity.Property(e => e.Identificacion).HasMaxLength(50);
+            entity.HasIndex(e => e.Identificacion).IsUnique();
+            entity.Property(e => e.Correo).HasMaxLength(150);
+            entity.Property(e => e.Telefono).HasMaxLength(50);
+            entity.Property(e => e.Direccion).HasMaxLength(200);
             entity.Property(e => e.Ciudad).HasMaxLength(100);
             entity.Property(e => e.Departamento).HasMaxLength(100);
+            entity.Property(e => e.RepresentanteLegal).HasMaxLength(150);
+            entity.Property(e => e.TipoIdentificacionRepresentante).HasMaxLength(40);
+            entity.Property(e => e.IdentificacionRepresentante).HasMaxLength(50);
+            entity.Property(e => e.CorreoRepresentante).HasMaxLength(150);
+            entity.Property(e => e.TelefonoRepresentante).HasMaxLength(50);
+            entity.Property(e => e.Estado).HasDefaultValue(true);
         });
 
         modelBuilder.Entity<Role>(entity =>

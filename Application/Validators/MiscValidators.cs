@@ -26,6 +26,6 @@ public class ProveedorValidator : AbstractValidator<Proveedor>
     public ProveedorValidator()
     {
         RuleFor(x => x.Nombre).NotEmpty().WithMessage("El nombre del proveedor es requerido");
-        RuleFor(x => x.NIT).NotEmpty().WithMessage("El NIT es requerido");
+        RuleFor(x => x.Identificacion).NotEmpty().WithMessage("La identificación es requerida");
     }
 }
