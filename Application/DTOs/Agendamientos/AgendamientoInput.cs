@@ -80,3 +80,25 @@ public class AgendamientoServicioDTO
     public string? Imagen { get; set; }
     public decimal? Precio { get; set; }
 }
+
+public class CompletarParcialmenteRequest
+{
+    public List<int> ServiciosCompletados { get; set; } = new();
+    public List<int> ProductosCompletados { get; set; } = new();
+    public string Estado { get; set; } = "Completada";
+}
+
+public class CompletarParcialmenteResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public int AgendamientoId { get; set; }
+    public int VentaId { get; set; }
+    public List<int> ServiciosCompletados { get; set; } = new();
+    public List<int> ServiciosPendientes { get; set; } = new();
+    public List<int> ProductosCompletados { get; set; } = new();
+    public List<int> ProductosPendientes { get; set; } = new();
+    public decimal PrecioFinal { get; set; }
+    public decimal Subtotal { get; set; }
+    public decimal Iva { get; set; }
+}

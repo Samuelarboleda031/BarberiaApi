@@ -932,6 +932,139 @@ public class AgendamientoService : IAgendamientoService
         });
     }
 
+    public async Task<ServiceResult<object>> CompletarParcialmenteAsync(int id, CompletarParcialmenteRequest request)
+    {
+        if (request.ServiciosCompletados.Count == 0 && request.ProductosCompletados.Count == 0)
+            return ServiceResult<object>.Fail("Debe haber al menos un servicio o producto completado.");
+
+        var cita = await _context.Agendamientos
+            .Include(a => a.AgendamientoServicios).ThenInclude(aserv => aserv.Servicio)
+            .Include(a => a.AgendamientoProductos).ThenInclude(aprod => aprod.Producto)
+            .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
+        if (cita == null) return ServiceResult<object>.NotFound();
+
+        if (string.Equals(cita.Estado, "Completada", StringComparison.OrdinalIgnoreCase))
+            return ServiceResult<object>.Fail("La cita ya está completada.");
+
+        var serviciosValidos = cita.AgendamientoServicios.Select(s => s.ServicioId).ToList();
+        if (!request.ServiciosCompletados.All(sid => serviciosValidos.Contains(sid)))
+            return ServiceResult<object>.Fail("Algunos servicios no pertenecen a esta cita.");
+
+        var productosValidos = cita.AgendamientoProductos.Select(p => p.ProductoId).ToList();
+        if (!request.ProductosCompletados.All(pid => productosValidos.Contains(pid)))
+            return ServiceResult<object>.Fail("Algunos productos no pertenecen a esta cita.");
+
+        var serviciosRealizados = cita.AgendamientoServicios
+            .Where(s => request.ServiciosCompletados.Contains(s.ServicioId))
+            .ToList();
+
+        var productosRealizados = cita.AgendamientoProductos
+            .Where(p => request.ProductosCompletados.Contains(p.ProductoId))
+            .ToList();
+
+        decimal subtotal = serviciosRealizados.Sum(s => s.Servicio.Precio)
+                         + productosRealizados.Sum(p => p.Producto.PrecioVenta * p.Cantidad);
+        decimal iva = subtotal * 0.19m;
+        decimal total = subtotal + iva;
+
+        var usuarioId = cita.Barbero?.UsuarioId ?? 0;
+        if (usuarioId == 0)
+            return ServiceResult<object>.Fail("El barbero asociado a la cita no tiene usuario válido.");
+
+        using var tx = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var venta = new Venta
+            {
+                ClienteId = cita.ClienteId,
+                BarberoId = cita.BarberoId,
+                UsuarioId = usuarioId,
+                Fecha = DateTime.Now,
+                Subtotal = subtotal,
+                IVA = iva,
+                Descuento = 0,
+                Total = total,
+                Estado = "Completada",
+                MetodoPago = "Efectivo",
+                TipoVenta = "Servicios y Productos",
+                SaldoAFavorUsado = 0m
+            };
+
+            _context.Ventas.Add(venta);
+            await _context.SaveChangesAsync();
+
+            foreach (var s in serviciosRealizados)
+            {
+                _context.DetalleVentas.Add(new DetalleVenta
+                {
+                    VentaId = venta.Id,
+                    ServicioId = s.ServicioId,
+                    Cantidad = 1,
+                    PrecioUnitario = s.Servicio.Precio,
+                    Subtotal = s.Servicio.Precio
+                });
+            }
+
+            foreach (var p in productosRealizados)
+            {
+                _context.DetalleVentas.Add(new DetalleVenta
+                {
+                    VentaId = venta.Id,
+                    ProductoId = p.ProductoId,
+                    Cantidad = p.Cantidad,
+                    PrecioUnitario = p.Producto.PrecioVenta,
+                    Subtotal = p.Producto.PrecioVenta * p.Cantidad
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            var serviciosPendientes = cita.AgendamientoServicios
+                .Where(s => !request.ServiciosCompletados.Contains(s.ServicioId))
+                .Select(s => s.ServicioId)
+                .ToList();
+
+            var productosPendientes = cita.AgendamientoProductos
+                .Where(p => !request.ProductosCompletados.Contains(p.ProductoId))
+                .Select(p => p.ProductoId)
+                .ToList();
+
+            cita.Estado = "Completada";
+            cita.ServiciosRealizados = System.Text.Json.JsonSerializer.Serialize(request.ServiciosCompletados);
+            cita.ServiciosPendientes = System.Text.Json.JsonSerializer.Serialize(serviciosPendientes);
+            cita.ProductosRealizados = System.Text.Json.JsonSerializer.Serialize(request.ProductosCompletados);
+            cita.ProductosPendientes = System.Text.Json.JsonSerializer.Serialize(productosPendientes);
+            cita.PrecioFinal = total;
+            cita.VentaAsociadaId = venta.Id;
+
+            _context.Agendamientos.Update(cita);
+            await _context.SaveChangesAsync();
+            await tx.CommitAsync();
+
+            return ServiceResult<object>.Ok(new CompletarParcialmenteResponse
+            {
+                Success = true,
+                Message = "Cita completada parcialmente",
+                AgendamientoId = cita.Id,
+                VentaId = venta.Id,
+                ServiciosCompletados = request.ServiciosCompletados,
+                ServiciosPendientes = serviciosPendientes,
+                ProductosCompletados = request.ProductosCompletados,
+                ProductosPendientes = productosPendientes,
+                PrecioFinal = total,
+                Subtotal = subtotal,
+                Iva = iva
+            });
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync();
+            return ServiceResult<object>.Fail($"Error al completar parcialmente: {ex.Message}", 500);
+        }
+    }
+
     public async Task<ServiceResult<object>> DeleteAsync(int id)
     {
         var agendamiento = await _context.Agendamientos

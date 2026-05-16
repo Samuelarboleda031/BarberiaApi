@@ -65,6 +65,14 @@ namespace BarberiaApi.Controllers
             return Ok(result.Data);
         }
 
+        [HttpPost("{id}/completar-parcialmente")]
+        public async Task<IActionResult> CompletarParcialmente(int id, [FromBody] CompletarParcialmenteRequest request)
+        {
+            var result = await _agendamientoService.CompletarParcialmenteAsync(id, request);
+            if (!result.Success) return result.StatusCode == 404 ? NotFound() : StatusCode(result.StatusCode, result.Error);
+            return Ok(result.Data);
+        }
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {

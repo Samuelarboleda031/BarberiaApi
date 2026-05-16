@@ -53,11 +53,13 @@ public partial class BarberiaContext : DbContext
             entity.Property(e => e.Estado).HasMaxLength(50).HasDefaultValue("Pendiente");
             entity.Property(e => e.Notas).IsUnicode(false);
             entity.Property(e => e.Precio).HasPrecision(10, 2);
+            entity.Property(e => e.PrecioFinal).HasPrecision(10, 2);
 
             entity.HasOne(d => d.Barbero).WithMany(p => p.Agendamientos).HasForeignKey(d => d.BarberoId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(d => d.Cliente).WithMany(p => p.Agendamientos).HasForeignKey(d => d.ClienteId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(d => d.Servicio).WithMany(p => p.Agendamientos).HasForeignKey(d => d.ServicioId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(d => d.Paquete).WithMany(p => p.Agendamientos).HasForeignKey(d => d.PaqueteId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(d => d.VentaAsociada).WithMany().HasForeignKey(d => d.VentaAsociadaId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<AgendamientoProducto>(entity =>

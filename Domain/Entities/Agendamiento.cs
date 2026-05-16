@@ -33,7 +33,16 @@ public partial class Agendamiento
 
     public virtual Paquete? Paquete { get; set; }
     
+    public string? ServiciosRealizados { get; set; }
+    public string? ServiciosPendientes { get; set; }
+    public string? ProductosRealizados { get; set; }
+    public string? ProductosPendientes { get; set; }
+    public decimal? PrecioFinal { get; set; }
+    public int? VentaAsociadaId { get; set; }
+
+    public virtual Venta? VentaAsociada { get; set; }
+
     public virtual ICollection<AgendamientoProducto> AgendamientoProductos { get; set; } = new List<AgendamientoProducto>();
-    
+
     public virtual ICollection<AgendamientoServicio> AgendamientoServicios { get; set; } = new List<AgendamientoServicio>();
 }
