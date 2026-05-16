@@ -940,6 +940,8 @@ public class AgendamientoService : IAgendamientoService
         var cita = await _context.Agendamientos
             .Include(a => a.AgendamientoServicios).ThenInclude(aserv => aserv.Servicio)
             .Include(a => a.AgendamientoProductos).ThenInclude(aprod => aprod.Producto)
+            .Include(a => a.Servicio)
+            .Include(a => a.Paquete).ThenInclude(p => p.DetallePaquetes).ThenInclude(dp => dp.Servicio)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
             .FirstOrDefaultAsync(a => a.Id == id);
 
@@ -948,23 +950,48 @@ public class AgendamientoService : IAgendamientoService
         if (string.Equals(cita.Estado, "Completada", StringComparison.OrdinalIgnoreCase))
             return ServiceResult<object>.Fail("La cita ya está completada.");
 
-        var serviciosValidos = cita.AgendamientoServicios.Select(s => s.ServicioId).ToList();
-        if (!request.ServiciosCompletados.All(sid => serviciosValidos.Contains(sid)))
+        // Construir mapa completo de servicios válidos para esta cita:
+        // - AgendamientoServicios (nuevo, relación explícita)
+        // - ServicioId (legacy, campo único en la entidad)
+        // - Paquete.DetallePaquetes (citas creadas con paquete)
+        var serviciosMap = new Dictionary<int, Servicio>();
+        foreach (var aserv in cita.AgendamientoServicios)
+            if (aserv.Servicio != null) serviciosMap[aserv.ServicioId] = aserv.Servicio;
+
+        if (cita.ServicioId.HasValue && cita.Servicio != null && !serviciosMap.ContainsKey(cita.ServicioId.Value))
+            serviciosMap[cita.ServicioId.Value] = cita.Servicio;
+
+        if (cita.Paquete?.DetallePaquetes != null)
+        {
+            foreach (var dp in cita.Paquete.DetallePaquetes)
+                if (dp.Servicio != null && !serviciosMap.ContainsKey(dp.ServicioId))
+                    serviciosMap[dp.ServicioId] = dp.Servicio;
+        }
+
+        // Para servicios válidos que aún no tienen la entidad cargada, cargarlos desde BD
+        var missingIds = request.ServiciosCompletados.Where(sid => !serviciosMap.ContainsKey(sid)).ToList();
+        if (missingIds.Count > 0)
+        {
+            var loaded = await _context.Servicios.Where(s => missingIds.Contains(s.Id)).ToListAsync();
+            foreach (var s in loaded) serviciosMap[s.Id] = s;
+        }
+
+        var serviciosValidos = serviciosMap.Keys.ToList();
+        if (request.ServiciosCompletados.Count > 0 &&
+            !request.ServiciosCompletados.All(sid => serviciosValidos.Contains(sid)))
             return ServiceResult<object>.Fail("Algunos servicios no pertenecen a esta cita.");
 
         var productosValidos = cita.AgendamientoProductos.Select(p => p.ProductoId).ToList();
         if (!request.ProductosCompletados.All(pid => productosValidos.Contains(pid)))
             return ServiceResult<object>.Fail("Algunos productos no pertenecen a esta cita.");
 
-        var serviciosRealizados = cita.AgendamientoServicios
-            .Where(s => request.ServiciosCompletados.Contains(s.ServicioId))
-            .ToList();
-
         var productosRealizados = cita.AgendamientoProductos
             .Where(p => request.ProductosCompletados.Contains(p.ProductoId))
             .ToList();
 
-        decimal subtotal = serviciosRealizados.Sum(s => s.Servicio.Precio)
+        decimal subtotal = request.ServiciosCompletados
+                               .Where(sid => serviciosMap.ContainsKey(sid))
+                               .Sum(sid => serviciosMap[sid].Precio)
                          + productosRealizados.Sum(p => p.Producto.PrecioVenta * p.Cantidad);
         decimal iva = subtotal * 0.19m;
         decimal total = subtotal + iva;
@@ -995,15 +1022,16 @@ public class AgendamientoService : IAgendamientoService
             _context.Ventas.Add(venta);
             await _context.SaveChangesAsync();
 
-            foreach (var s in serviciosRealizados)
+            foreach (var sid in request.ServiciosCompletados)
             {
+                var srv = serviciosMap.TryGetValue(sid, out var s) ? s : null;
                 _context.DetalleVentas.Add(new DetalleVenta
                 {
                     VentaId = venta.Id,
-                    ServicioId = s.ServicioId,
+                    ServicioId = sid,
                     Cantidad = 1,
-                    PrecioUnitario = s.Servicio.Precio,
-                    Subtotal = s.Servicio.Precio
+                    PrecioUnitario = srv?.Precio ?? 0m,
+                    Subtotal = srv?.Precio ?? 0m
                 });
             }
 
@@ -1021,9 +1049,8 @@ public class AgendamientoService : IAgendamientoService
 
             await _context.SaveChangesAsync();
 
-            var serviciosPendientes = cita.AgendamientoServicios
-                .Where(s => !request.ServiciosCompletados.Contains(s.ServicioId))
-                .Select(s => s.ServicioId)
+            var serviciosPendientes = serviciosValidos
+                .Where(sid => !request.ServiciosCompletados.Contains(sid))
                 .ToList();
 
             var productosPendientes = cita.AgendamientoProductos
@@ -1086,9 +1113,18 @@ public class AgendamientoService : IAgendamientoService
             .OrderByDescending(a => a.FechaHora)
             .ToListAsync();
 
-        // Incluir citas que ya empezaron (FechaHora <= now), no solo las que ya terminaron.
-        // Así la notificación aparece desde que inicia la cita, sin depender de la ventana de 10 min del frontend.
-        var porTerminar = rows.Where(a => a.FechaHora <= now).ToList();
+        // Solo citas cuyo tiempo ya terminó (FechaHora + duracion <= now).
+        // Las que aún están en curso con tiempo de sobra las maneja el frontend con la ventana de 10 min.
+        var porTerminar = rows.Where(a =>
+        {
+            var durMin = 60;
+            if (!string.IsNullOrWhiteSpace(a.Duracion))
+            {
+                var nums = new string(a.Duracion.Where(char.IsDigit).ToArray());
+                if (int.TryParse(nums, out var parsed) && parsed > 0) durMin = parsed;
+            }
+            return a.FechaHora.AddMinutes(durMin) <= now;
+        }).ToList();
 
         var serviciosMap = await LoadServiciosMapAsync(porTerminar);
         var productosMap = await LoadProductosMapAsync(porTerminar);
