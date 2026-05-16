@@ -13,4 +13,5 @@ public interface IAgendamientoService
     Task<ServiceResult<object>> CambiarEstadoAsync(int id, CambioEstadoInput input);
     Task<ServiceResult<object>> DeleteAsync(int id);
     Task<ServiceResult<object>> CompletarParcialmenteAsync(int id, CompletarParcialmenteRequest request);
+    Task<ServiceResult<object>> GetPorTerminarAsync();
 }

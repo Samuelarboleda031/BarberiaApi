@@ -24,6 +24,14 @@ namespace BarberiaApi.Controllers
             return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
         }
 
+        [HttpGet("por-terminar")]
+        [OutputCache(PolicyName = "short")]
+        public async Task<ActionResult<object>> GetPorTerminar()
+        {
+            var result = await _agendamientoService.GetPorTerminarAsync();
+            return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
+        }
+
         [HttpGet("{id}")]
         [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<AgendamientoDTO>> GetById(int id)

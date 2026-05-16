@@ -1065,6 +1065,37 @@ public class AgendamientoService : IAgendamientoService
         }
     }
 
+    public async Task<ServiceResult<object>> GetPorTerminarAsync()
+    {
+        var now = DateTime.Now;
+        int diff = (7 + (now.DayOfWeek - DayOfWeek.Monday)) % 7;
+        var startOfWeek = now.AddDays(-diff).Date;
+
+        var rows = await _context.Agendamientos
+            .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
+            .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
+            .Include(a => a.AgendamientoProductos)
+            .Include(a => a.AgendamientoServicios)
+            .Include(a => a.Servicio)
+            .Include(a => a.Paquete).ThenInclude(p => p.DetallePaquetes).ThenInclude(dp => dp.Servicio)
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Where(a => a.FechaHora >= startOfWeek
+                        && a.Estado != "Completada"
+                        && a.Estado != "Cancelada")
+            .OrderByDescending(a => a.FechaHora)
+            .ToListAsync();
+
+        // Incluir citas que ya empezaron (FechaHora <= now), no solo las que ya terminaron.
+        // Así la notificación aparece desde que inicia la cita, sin depender de la ventana de 10 min del frontend.
+        var porTerminar = rows.Where(a => a.FechaHora <= now).ToList();
+
+        var serviciosMap = await LoadServiciosMapAsync(porTerminar);
+        var productosMap = await LoadProductosMapAsync(porTerminar);
+        var items = porTerminar.Select(a => MapToDto(a, serviciosMap, productosMap)).ToList();
+        return ServiceResult<object>.Ok(items);
+    }
+
     public async Task<ServiceResult<object>> DeleteAsync(int id)
     {
         var agendamiento = await _context.Agendamientos
