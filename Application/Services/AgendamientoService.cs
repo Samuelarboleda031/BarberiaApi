@@ -648,6 +648,16 @@ public class AgendamientoService : IAgendamientoService
             return ServiceResult<object>.Fail("Estado inválido.");
 
         var estadoAnterior = agendamiento.Estado ?? "Pendiente";
+        
+        // No permitir completar citas futuras
+        if (string.Equals(input.estado, "Completada", StringComparison.OrdinalIgnoreCase))
+        {
+            if (agendamiento.FechaHora > DateTime.Now)
+            {
+                return ServiceResult<object>.Fail("No se puede completar una cita que aún no ha ocurrido.");
+            }
+        }
+
         agendamiento.Estado = input.estado;
 
         using var tx = await _context.Database.BeginTransactionAsync();
@@ -950,6 +960,12 @@ public class AgendamientoService : IAgendamientoService
         if (string.Equals(cita.Estado, "Completada", StringComparison.OrdinalIgnoreCase))
             return ServiceResult<object>.Fail("La cita ya está completada.");
 
+        // No permitir completar parcialmente citas futuras
+        if (cita.FechaHora > DateTime.Now)
+        {
+            return ServiceResult<object>.Fail("No se puede completar parcialmente una cita que aún no ha ocurrido.");
+        }
+
         // Construir mapa completo de servicios válidos para esta cita:
         // - AgendamientoServicios (nuevo, relación explícita)
         // - ServicioId (legacy, campo único en la entidad)
@@ -1094,7 +1110,8 @@ public class AgendamientoService : IAgendamientoService
 
     public async Task<ServiceResult<object>> GetPorTerminarAsync()
     {
-        var now = DateTime.Now;
+        // Ajuste de zona horaria: las citas se guardan en hora local (UTC-5)
+        var now = DateTime.UtcNow.AddHours(-5);
         int diff = (7 + (now.DayOfWeek - DayOfWeek.Monday)) % 7;
         var startOfWeek = now.AddDays(-diff).Date;
 
@@ -1113,8 +1130,7 @@ public class AgendamientoService : IAgendamientoService
             .OrderByDescending(a => a.FechaHora)
             .ToListAsync();
 
-        // Solo citas cuyo tiempo ya terminó (FechaHora + duracion <= now).
-        // Las que aún están en curso con tiempo de sobra las maneja el frontend con la ventana de 10 min.
+        // Mostrar citas que ya terminaron o que están a 10 minutos (o menos) de terminar
         var porTerminar = rows.Where(a =>
         {
             var durMin = 60;
@@ -1123,8 +1139,9 @@ public class AgendamientoService : IAgendamientoService
                 var nums = new string(a.Duracion.Where(char.IsDigit).ToArray());
                 if (int.TryParse(nums, out var parsed) && parsed > 0) durMin = parsed;
             }
-            return a.FechaHora.AddMinutes(durMin) <= now;
+            return a.FechaHora.AddMinutes(durMin).AddMinutes(-10) <= now;
         }).ToList();
+
 
         var serviciosMap = await LoadServiciosMapAsync(porTerminar);
         var productosMap = await LoadProductosMapAsync(porTerminar);
