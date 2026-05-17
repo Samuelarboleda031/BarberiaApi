@@ -154,28 +154,52 @@ public class SolicitudCambioHorarioService : ISolicitudCambioHorarioService
         solicitud.UsuarioResolucionId = usuarioId;
 
         // Aplicar las sugerencias al horario del barbero
+        // Buscar o crear un HorarioSemanal para la semana de cada sugerencia
         foreach (var sug in solicitud.Sugerencias)
         {
             var diaSemana = (int)sug.DiaSugerido.DayOfWeek;
-            var horario = await _context.HorariosBarberos
-                .FirstOrDefaultAsync(h => h.BarberoId == solicitud.BarberoId && h.DiaSemana == diaSemana);
+            if (diaSemana == 0) diaSemana = 7;
+            var fechaSugerida = sug.DiaSugerido.Date;
 
-            if (horario == null)
+            // Buscar HorarioSemanal activo que cubra esa fecha
+            var horarioSemanal = await _context.HorariosSemanales
+                .Include(h => h.Detalles)
+                .FirstOrDefaultAsync(h => h.BarberoId == solicitud.BarberoId
+                    && h.FechaInicioSemana <= fechaSugerida
+                    && h.FechaFinSemana >= fechaSugerida);
+
+            if (horarioSemanal == null)
             {
-                _context.HorariosBarberos.Add(new HorariosBarbero
+                // Calcular inicio y fin de semana (Lunes-Domingo)
+                int diff = (7 + (sug.DiaSugerido.DayOfWeek - DayOfWeek.Monday)) % 7;
+                var inicioSemana = fechaSugerida.AddDays(-diff);
+                var finSemana = inicioSemana.AddDays(6);
+
+                horarioSemanal = new HorarioSemanal
                 {
                     BarberoId = solicitud.BarberoId,
+                    FechaInicioSemana = inicioSemana,
+                    FechaFinSemana = finSemana,
+                    Estado = "Activo",
+                    Detalles = new List<DetalleHorarioDia>()
+                };
+                _context.HorariosSemanales.Add(horarioSemanal);
+            }
+
+            var detalleExistente = horarioSemanal.Detalles.FirstOrDefault(d => d.DiaSemana == diaSemana);
+            if (detalleExistente == null)
+            {
+                horarioSemanal.Detalles.Add(new DetalleHorarioDia
+                {
                     DiaSemana = diaSemana,
                     HoraInicio = sug.HoraInicio,
-                    HoraFin = sug.HoraFin,
-                    Estado = true
+                    HoraFin = sug.HoraFin
                 });
             }
             else
             {
-                horario.HoraInicio = sug.HoraInicio;
-                horario.HoraFin = sug.HoraFin;
-                horario.Estado = true;
+                detalleExistente.HoraInicio = sug.HoraInicio;
+                detalleExistente.HoraFin = sug.HoraFin;
             }
         }
 
@@ -244,24 +268,46 @@ public class SolicitudCambioHorarioService : ISolicitudCambioHorarioService
             foreach (var sug in sugerenciasAdmin)
             {
                 var diaSemana = (int)sug.DiaSugerido.DayOfWeek;
-                var horario = await _context.HorariosBarberos
-                    .FirstOrDefaultAsync(h => h.BarberoId == solicitud.BarberoId && h.DiaSemana == diaSemana);
-                if (horario == null)
+                if (diaSemana == 0) diaSemana = 7;
+                var fechaSugerida = sug.DiaSugerido.Date;
+
+                var horarioSemanal = await _context.HorariosSemanales
+                    .Include(h => h.Detalles)
+                    .FirstOrDefaultAsync(h => h.BarberoId == solicitud.BarberoId
+                        && h.FechaInicioSemana <= fechaSugerida
+                        && h.FechaFinSemana >= fechaSugerida);
+
+                if (horarioSemanal == null)
                 {
-                    _context.HorariosBarberos.Add(new HorariosBarbero
+                    int diff = (7 + (sug.DiaSugerido.DayOfWeek - DayOfWeek.Monday)) % 7;
+                    var inicioSemana = fechaSugerida.AddDays(-diff);
+                    var finSemana = inicioSemana.AddDays(6);
+
+                    horarioSemanal = new HorarioSemanal
                     {
                         BarberoId = solicitud.BarberoId,
+                        FechaInicioSemana = inicioSemana,
+                        FechaFinSemana = finSemana,
+                        Estado = "Activo",
+                        Detalles = new List<DetalleHorarioDia>()
+                    };
+                    _context.HorariosSemanales.Add(horarioSemanal);
+                }
+
+                var detalleExistente = horarioSemanal.Detalles.FirstOrDefault(d => d.DiaSemana == diaSemana);
+                if (detalleExistente == null)
+                {
+                    horarioSemanal.Detalles.Add(new DetalleHorarioDia
+                    {
                         DiaSemana = diaSemana,
                         HoraInicio = sug.HoraInicio,
-                        HoraFin = sug.HoraFin,
-                        Estado = true
+                        HoraFin = sug.HoraFin
                     });
                 }
                 else
                 {
-                    horario.HoraInicio = sug.HoraInicio;
-                    horario.HoraFin = sug.HoraFin;
-                    horario.Estado = true;
+                    detalleExistente.HoraInicio = sug.HoraInicio;
+                    detalleExistente.HoraFin = sug.HoraFin;
                 }
             }
         }

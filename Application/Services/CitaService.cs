@@ -176,18 +176,22 @@ public class CitaService : ICitaService
 
         var diaSemana = (int)fechaHora.DayOfWeek;
         if (diaSemana == 0) diaSemana = 7;
+        var fechaDate = fechaHora.Date;
 
-        var horario = await _context.HorariosBarberos
-            .FirstOrDefaultAsync(h => h.BarberoId == barbero.Id && h.DiaSemana == diaSemana && h.Estado == true);
+        var horarioSemanal = await _context.HorariosSemanales
+            .Include(h => h.Detalles)
+            .FirstOrDefaultAsync(h => h.BarberoId == barbero.Id && h.Estado == "Activo" && h.FechaInicioSemana <= fechaDate && h.FechaFinSemana >= fechaDate);
 
-        if (horario == null)
+        var detalleDia = horarioSemanal?.Detalles.FirstOrDefault(d => d.DiaSemana == diaSemana);
+
+        if (detalleDia == null)
             return ServiceResult<object>.Fail("El barbero no trabaja en este día.");
 
         var horaCita = fechaHora.TimeOfDay;
         var horaFinCita = horaCita.Add(TimeSpan.FromMinutes(duracion));
 
-        if (horaCita < horario.HoraInicio || horaFinCita > horario.HoraFin)
-            return ServiceResult<object>.Fail($"La cita está fuera del horario de trabajo del barbero ({horario.HoraInicio:hh\\:mm} - {horario.HoraFin:hh\\:mm}).");
+        if (horaCita < detalleDia.HoraInicio || horaFinCita > detalleDia.HoraFin)
+            return ServiceResult<object>.Fail($"La cita está fuera del horario de trabajo del barbero ({detalleDia.HoraInicio:hh\\:mm} - {detalleDia.HoraFin:hh\\:mm}).");
 
         var horaFin = fechaHora.AddMinutes(duracion);
         var existeTraslape = await _context.Agendamientos.AnyAsync(a =>
@@ -279,18 +283,22 @@ public class CitaService : ICitaService
 
         var diaSemana = (int)fechaHora.DayOfWeek;
         if (diaSemana == 0) diaSemana = 7;
+        var fechaDate2 = fechaHora.Date;
 
-        var horario = await _context.HorariosBarberos
-            .FirstOrDefaultAsync(h => h.BarberoId == barbero.Id && h.DiaSemana == diaSemana && h.Estado == true);
+        var horarioSemanal2 = await _context.HorariosSemanales
+            .Include(h => h.Detalles)
+            .FirstOrDefaultAsync(h => h.BarberoId == barbero.Id && h.Estado == "Activo" && h.FechaInicioSemana <= fechaDate2 && h.FechaFinSemana >= fechaDate2);
 
-        if (horario == null)
+        var detalleDia2 = horarioSemanal2?.Detalles.FirstOrDefault(d => d.DiaSemana == diaSemana);
+
+        if (detalleDia2 == null)
             return ServiceResult<object>.Fail("El barbero no trabaja en este día.");
 
         var horaCita = fechaHora.TimeOfDay;
         var horaFinCita = horaCita.Add(TimeSpan.FromMinutes(duracion));
 
-        if (horaCita < horario.HoraInicio || horaFinCita > horario.HoraFin)
-            return ServiceResult<object>.Fail($"La cita está fuera del horario de trabajo del barbero ({horario.HoraInicio:hh\\:mm} - {horario.HoraFin:hh\\:mm}).");
+        if (horaCita < detalleDia2.HoraInicio || horaFinCita > detalleDia2.HoraFin)
+            return ServiceResult<object>.Fail($"La cita está fuera del horario de trabajo del barbero ({detalleDia2.HoraInicio:hh\\:mm} - {detalleDia2.HoraFin:hh\\:mm}).");
 
         agendamiento.ClienteId = cliente?.Id ?? agendamiento.ClienteId;
         agendamiento.BarberoId = barbero.Id;

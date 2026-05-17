@@ -447,8 +447,11 @@ public class AgendamientoService : IAgendamientoService
         var diaSemana = (int)input.FechaHora.DayOfWeek;
         if (diaSemana == 0) diaSemana = 7;
 
-        var horario = await _context.HorariosBarberos
-            .FirstOrDefaultAsync(h => h.BarberoId == input.BarberoId && h.DiaSemana == diaSemana && h.Estado == true);
+        var horarioSemanal = await _context.HorariosSemanales
+            .Include(h => h.Detalles)
+            .FirstOrDefaultAsync(h => h.BarberoId == input.BarberoId && h.Estado == "Activo" && h.FechaInicioSemana <= input.FechaHora.Date && h.FechaFinSemana >= input.FechaHora.Date);
+
+        var horario = horarioSemanal?.Detalles.FirstOrDefault(d => d.DiaSemana == diaSemana);
 
         if (horario == null)
             return ServiceResult<object>.Fail("El barbero no trabaja en este día.");
@@ -570,8 +573,11 @@ public class AgendamientoService : IAgendamientoService
         var diaSemana = (int)input.FechaHora.DayOfWeek;
         if (diaSemana == 0) diaSemana = 7;
 
-        var horario = await _context.HorariosBarberos
-            .FirstOrDefaultAsync(h => h.BarberoId == input.BarberoId && h.DiaSemana == diaSemana && h.Estado == true);
+        var horarioSemanal2 = await _context.HorariosSemanales
+            .Include(h => h.Detalles)
+            .FirstOrDefaultAsync(h => h.BarberoId == input.BarberoId && h.Estado == "Activo" && h.FechaInicioSemana <= input.FechaHora.Date && h.FechaFinSemana >= input.FechaHora.Date);
+
+        var horario = horarioSemanal2?.Detalles.FirstOrDefault(d => d.DiaSemana == diaSemana);
 
         if (horario == null)
             return ServiceResult<object>.Fail("El barbero no trabaja en este día.");

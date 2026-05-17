@@ -27,7 +27,7 @@ namespace BarberiaApi.Controllers
 
         [HttpGet("{id}")]
         [OutputCache(PolicyName = "short")]
-        public async Task<ActionResult<HorariosBarbero>> GetById(int id)
+        public async Task<ActionResult<object>> GetById(int id)
         {
             var result = await _horarioService.GetByIdAsync(id);
             if (!result.Success) return result.StatusCode == 404 ? NotFound() : BadRequest(result.Error);
@@ -43,17 +43,17 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<HorariosBarbero>> Create([FromBody] HorarioBarberoCreateInput input)
+        public async Task<ActionResult<object>> Create([FromBody] HorarioSemanalCreateInput input)
         {
-            var result = await _horarioService.CreateAsync(input);
+            var result = await _horarioService.CreateSemanaAsync(input);
             if (!result.Success) return StatusCode(result.StatusCode, result.Error);
             return CreatedAtAction(nameof(GetById), new { id = ((dynamic)result.Data!).Id }, result.Data);
         }
 
         [HttpPut("{id}")]
-        public async Task<ActionResult<HorariosBarbero>> Update(int id, [FromBody] HorarioBarberoUpdateInput input)
+        public async Task<ActionResult<object>> Update(int id, [FromBody] HorarioSemanalUpdateInput input)
         {
-            var result = await _horarioService.UpdateAsync(id, input);
+            var result = await _horarioService.UpdateSemanaAsync(id, input);
             if (!result.Success) return result.StatusCode == 404 ? NotFound() : StatusCode(result.StatusCode, result.Error);
             return Ok(result.Data);
         }
@@ -61,7 +61,7 @@ namespace BarberiaApi.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var result = await _horarioService.DeleteAsync(id);
+            var result = await _horarioService.DeleteSemanaAsync(id);
             if (!result.Success) return result.StatusCode == 404 ? NotFound() : StatusCode(result.StatusCode, result.Error);
             return Ok(result.Data);
         }

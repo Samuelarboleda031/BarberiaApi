@@ -1,22 +1,30 @@
+using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
+
 namespace BarberiaApi.Application.DTOs;
 
-// DTOs para Horarios de Barberos
-public class HorarioBarberoCreateInput
+public class HorarioSemanalCreateInput
 {
     public int BarberoId { get; set; }
+    public DateTime FechaInicioSemana { get; set; }
+    public DateTime FechaFinSemana { get; set; }
+    public List<DetalleHorarioDiaCreateInput> Detalles { get; set; } = new();
+}
+
+public class DetalleHorarioDiaCreateInput
+{
     public int DiaSemana { get; set; }
     public TimeSpan HoraInicio { get; set; }
     public TimeSpan HoraFin { get; set; }
 }
 
-public class HorarioBarberoUpdateInput
+public class HorarioSemanalUpdateInput
 {
-    public int? BarberoId { get; set; }
-    public int? DiaSemana { get; set; }
-    public TimeSpan? HoraInicio { get; set; }
-    public TimeSpan? HoraFin { get; set; }
-    public bool? Estado { get; set; }
+    public DateTime? FechaInicioSemana { get; set; }
+    public DateTime? FechaFinSemana { get; set; }
+    public string? Estado { get; set; }
+    public List<DetalleHorarioDiaCreateInput>? Detalles { get; set; }
 }
 
 public class CambioEstadoHorarioInput

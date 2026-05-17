@@ -28,7 +28,8 @@ public partial class BarberiaContext : DbContext
     public virtual DbSet<Devolucion> Devoluciones { get; set; }
     public virtual DbSet<EntregasInsumo> EntregasInsumos { get; set; }
     public virtual DbSet<DetalleEntregasInsumo> DetalleEntregasInsumos { get; set; }
-    public virtual DbSet<HorariosBarbero> HorariosBarberos { get; set; }
+    public virtual DbSet<HorarioSemanal> HorariosSemanales { get; set; }
+    public virtual DbSet<DetalleHorarioDia> DetalleHorarioDias { get; set; }
     public virtual DbSet<Modulos> Modulos { get; set; }
     public virtual DbSet<Paquete> Paquetes { get; set; }
     public virtual DbSet<DetallePaquete> DetallePaquetes { get; set; }
@@ -232,16 +233,33 @@ public partial class BarberiaContext : DbContext
             entity.HasOne(d => d.Producto).WithMany(p => p.DetalleEntregasInsumos).HasForeignKey(d => d.ProductoId).OnDelete(DeleteBehavior.Restrict);
         });
 
-        modelBuilder.Entity<HorariosBarbero>(entity =>
+        modelBuilder.Entity<HorarioSemanal>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.ToTable("HorariosBarberos");
+            entity.ToTable("HorariosSemanales");
+
+            entity.Property(e => e.FechaInicioSemana).HasColumnType("date");
+            entity.Property(e => e.FechaFinSemana).HasColumnType("date");
+            entity.Property(e => e.Estado).HasMaxLength(50).HasDefaultValue("Activo");
+
+            entity.HasOne(d => d.Barbero)
+                  .WithMany(p => p.HorariosSemanales)
+                  .HasForeignKey(d => d.BarberoId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DetalleHorarioDia>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("DetalleHorarioDias");
 
             entity.Property(e => e.HoraInicio).HasColumnType("time");
             entity.Property(e => e.HoraFin).HasColumnType("time");
-            entity.Property(e => e.Estado).HasDefaultValue(true);
 
-            entity.HasOne(d => d.Barbero).WithMany(p => p.Horarios).HasForeignKey(d => d.BarberoId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(d => d.HorarioSemanal)
+                  .WithMany(p => p.Detalles)
+                  .HasForeignKey(d => d.HorarioSemanalId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Modulos>(entity =>

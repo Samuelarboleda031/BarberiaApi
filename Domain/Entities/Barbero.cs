@@ -27,7 +27,7 @@ public partial class Barbero
 
     public virtual ICollection<EntregasInsumo> EntregasInsumos { get; set; } = new List<EntregasInsumo>();
 
-    public virtual ICollection<HorariosBarbero> Horarios { get; set; } = new List<HorariosBarbero>();
+    public virtual ICollection<HorarioSemanal> HorariosSemanales { get; set; } = new List<HorarioSemanal>();
 
     public virtual ICollection<Venta> Venta { get; set; } = new List<Venta>();
 
