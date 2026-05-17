@@ -424,7 +424,9 @@ public class HorarioService : IHorarioService
                     citaId = agendamiento.Id,
                     clienteId = agendamiento.ClienteId,
                     clienteNombre = $"{agendamiento.Cliente?.Usuario?.Nombre} {agendamiento.Cliente?.Usuario?.Apellido}".Trim(),
+                    clienteCorreo = agendamiento.Cliente?.Usuario?.Correo,
                     barberoId = agendamiento.BarberoId,
+                    barberoNombre = $"{agendamiento.Barbero?.Usuario?.Nombre} {agendamiento.Barbero?.Usuario?.Apellido}".Trim(),
                     fechaHoraOriginal = agendamiento.FechaHora,
                     estadoFinal = agendamiento.Estado
                 });
@@ -539,6 +541,7 @@ public class HorarioService : IHorarioService
                 citaId = agendamiento.Id,
                 clienteId = agendamiento.ClienteId,
                 clienteNombre = $"{agendamiento.Cliente?.Usuario?.Nombre} {agendamiento.Cliente?.Usuario?.Apellido}".Trim(),
+                clienteCorreo = agendamiento.Cliente?.Usuario?.Correo,
                 barberoId = agendamiento.BarberoId,
                 barberoNombre = $"{agendamiento.Barbero?.Usuario?.Nombre} {agendamiento.Barbero?.Usuario?.Apellido}".Trim(),
                 fechaHoraOriginal = agendamiento.FechaHora,
