@@ -51,6 +51,7 @@ public class AgendamientoDTO
     public List<AgendamientoServicioDTO> Servicios { get; set; } = new();
 
     public string ClienteNombre { get; set; } = string.Empty;
+    public string? ClienteEmail { get; set; }
     public string BarberoNombre { get; set; } = string.Empty;
     public string? ServicioNombre { get; set; }
     public List<string> ServiciosNombres { get; set; } = new();

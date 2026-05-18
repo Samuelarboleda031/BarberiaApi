@@ -224,6 +224,7 @@ public class AgendamientoService : IAgendamientoService
             Servicios = serviciosDetalle,
             PaqueteId = agendamiento.PaqueteId,
             ClienteNombre = agendamiento.Cliente?.Usuario?.Nombre + " " + agendamiento.Cliente?.Usuario?.Apellido,
+            ClienteEmail = agendamiento.Cliente?.Usuario?.Correo,
             BarberoNombre = agendamiento.Barbero?.Usuario?.Nombre + " " + agendamiento.Barbero?.Usuario?.Apellido,
             ServicioNombre = servicioNombre,
             ServiciosNombres = serviciosNombres,
