@@ -69,7 +69,9 @@ public sealed class EmailProxyService : IEmailProxyService
             {
                 EnableSsl = enableSsl,
                 UseDefaultCredentials = false,
+                DeliveryMethod = SmtpDeliveryMethod.Network,
                 Credentials = new NetworkCredential(username, password),
+                Timeout = 30_000, // 30 segundos máximo
             };
 
             var appName = string.IsNullOrWhiteSpace(request.AppName) ? "Barbería App" : request.AppName;
@@ -110,12 +112,22 @@ public sealed class EmailProxyService : IEmailProxyService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "SMTP proxy falló al enviar correo de cancelación.");
+            // Captura el InnerException para obtener el error real de SMTP
+            var innerMsg = ex.InnerException?.Message ?? string.Empty;
+            var innerInnerMsg = ex.InnerException?.InnerException?.Message ?? string.Empty;
+            var fullMessage = string.IsNullOrEmpty(innerMsg)
+                ? ex.Message
+                : $"{ex.Message} → {innerMsg}" + (string.IsNullOrEmpty(innerInnerMsg) ? "" : $" → {innerInnerMsg}");
+
+            _logger.LogWarning(ex,
+                "SMTP proxy falló. Host={Host} Port={Port} SSL={Ssl} From={From} To={To} | Error: {Error}",
+                host, port, enableSsl, fromEmail, request.ClienteEmail, fullMessage);
+
             return new ProxyEmailResult
             {
                 Enviado = false,
                 CodigoRespuesta = 500,
-                Mensaje = $"SMTP rechazó la solicitud: {ex.Message}"
+                Mensaje = $"SMTP rechazó la solicitud: {fullMessage}"
             };
         }
     }
