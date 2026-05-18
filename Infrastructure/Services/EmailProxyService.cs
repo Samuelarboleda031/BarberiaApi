@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Http;
 using System.Net.Mail;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -48,6 +49,80 @@ public sealed class EmailProxyService : IEmailProxyService
             ? parsedSsl
             : true;
 
+        // Si hay una API Key de Resend configurada, usamos la API HTTP (Puerto 443, no bloqueado por Render)
+        var resendApiKey = GetConfig("Resend:ApiKey", "ResendApiKey");
+        var appName = string.IsNullOrWhiteSpace(request.AppName) ? "Barbería App" : request.AppName;
+        var fechaFormateada = FormatFecha(request.FechaOriginal);
+        var sugerencias = request.SugerenciasReprogramacion is { Count: > 0 }
+            ? string.Join(" | ", request.SugerenciasReprogramacion.Select(FormatFecha))
+            : "No disponibles";
+        var bookingUrl = GetConfig("Notificaciones:Correo:UrlReserva", "Smtp:BookingUrl")
+                         ?? "https://front4-tu-app.web.app/";
+
+        var subject = $"{appName} - Cancelación de cita";
+        var body = BuildCancellationHtml(
+            toName: request.ClienteNombre,
+            appName: appName,
+            motivo: request.Motivo,
+            barberoName: request.BarberoNombre,
+            fechaHora: fechaFormateada,
+            sugerencias: sugerencias,
+            bookingUrl: bookingUrl);
+
+        if (!string.IsNullOrWhiteSpace(resendApiKey))
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", resendApiKey);
+
+                // En el plan gratis de Resend, si no tienes dominio verificado, debes enviar desde "onboarding@resend.dev"
+                var senderEmail = fromEmail.Contains("@gmail.com") || fromEmail.Contains("@hotmail.com") || fromEmail.Contains("@outlook.com")
+                    ? "onboarding@resend.dev"
+                    : fromEmail;
+
+                var payload = new
+                {
+                    from = $"{fromName} <{senderEmail}>",
+                    to = new[] { request.ClienteEmail },
+                    subject = subject,
+                    html = body
+                };
+
+                var json = System.Text.Json.JsonSerializer.Serialize(payload);
+                using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                var response = await httpClient.PostAsync("https://api.resend.com/emails", content, cancellationToken);
+                var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("Correo enviado exitosamente vía Resend API (HTTPS).");
+                    return new ProxyEmailResult
+                    {
+                        Enviado = true,
+                        CodigoRespuesta = 200,
+                        Mensaje = "Correo enviado vía Resend API (HTTPS) desde backend."
+                    };
+                }
+
+                _logger.LogWarning("Resend API respondió con error: {StatusCode} - {Content}", response.StatusCode, responseContent);
+                return new ProxyEmailResult
+                {
+                    Enviado = false,
+                    CodigoRespuesta = (int)response.StatusCode,
+                    Mensaje = $"Resend API falló: {responseContent}"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al enviar correo usando Resend API.");
+                // Si falla Resend por alguna razón de red, permitimos que intente SMTP tradicional abajo
+            }
+        }
+
+        // --- Hilo de ejecución SMTP tradicional ---
         if (string.IsNullOrWhiteSpace(host) ||
             string.IsNullOrWhiteSpace(username) ||
             string.IsNullOrWhiteSpace(password) ||
@@ -57,7 +132,7 @@ public sealed class EmailProxyService : IEmailProxyService
             {
                 Enviado = false,
                 CodigoRespuesta = 500,
-                Mensaje = "Configuración SMTP incompleta en backend."
+                Mensaje = "Configuración SMTP incompleta en backend y no se definió Resend API Key."
             };
         }
 
@@ -73,24 +148,6 @@ public sealed class EmailProxyService : IEmailProxyService
                 Credentials = new NetworkCredential(username, password),
                 Timeout = 30_000, // 30 segundos máximo
             };
-
-            var appName = string.IsNullOrWhiteSpace(request.AppName) ? "Barbería App" : request.AppName;
-            var fechaFormateada = FormatFecha(request.FechaOriginal);
-            var sugerencias = request.SugerenciasReprogramacion is { Count: > 0 }
-                ? string.Join(" | ", request.SugerenciasReprogramacion.Select(FormatFecha))
-                : "No disponibles";
-            var bookingUrl = GetConfig("Notificaciones:Correo:UrlReserva", "Smtp:BookingUrl")
-                             ?? "https://front4-tu-app.web.app/";
-
-            var subject = $"{appName} - Cancelación de cita";
-            var body = BuildCancellationHtml(
-                toName: request.ClienteNombre,
-                appName: appName,
-                motivo: request.Motivo,
-                barberoName: request.BarberoNombre,
-                fechaHora: fechaFormateada,
-                sugerencias: sugerencias,
-                bookingUrl: bookingUrl);
 
             using var message = new MailMessage
             {
