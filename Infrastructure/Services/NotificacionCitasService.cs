@@ -1,40 +1,48 @@
 using BarberiaApi.Domain.Entities;
-using Microsoft.Extensions.Configuration;
 
 namespace BarberiaApi.Infrastructure.Services;
 
-/// <summary>
-/// El servicio de notificacion via SMTP/Resend ha sido desactivado en el backend.
-/// Las notificaciones de cancelacion ahora se gestionan en el frontend mediante EmailJS.
-/// </summary>
-    public class NotificacionCitasService : INotificacionCitasService
+public class NotificacionCitasService : INotificacionCitasService
+{
+    private readonly IEmailProxyService _emailProxy;
+
+    public NotificacionCitasService(IEmailProxyService emailProxy)
     {
-        public NotificacionCitasService()
-        {
-        }
+        _emailProxy = emailProxy;
+    }
 
     public async Task<ResultadoNotificacionCita> NotificarCancelacionPorDesactivacionAsync(
         Agendamiento agendamiento,
         string motivo,
         IReadOnlyCollection<DateTime> sugerenciasReprogramacion)
     {
-        return await Task.FromResult(new ResultadoNotificacionCita
+        var correo = agendamiento.Cliente?.Usuario?.Correo;
+        if (string.IsNullOrWhiteSpace(correo))
+            return new ResultadoNotificacionCita { Enviado = false, Canal = "smtp", Mensaje = "Cliente sin correo registrado." };
+
+        var request = new CancelacionEmailProxyRequest
         {
-            Enviado = false,
-            Canal = "frontend",
-            Mensaje = "Notificacion pendiente de envio via EmailJS (Frontend)."
-        });
+            ClienteNombre = $"{agendamiento.Cliente?.Usuario?.Nombre} {agendamiento.Cliente?.Usuario?.Apellido}".Trim(),
+            ClienteEmail = correo,
+            BarberoNombre = $"{agendamiento.Barbero?.Usuario?.Nombre} {agendamiento.Barbero?.Usuario?.Apellido}".Trim(),
+            FechaOriginal = agendamiento.FechaHora.ToString("o"),
+            Motivo = motivo,
+            SugerenciasReprogramacion = sugerenciasReprogramacion.Select(s => s.ToString("o")).ToList()
+        };
+
+        var resultado = await _emailProxy.EnviarCancelacionAsync(request);
+        return new ResultadoNotificacionCita
+        {
+            Enviado = resultado.Enviado,
+            Canal = "smtp",
+            Mensaje = resultado.Mensaje
+        };
     }
 
     public async Task<ResultadoNotificacionCita> NotificarCancelacionGeneralAsync(
         Agendamiento agendamiento,
         string motivo)
     {
-        return await Task.FromResult(new ResultadoNotificacionCita
-        {
-            Enviado = false,
-            Canal = "frontend",
-            Mensaje = "Notificacion pendiente de envio via EmailJS (Frontend)."
-        });
+        return await NotificarCancelacionPorDesactivacionAsync(agendamiento, motivo, Array.Empty<DateTime>());
     }
 }

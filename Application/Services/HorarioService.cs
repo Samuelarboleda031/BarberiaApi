@@ -434,6 +434,12 @@ public class HorarioService : IHorarioService
 
             await _context.SaveChangesAsync();
 
+            foreach (var agendamiento in agendamientosAfectados)
+            {
+                await _notificacionCitasService.NotificarCancelacionPorDesactivacionAsync(
+                    agendamiento, motivo, Array.Empty<DateTime>());
+            }
+
             return ServiceResult<object>.Ok(new
             {
                 exitoso = true,
@@ -550,6 +556,12 @@ public class HorarioService : IHorarioService
         }
 
         await _context.SaveChangesAsync();
+
+        foreach (var agendamiento in agendamientosAfectados)
+        {
+            await _notificacionCitasService.NotificarCancelacionPorDesactivacionAsync(
+                agendamiento, motivo, Array.Empty<DateTime>());
+        }
 
         return ServiceResult<object>.Ok(new
         {
