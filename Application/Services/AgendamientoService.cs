@@ -1031,7 +1031,7 @@ public class AgendamientoService : IAgendamientoService
                 ClienteId = cita.ClienteId,
                 BarberoId = cita.BarberoId,
                 UsuarioId = usuarioId,
-                Fecha = DateTime.Now,
+                Fecha = DateTime.UtcNow.AddHours(-5),
                 Subtotal = subtotal,
                 IVA = iva,
                 Descuento = 0,

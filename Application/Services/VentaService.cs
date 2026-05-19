@@ -208,7 +208,7 @@ public class VentaService : IVentaService
                 UsuarioId = usuarioId,
                 ClienteId = input.ClienteId,
                 BarberoId = input.BarberoId,
-                Fecha = DateTime.Now,
+                Fecha = DateTime.UtcNow.AddHours(-5),
                 MetodoPago = input.MetodoPago ?? "Efectivo",
                 TipoVenta = input.TipoVenta ?? (input.ClienteId.HasValue ? "Venta Cliente" : "Venta Invitado"),
                 ClienteNombre = input.ClienteNombre,
@@ -301,7 +301,7 @@ public class VentaService : IVentaService
 
     private async Task<string> GenerarNumeroReciboAsync()
     {
-        var year = DateTime.Now.Year;
+        var year = DateTime.UtcNow.AddHours(-5).Year;
         var prefijo = $"REC-{year}-";
 
         var ultimo = await _context.Ventas
