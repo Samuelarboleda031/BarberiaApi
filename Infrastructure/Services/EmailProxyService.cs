@@ -49,8 +49,10 @@ public sealed class EmailProxyService : IEmailProxyService
             ? parsedSsl
             : true;
 
-        // Si hay una API Key de Resend configurada, usamos la API HTTP (Puerto 443, no bloqueado por Render)
+        // Si hay una API Key de Resend o Brevo configurada, usamos la API HTTP (Puerto 443, no bloqueado por Render)
         var resendApiKey = GetConfig("Resend:ApiKey", "ResendApiKey");
+        var brevoApiKey = GetConfig("Brevo:ApiKey", "BrevoApiKey");
+        
         var appName = string.IsNullOrWhiteSpace(request.AppName) ? "Barbería App" : request.AppName;
         var fechaFormateada = FormatFecha(request.FechaOriginal);
         var sugerencias = request.SugerenciasReprogramacion is { Count: > 0 }
@@ -69,6 +71,57 @@ public sealed class EmailProxyService : IEmailProxyService
             sugerencias: sugerencias,
             bookingUrl: bookingUrl);
 
+        // --- Opción 1: Brevo API HTTP (Puerto 443) ---
+        if (!string.IsNullOrWhiteSpace(brevoApiKey))
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using var httpClient = new HttpClient();
+                
+                // Configurar headers de Brevo
+                httpClient.DefaultRequestHeaders.Add("api-key", brevoApiKey);
+
+                var payload = new
+                {
+                    sender = new { name = fromName, email = fromEmail },
+                    to = new[] { new { email = request.ClienteEmail, name = request.ClienteNombre } },
+                    subject = subject,
+                    htmlContent = body
+                };
+
+                var json = System.Text.Json.JsonSerializer.Serialize(payload);
+                using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                var response = await httpClient.PostAsync("https://api.brevo.com/v3/smtp/email", content, cancellationToken);
+                var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("Correo enviado exitosamente vía Brevo API (HTTPS).");
+                    return new ProxyEmailResult
+                    {
+                        Enviado = true,
+                        CodigoRespuesta = 200,
+                        Mensaje = "Correo enviado vía Brevo API (HTTPS) desde backend."
+                    };
+                }
+
+                _logger.LogWarning("Brevo API respondió con error: {StatusCode} - {Content}", response.StatusCode, responseContent);
+                return new ProxyEmailResult
+                {
+                    Enviado = false,
+                    CodigoRespuesta = (int)response.StatusCode,
+                    Mensaje = $"Brevo API falló: {responseContent}"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al enviar correo usando Brevo API.");
+            }
+        }
+
+        // --- Opción 2: Resend API HTTP (Puerto 443) ---
         if (!string.IsNullOrWhiteSpace(resendApiKey))
         {
             try
@@ -118,7 +171,6 @@ public sealed class EmailProxyService : IEmailProxyService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al enviar correo usando Resend API.");
-                // Si falla Resend por alguna razón de red, permitimos que intente SMTP tradicional abajo
             }
         }
 
@@ -132,7 +184,7 @@ public sealed class EmailProxyService : IEmailProxyService
             {
                 Enviado = false,
                 CodigoRespuesta = 500,
-                Mensaje = "Configuración SMTP incompleta en backend y no se definió Resend API Key."
+                Mensaje = "Configuración SMTP incompleta en backend y no se definió una API Key de Resend o Brevo."
             };
         }
 
