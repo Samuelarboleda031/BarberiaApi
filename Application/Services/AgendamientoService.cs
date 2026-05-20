@@ -824,6 +824,10 @@ public class AgendamientoService : IAgendamientoService
                 _context.Ventas.Add(venta);
                 await _context.SaveChangesAsync();
 
+                // El NumeroRecibo es igual al Id de la venta recién creada
+                venta.NumeroRecibo = venta.Id.ToString();
+                await _context.SaveChangesAsync();
+
                 if (servicioIdsCita.Count > 0)
                 {
                     var detalles = servicioIdsCita.Select(servicioId => new DetalleVenta
@@ -1043,6 +1047,10 @@ public class AgendamientoService : IAgendamientoService
             };
 
             _context.Ventas.Add(venta);
+            await _context.SaveChangesAsync();
+
+            // El NumeroRecibo es igual al Id de la venta recién creada
+            venta.NumeroRecibo = venta.Id.ToString();
             await _context.SaveChangesAsync();
 
             foreach (var sid in request.ServiciosCompletados)
