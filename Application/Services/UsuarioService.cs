@@ -6,6 +6,7 @@ using BarberiaApi.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
+using BCrypt.Net;
 
 namespace BarberiaApi.Application.Services;
 
@@ -163,12 +164,16 @@ public class UsuarioService : IUsuarioService
                     return ServiceResult<object>.Fail("Ya existe un usuario con ese documento");
             }
 
+            var contrasenaHasheada = string.IsNullOrWhiteSpace(input.Contrasena)
+                ? BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString())
+                : BCrypt.Net.BCrypt.HashPassword(input.Contrasena);
+
             var usuario = new Usuario
             {
                 Nombre = input.Nombre,
                 Apellido = input.Apellido,
                 Correo = input.Correo,
-                Contrasena = input.Contrasena, // En producción usar Hashing
+                Contrasena = contrasenaHasheada,
                 RolId = input.RolId,
                 TipoDocumento = input.TipoDocumento,
                 Documento = input.Documento,
@@ -246,7 +251,7 @@ public class UsuarioService : IUsuarioService
             usuarioExistente.Apellido = input.Apellido;
             usuarioExistente.Correo = input.Correo;
             if (!string.IsNullOrWhiteSpace(input.Contrasena))
-                usuarioExistente.Contrasena = input.Contrasena;
+                usuarioExistente.Contrasena = BCrypt.Net.BCrypt.HashPassword(input.Contrasena);
             
             usuarioExistente.RolId = input.RolId;
             usuarioExistente.TipoDocumento = input.TipoDocumento;

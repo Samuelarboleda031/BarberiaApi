@@ -24,35 +24,6 @@ public sealed class EmailProxyService : IEmailProxyService
         CancelacionEmailProxyRequest request,
         CancellationToken cancellationToken = default)
     {
-        var habilitadoRaw = GetConfig("Smtp:Habilitado", "Notificaciones:Correo:Habilitado");
-        var habilitado = string.IsNullOrWhiteSpace(habilitadoRaw) ||
-                         (bool.TryParse(habilitadoRaw, out var parsedEnabled) && parsedEnabled);
-        if (!habilitado)
-        {
-            return new ProxyEmailResult
-            {
-                Enviado = false,
-                CodigoRespuesta = 503,
-                Mensaje = "Envío de correo deshabilitado por configuración."
-            };
-        }
-
-        var host = GetConfig("Smtp:Host", "Notificaciones:Correo:Host");
-        var username = GetConfig("Smtp:Username", "Notificaciones:Correo:Usuario");
-        var password = GetConfig("Smtp:Password", "Notificaciones:Correo:Contrasena");
-        var fromEmail = GetConfig("Smtp:FromEmail", "Notificaciones:Correo:Remitente");
-        var fromName = GetConfig("Smtp:FromName", "Notificaciones:Correo:NombreRemitente") ?? "Barbería App";
-        var portRaw = GetConfig("Smtp:Port", "Notificaciones:Correo:Puerto");
-        var sslRaw = GetConfig("Smtp:EnableSsl", "Notificaciones:Correo:UseSsl");
-        var port = int.TryParse(portRaw, out var parsedPort) ? parsedPort : 587;
-        var enableSsl = !string.IsNullOrWhiteSpace(sslRaw) && bool.TryParse(sslRaw, out var parsedSsl)
-            ? parsedSsl
-            : true;
-
-        // Si hay una API Key de Resend o Brevo configurada, usamos la API HTTP (Puerto 443, no bloqueado por Render)
-        var resendApiKey = GetConfig("Resend:ApiKey", "ResendApiKey");
-        var brevoApiKey = GetConfig("Brevo:ApiKey", "BrevoApiKey");
-        
         var appName = string.IsNullOrWhiteSpace(request.AppName) ? "Barbería App" : request.AppName;
         var fechaFormateada = FormatFecha(request.FechaOriginal);
         var sugerencias = request.SugerenciasReprogramacion is { Count: > 0 }
@@ -71,6 +42,39 @@ public sealed class EmailProxyService : IEmailProxyService
             sugerencias: sugerencias,
             bookingUrl: bookingUrl);
 
+        return await EnviarEmailAsync(
+            toEmail: request.ClienteEmail,
+            toName: request.ClienteNombre,
+            subject: subject,
+            htmlBody: body,
+            cancellationToken: cancellationToken);
+    }
+
+    public async Task<ProxyEmailResult> EnviarEmailAsync(
+        string toEmail,
+        string toName,
+        string subject,
+        string htmlBody,
+        CancellationToken cancellationToken = default)
+    {
+        var habilitadoRaw = GetConfig("Smtp:Habilitado", "Notificaciones:Correo:Habilitado");
+        var habilitado = string.IsNullOrWhiteSpace(habilitadoRaw) ||
+                         (bool.TryParse(habilitadoRaw, out var parsedEnabled) && parsedEnabled);
+        if (!habilitado)
+        {
+            return new ProxyEmailResult
+            {
+                Enviado = false,
+                CodigoRespuesta = 503,
+                Mensaje = "Envío de correo deshabilitado por configuración."
+            };
+        }
+
+        var fromEmail = GetConfig("Smtp:FromEmail", "Notificaciones:Correo:Remitente") ?? string.Empty;
+        var fromName = GetConfig("Smtp:FromName", "Notificaciones:Correo:NombreRemitente") ?? "Barbería App";
+        var brevoApiKey = GetConfig("Brevo:ApiKey", "BrevoApiKey");
+        var resendApiKey = GetConfig("Resend:ApiKey", "ResendApiKey");
+
         // --- Opción 1: Brevo API HTTP (Puerto 443) ---
         if (!string.IsNullOrWhiteSpace(brevoApiKey))
         {
@@ -78,16 +82,14 @@ public sealed class EmailProxyService : IEmailProxyService
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 using var httpClient = new HttpClient();
-                
-                // Configurar headers de Brevo
                 httpClient.DefaultRequestHeaders.Add("api-key", brevoApiKey);
 
                 var payload = new
                 {
                     sender = new { name = fromName, email = fromEmail },
-                    to = new[] { new { email = request.ClienteEmail, name = request.ClienteNombre } },
+                    to = new[] { new { email = toEmail, name = toName } },
                     subject = subject,
-                    htmlContent = body
+                    htmlContent = htmlBody
                 };
 
                 var json = System.Text.Json.JsonSerializer.Serialize(payload);
@@ -98,22 +100,12 @@ public sealed class EmailProxyService : IEmailProxyService
 
                 if (response.IsSuccessStatusCode)
                 {
-                    _logger.LogInformation("Correo enviado exitosamente vía Brevo API (HTTPS).");
-                    return new ProxyEmailResult
-                    {
-                        Enviado = true,
-                        CodigoRespuesta = 200,
-                        Mensaje = "Correo enviado vía Brevo API (HTTPS) desde backend."
-                    };
+                    _logger.LogInformation("Correo enviado exitosamente vía Brevo API a {Email}.", toEmail);
+                    return new ProxyEmailResult { Enviado = true, CodigoRespuesta = 200, Mensaje = "Correo enviado vía Brevo API (HTTPS) desde backend." };
                 }
 
                 _logger.LogWarning("Brevo API respondió con error: {StatusCode} - {Content}", response.StatusCode, responseContent);
-                return new ProxyEmailResult
-                {
-                    Enviado = false,
-                    CodigoRespuesta = (int)response.StatusCode,
-                    Mensaje = $"Brevo API falló: {responseContent}"
-                };
+                return new ProxyEmailResult { Enviado = false, CodigoRespuesta = (int)response.StatusCode, Mensaje = $"Brevo API falló: {responseContent}" };
             }
             catch (Exception ex)
             {
@@ -130,7 +122,6 @@ public sealed class EmailProxyService : IEmailProxyService
                 using var httpClient = new HttpClient();
                 httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", resendApiKey);
 
-                // En el plan gratis de Resend, si no tienes dominio verificado, debes enviar desde "onboarding@resend.dev"
                 var senderEmail = fromEmail.Contains("@gmail.com") || fromEmail.Contains("@hotmail.com") || fromEmail.Contains("@outlook.com")
                     ? "onboarding@resend.dev"
                     : fromEmail;
@@ -138,9 +129,9 @@ public sealed class EmailProxyService : IEmailProxyService
                 var payload = new
                 {
                     from = $"{fromName} <{senderEmail}>",
-                    to = new[] { request.ClienteEmail },
+                    to = new[] { toEmail },
                     subject = subject,
-                    html = body
+                    html = htmlBody
                 };
 
                 var json = System.Text.Json.JsonSerializer.Serialize(payload);
@@ -151,22 +142,12 @@ public sealed class EmailProxyService : IEmailProxyService
 
                 if (response.IsSuccessStatusCode)
                 {
-                    _logger.LogInformation("Correo enviado exitosamente vía Resend API (HTTPS).");
-                    return new ProxyEmailResult
-                    {
-                        Enviado = true,
-                        CodigoRespuesta = 200,
-                        Mensaje = "Correo enviado vía Resend API (HTTPS) desde backend."
-                    };
+                    _logger.LogInformation("Correo enviado exitosamente vía Resend API a {Email}.", toEmail);
+                    return new ProxyEmailResult { Enviado = true, CodigoRespuesta = 200, Mensaje = "Correo enviado vía Resend API (HTTPS) desde backend." };
                 }
 
                 _logger.LogWarning("Resend API respondió con error: {StatusCode} - {Content}", response.StatusCode, responseContent);
-                return new ProxyEmailResult
-                {
-                    Enviado = false,
-                    CodigoRespuesta = (int)response.StatusCode,
-                    Mensaje = $"Resend API falló: {responseContent}"
-                };
+                return new ProxyEmailResult { Enviado = false, CodigoRespuesta = (int)response.StatusCode, Mensaje = $"Resend API falló: {responseContent}" };
             }
             catch (Exception ex)
             {
@@ -174,17 +155,23 @@ public sealed class EmailProxyService : IEmailProxyService
             }
         }
 
-        // --- Hilo de ejecución SMTP tradicional ---
-        if (string.IsNullOrWhiteSpace(host) ||
-            string.IsNullOrWhiteSpace(username) ||
-            string.IsNullOrWhiteSpace(password) ||
-            string.IsNullOrWhiteSpace(fromEmail))
+        // --- Opción 3: SMTP tradicional ---
+        var host = GetConfig("Smtp:Host", "Notificaciones:Correo:Host");
+        var username = GetConfig("Smtp:Username", "Notificaciones:Correo:Usuario");
+        var password = GetConfig("Smtp:Password", "Notificaciones:Correo:Contrasena");
+        var portRaw = GetConfig("Smtp:Port", "Notificaciones:Correo:Puerto");
+        var sslRaw = GetConfig("Smtp:EnableSsl", "Notificaciones:Correo:UseSsl");
+        var port = int.TryParse(portRaw, out var parsedPort) ? parsedPort : 587;
+        var enableSsl = string.IsNullOrWhiteSpace(sslRaw) || !bool.TryParse(sslRaw, out var parsedSsl) || parsedSsl;
+
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(username) ||
+            string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(fromEmail))
         {
             return new ProxyEmailResult
             {
                 Enviado = false,
                 CodigoRespuesta = 500,
-                Mensaje = "Configuración SMTP incompleta en backend y no se definió una API Key de Resend o Brevo."
+                Mensaje = "Configuración SMTP incompleta y no se definió API Key de Resend o Brevo."
             };
         }
 
@@ -198,30 +185,24 @@ public sealed class EmailProxyService : IEmailProxyService
                 UseDefaultCredentials = false,
                 DeliveryMethod = SmtpDeliveryMethod.Network,
                 Credentials = new NetworkCredential(username, password),
-                Timeout = 30_000, // 30 segundos máximo
+                Timeout = 30_000,
             };
 
             using var message = new MailMessage
             {
                 From = new MailAddress(fromEmail, fromName),
                 Subject = subject,
-                Body = body,
+                Body = htmlBody,
                 IsBodyHtml = true
             };
-            message.To.Add(new MailAddress(request.ClienteEmail, request.ClienteNombre));
+            message.To.Add(new MailAddress(toEmail, toName));
 
             await smtpClient.SendMailAsync(message);
 
-            return new ProxyEmailResult
-            {
-                Enviado = true,
-                CodigoRespuesta = 200,
-                Mensaje = "Correo enviado vía SMTP desde backend."
-            };
+            return new ProxyEmailResult { Enviado = true, CodigoRespuesta = 200, Mensaje = "Correo enviado vía SMTP desde backend." };
         }
         catch (Exception ex)
         {
-            // Captura el InnerException para obtener el error real de SMTP
             var innerMsg = ex.InnerException?.Message ?? string.Empty;
             var innerInnerMsg = ex.InnerException?.InnerException?.Message ?? string.Empty;
             var fullMessage = string.IsNullOrEmpty(innerMsg)
@@ -230,14 +211,9 @@ public sealed class EmailProxyService : IEmailProxyService
 
             _logger.LogWarning(ex,
                 "SMTP proxy falló. Host={Host} Port={Port} SSL={Ssl} From={From} To={To} | Error: {Error}",
-                host, port, enableSsl, fromEmail, request.ClienteEmail, fullMessage);
+                host, port, enableSsl, fromEmail, toEmail, fullMessage);
 
-            return new ProxyEmailResult
-            {
-                Enviado = false,
-                CodigoRespuesta = 500,
-                Mensaje = $"SMTP rechazó la solicitud: {fullMessage}"
-            };
+            return new ProxyEmailResult { Enviado = false, CodigoRespuesta = 500, Mensaje = $"SMTP rechazó la solicitud: {fullMessage}" };
         }
     }
 

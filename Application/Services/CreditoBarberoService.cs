@@ -2,17 +2,26 @@ using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
+using BarberiaApi.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace BarberiaApi.Application.Services;
 
 public class CreditoBarberoService : ICreditoBarberoService
 {
     private readonly BarberiaContext _context;
+    private readonly INotificacionCreditoService _notificaciones;
+    private readonly ILogger<CreditoBarberoService> _logger;
 
-    public CreditoBarberoService(BarberiaContext context)
+    public CreditoBarberoService(
+        BarberiaContext context,
+        INotificacionCreditoService notificaciones,
+        ILogger<CreditoBarberoService> logger)
     {
         _context = context;
+        _notificaciones = notificaciones;
+        _logger = logger;
     }
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
@@ -212,11 +221,41 @@ public class CreditoBarberoService : ICreditoBarberoService
         abono.CreditoBarbero.SaldoDeuda += abono.Monto;
         abono.CreditoBarbero.FechaActualizacion = DateTime.Now;
 
+        var quedaBloqueado = false;
         // Si el crédito superó el cupo, marcarlo como Bloqueado
         if (abono.CreditoBarbero.SaldoDeuda >= abono.CreditoBarbero.CupoMaximo)
+        {
             abono.CreditoBarbero.Estado = "Bloqueado";
+            quedaBloqueado = true;
+        }
 
         await _context.SaveChangesAsync();
+
+        if (quedaBloqueado)
+        {
+            var credConBarbero = await _context.CreditosBarbero
+                .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == abono.CreditoBarberoId);
+
+            if (credConBarbero?.Barbero?.Usuario is { } u)
+            {
+                var nombre = $"{u.Nombre} {u.Apellido}".Trim();
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _notificaciones.NotificarCreditoBloqueadoAsync(
+                            credConBarbero.BarberoId, nombre, u.Correo,
+                            credConBarbero.SaldoDeuda, credConBarbero.CupoMaximo);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error enviando notificación de crédito bloqueado (anulación abono).");
+                    }
+                });
+            }
+        }
 
         return ServiceResult<object>.Ok(new
         {

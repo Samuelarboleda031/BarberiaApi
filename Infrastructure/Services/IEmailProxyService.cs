@@ -5,6 +5,13 @@ public interface IEmailProxyService
     Task<ProxyEmailResult> EnviarCancelacionAsync(
         CancelacionEmailProxyRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<ProxyEmailResult> EnviarEmailAsync(
+        string toEmail,
+        string toName,
+        string subject,
+        string htmlBody,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class CancelacionEmailProxyRequest

@@ -2,7 +2,9 @@ using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
+using BarberiaApi.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using System.Data;
@@ -13,11 +15,19 @@ public class VentaService : IVentaService
 {
     private readonly BarberiaContext _context;
     private readonly IMapper _mapper;
+    private readonly INotificacionCreditoService _notificaciones;
+    private readonly ILogger<VentaService> _logger;
 
-    public VentaService(BarberiaContext context, IMapper mapper)
+    public VentaService(
+        BarberiaContext context,
+        IMapper mapper,
+        INotificacionCreditoService notificaciones,
+        ILogger<VentaService> logger)
     {
         _context = context;
         _mapper = mapper;
+        _notificaciones = notificaciones;
+        _logger = logger;
     }
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? searchTerm)
@@ -273,6 +283,7 @@ public class VentaService : IVentaService
             venta.Subtotal = subtotal;
             venta.Total = (subtotal + venta.IVA.Value) - venta.Descuento.Value;
 
+            var creditoBloquedoPorVenta = false;
             if (esVentaBarbero)
             {
                 bool usaCredito = string.Equals(input.MetodoPago, "CreditoBarbero", StringComparison.OrdinalIgnoreCase);
@@ -305,7 +316,10 @@ public class VentaService : IVentaService
                     credito.SaldoDeuda = nuevaDeuda;
                     credito.FechaActualizacion = DateTime.Now;
                     if (credito.SaldoDeuda >= credito.CupoMaximo)
+                    {
                         credito.Estado = "Bloqueado";
+                        creditoBloquedoPorVenta = true;
+                    }
 
                     venta.CreditoBarberoId = credito.Id;
                     venta.CreditoBarberoUsado = venta.Total;
@@ -339,6 +353,32 @@ public class VentaService : IVentaService
             _context.Ventas.Add(venta);
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            if (creditoBloquedoPorVenta)
+            {
+                var credConBarbero = await _context.CreditosBarbero
+                    .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.BarberoId == input.BarberoId!.Value);
+
+                if (credConBarbero?.Barbero?.Usuario is { } u)
+                {
+                    var nombre = $"{u.Nombre} {u.Apellido}".Trim();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _notificaciones.NotificarCreditoBloqueadoAsync(
+                                credConBarbero.BarberoId, nombre, u.Correo,
+                                credConBarbero.SaldoDeuda, credConBarbero.CupoMaximo);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Error enviando notificación de crédito bloqueado (venta).");
+                        }
+                    });
+                }
+            }
 
             var ventaCompleta = await _context.Ventas
                 .Include(v => v.Cliente).Include(v => v.Usuario).Include(v => v.Barbero)

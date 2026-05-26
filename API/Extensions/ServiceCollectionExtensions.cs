@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Helpers;
 using BarberiaApi.Infrastructure.Services;
+using BarberiaApi.Infrastructure.Jobs;
 using BarberiaApi.Domain.Interfaces;
 using BarberiaApi.Infrastructure.Repositories;
 using BarberiaApi.Application.Interfaces;
@@ -30,6 +31,8 @@ public static class ServiceCollectionExtensions
         // Notificaciones
         services.AddScoped<INotificacionCitasService, NotificacionCitasService>();
         services.AddScoped<IEmailProxyService, EmailProxyService>();
+        services.AddScoped<INotificacionCreditoService, NotificacionCreditoService>();
+        services.AddHostedService<NotificacionCreditoJob>();
 
         return services;
     }
