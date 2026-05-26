@@ -170,14 +170,14 @@ public class VentaService : IVentaService
         using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         try
         {
-            bool esVentaBarbero = string.Equals(input.TipoVenta, "Barbero", StringComparison.OrdinalIgnoreCase);
+            bool esVentaBarbero = string.Equals(input.TipoVenta, "Barbero", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(input.TipoVenta, "Venta Barbero", StringComparison.OrdinalIgnoreCase);
 
             if (esVentaBarbero)
             {
                 if (!input.BarberoId.HasValue)
                     return ServiceResult<object>.Fail("Se requiere BarberoId para ventas de tipo Barbero");
-                if (input.Detalles.Any(d => d.ServicioId.HasValue || d.PaqueteId.HasValue))
-                    return ServiceResult<object>.Fail("Las ventas a barberos solo pueden incluir productos");
+                // Los barberos pueden comprar productos Y servicios
             }
 
             bool tieneServicioDirecto = input.Detalles.Any(d => d.ServicioId.HasValue);
