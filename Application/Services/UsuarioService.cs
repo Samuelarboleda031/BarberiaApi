@@ -42,12 +42,12 @@ public class UsuarioService : IUsuarioService
                 VentasHechas = u.Ventas.Count(),
                 ComprasHechas = u.Compras.Count(),
                 DevolucionesProcesadas = u.Devoluciones.Count(),
-                EntregasRegistradas = u.EntregasInsumos.Count(),
+                EntregasRegistradas = 0,
                 VentasComoCliente = u.Cliente != null ? u.Cliente.Venta.Count() : 0,
                 AgendamientosCliente = u.Cliente != null ? u.Cliente.Agendamientos.Count() : 0,
                 DevolucionesCliente = u.Cliente != null ? u.Cliente.Devoluciones.Count() : 0,
                 AgendamientosBarbero = u.Barbero != null ? u.Barbero.Agendamientos.Count() : 0,
-                EntregasBarbero = u.Barbero != null ? u.Barbero.EntregasInsumos.Count() : 0,
+                EntregasBarbero = 0,
                 ModulosAcceso = u.Rol != null
                     ? u.Rol.RolesModulos.Where(rm => rm.PuedeVer == true && rm.Modulo != null).Select(rm => rm.Modulo!.Nombre).ToList()
                     : new List<string>()
@@ -77,12 +77,12 @@ public class UsuarioService : IUsuarioService
                 VentasHechas = u.Ventas.Count(),
                 ComprasHechas = u.Compras.Count(),
                 DevolucionesProcesadas = u.Devoluciones.Count(),
-                EntregasRegistradas = u.EntregasInsumos.Count(),
+                EntregasRegistradas = 0,
                 VentasComoCliente = u.Cliente != null ? u.Cliente.Venta.Count() : 0,
                 AgendamientosCliente = u.Cliente != null ? u.Cliente.Agendamientos.Count() : 0,
                 DevolucionesCliente = u.Cliente != null ? u.Cliente.Devoluciones.Count() : 0,
                 AgendamientosBarbero = u.Barbero != null ? u.Barbero.Agendamientos.Count() : 0,
-                EntregasBarbero = u.Barbero != null ? u.Barbero.EntregasInsumos.Count() : 0,
+                EntregasBarbero = 0,
                 ModulosAcceso = u.Rol != null
                     ? u.Rol.RolesModulos.Where(rm => rm.PuedeVer == true && rm.Modulo != null).Select(rm => rm.Modulo!.Nombre).ToList()
                     : new List<string>()

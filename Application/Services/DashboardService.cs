@@ -66,8 +66,8 @@ public class DashboardService : IDashboardService
             }).ToListAsync();
 
         var inventarioBajo = await _context.Productos.AsNoTracking().Include(p => p.Categoria)
-            .Where(p => (p.StockVentas + p.StockInsumos) < 50 && p.Estado == true).OrderBy(p => (p.StockVentas + p.StockInsumos))
-            .Select(p => new { nombre = p.Nombre, stockVentas = p.StockVentas, stockInsumos = p.StockInsumos, stockTotal = (p.StockVentas + p.StockInsumos), minimo = 50,
+            .Where(p => p.Stock < 50 && p.Estado == true).OrderBy(p => p.Stock)
+            .Select(p => new { nombre = p.Nombre, stock = p.Stock, minimo = 50,
                 categoria = p.Categoria != null ? p.Categoria.Nombre : (string?)null }).ToListAsync();
 
         return ServiceResult<object>.Ok(new { 

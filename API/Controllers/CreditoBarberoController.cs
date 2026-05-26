@@ -1,0 +1,59 @@
+using BarberiaApi.Application.DTOs;
+using BarberiaApi.Application.Interfaces;
+using Microsoft.AspNetCore.Mvc;
+
+namespace BarberiaApi.Controllers;
+
+[ApiController]
+[Route("api/credito-barbero")]
+public class CreditoBarberoController : ControllerBase
+{
+    private readonly ICreditoBarberoService _service;
+
+    public CreditoBarberoController(ICreditoBarberoService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? q = null)
+    {
+        var r = await _service.GetAllAsync(page, pageSize, q);
+        return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error);
+    }
+
+    [HttpGet("barbero/{barberoId}")]
+    public async Task<ActionResult> GetByBarbero(int barberoId)
+    {
+        var r = await _service.GetByBarberoAsync(barberoId);
+        return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error);
+    }
+
+    [HttpGet("barbero/{barberoId}/abonos")]
+    public async Task<ActionResult> GetAbonos(int barberoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    {
+        var r = await _service.GetAbonosAsync(barberoId, page, pageSize);
+        return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error);
+    }
+
+    [HttpPost("barbero/{barberoId}/abono")]
+    public async Task<ActionResult> RegistrarAbono(int barberoId, [FromBody] AbonoInput input)
+    {
+        var r = await _service.RegistrarAbonoAsync(barberoId, input);
+        return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error);
+    }
+
+    [HttpPost("barbero/{barberoId}/inicializar")]
+    public async Task<ActionResult> Inicializar(int barberoId)
+    {
+        var r = await _service.GetOrCreateAsync(barberoId);
+        return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error);
+    }
+
+    [HttpPost("abono/{abonoId}/anular")]
+    public async Task<ActionResult> AnularAbono(int abonoId, [FromBody] AnularAbonoInput input)
+    {
+        var r = await _service.AnularAbonoAsync(abonoId, input);
+        return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound(r.Error) : BadRequest(r.Error);
+    }
+}

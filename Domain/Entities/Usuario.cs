@@ -31,11 +31,11 @@ public partial class Usuario
 
     public virtual ICollection<Devolucion> Devoluciones { get; set; } = new List<Devolucion>();
 
-    public virtual ICollection<EntregasInsumo> EntregasInsumos { get; set; } = new List<EntregasInsumo>();
-
     public virtual ICollection<Venta> Ventas { get; set; } = new List<Venta>();
 
     public virtual ICollection<Compra> Compras { get; set; } = new List<Compra>();
+
+    public virtual ICollection<AbonoCreditoBarbero> AbonosCreditoBarbero { get; set; } = new List<AbonoCreditoBarbero>();
 
     public virtual Cliente? Cliente { get; set; }
 

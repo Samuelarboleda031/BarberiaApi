@@ -121,19 +121,17 @@ public class BarberoService : IBarberoService
 
     public async Task<ServiceResult<object>> DeleteAsync(int id)
     {
-        var barbero = await _context.Barberos.Include(b => b.Agendamientos).Include(b => b.EntregasInsumos).Include(b => b.Usuario)
+        var barbero = await _context.Barberos.Include(b => b.Agendamientos).Include(b => b.Usuario)
             .FirstOrDefaultAsync(b => b.Id == id);
         if (barbero == null) return ServiceResult<object>.NotFound();
         var usuario = barbero.Usuario;
         bool tieneAgendamientosActivos = barbero.Agendamientos.Any(a => a.Estado != "Cancelada");
-        bool tieneEntregas = barbero.EntregasInsumos.Any();
         bool tieneVentasComoBarbero = await _context.Ventas.AnyAsync(v => v.BarberoId == barbero.Id);
         bool tieneRegistroUsuario = await _context.Compras.AnyAsync(c => c.UsuarioId == usuario.Id)
             || await _context.Devoluciones.AnyAsync(d => d.UsuarioId == usuario.Id)
-            || await _context.EntregasInsumos.AnyAsync(e => e.UsuarioId == usuario.Id)
             || await _context.Ventas.AnyAsync(v => v.UsuarioId == usuario.Id);
 
-        if (tieneAgendamientosActivos || tieneEntregas || tieneVentasComoBarbero || tieneRegistroUsuario)
+        if (tieneAgendamientosActivos || tieneVentasComoBarbero || tieneRegistroUsuario)
         {
             barbero.Estado = false;
             if (usuario != null) usuario.Estado = false;

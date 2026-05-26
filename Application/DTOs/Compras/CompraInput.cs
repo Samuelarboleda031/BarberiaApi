@@ -17,7 +17,5 @@ public class DetalleCompraInput
 {
     public int ProductoId { get; set; }
     public int Cantidad { get; set; }
-    public int CantidadVentas { get; set; } = 0;
-    public int CantidadInsumos { get; set; } = 0;
     public decimal PrecioUnitario { get; set; }
 }

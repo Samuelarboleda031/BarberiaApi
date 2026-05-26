@@ -35,6 +35,12 @@ public partial class Venta
 
     public decimal? SaldoAFavorUsado { get; set; }
 
+    public int? CreditoBarberoId { get; set; }
+
+    public decimal? CreditoBarberoUsado { get; set; }
+
+    public virtual CreditoBarbero? CreditoBarbero { get; set; }
+
     public virtual Cliente? Cliente { get; set; }
 
     public virtual Barbero? Barbero { get; set; }

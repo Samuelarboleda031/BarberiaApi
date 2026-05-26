@@ -115,16 +115,12 @@ public class CompraService : ICompraService
                 {
                     ProductoId = detInput.ProductoId,
                     Cantidad = detInput.Cantidad,
-                    CantidadVentas = detInput.CantidadVentas,
-                    CantidadInsumos = detInput.CantidadInsumos,
                     PrecioUnitario = detInput.PrecioUnitario,
                     Subtotal = detInput.Cantidad * detInput.PrecioUnitario
                 };
                 subtotal += detalle.Subtotal;
 
-                producto.StockVentas += detInput.CantidadVentas;
-                producto.StockInsumos += detInput.CantidadInsumos;
-                producto.StockTotal = producto.StockVentas + producto.StockInsumos;
+                producto.Stock += detInput.Cantidad;
                 producto.PrecioCompra = detInput.PrecioUnitario;
 
                 compra.DetalleCompras.Add(detalle);
@@ -165,7 +161,7 @@ public class CompraService : ICompraService
         foreach (var detalle in compra.DetalleCompras)
         {
             if (!anularProductos.TryGetValue(detalle.ProductoId, out var productoVal)) continue;
-            if (productoVal.StockVentas < detalle.CantidadVentas || productoVal.StockInsumos < detalle.CantidadInsumos)
+            if (productoVal.Stock < detalle.Cantidad)
             {
                 await transaction.RollbackAsync();
                 return ServiceResult<object>.Fail($"No se puede anular la compra: el producto '{productoVal.Nombre}' ya tiene stock consumido.");
@@ -175,9 +171,7 @@ public class CompraService : ICompraService
         foreach (var detalle in compra.DetalleCompras)
         {
             if (!anularProductos.TryGetValue(detalle.ProductoId, out var producto)) continue;
-            producto.StockVentas -= detalle.CantidadVentas;
-            producto.StockInsumos -= detalle.CantidadInsumos;
-            producto.StockTotal = producto.StockVentas + producto.StockInsumos;
+            producto.Stock -= detalle.Cantidad;
         }
 
         await _context.SaveChangesAsync();

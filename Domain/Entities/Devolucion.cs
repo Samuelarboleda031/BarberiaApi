@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace BarberiaApi.Domain.Entities;
@@ -14,10 +14,6 @@ public partial class Devolucion
     public int UsuarioId { get; set; }
 
     public int? ProductoId { get; set; }
-
-    public int? BarberoId { get; set; }
-
-    public int? EntregaId { get; set; }
 
     public int Cantidad { get; set; }
 
@@ -42,8 +38,4 @@ public partial class Devolucion
     public virtual Venta? Venta { get; set; }
 
     public virtual Cliente? Cliente { get; set; }
-
-    public virtual Barbero? Barbero { get; set; }
-
-    public virtual EntregasInsumo? Entrega { get; set; }
 }

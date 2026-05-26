@@ -41,7 +41,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAgendamientoService, AgendamientoService>();
         services.AddScoped<ICitaService, CitaService>();
         services.AddScoped<IDevolucionService, DevolucionService>();
-        services.AddScoped<IEntregaInsumoService, EntregaInsumoService>();
         services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IProductoService, ProductoService>();
         services.AddScoped<IHorarioService, HorarioService>();
@@ -56,6 +55,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IModuloService, ModuloService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IImageService, ImageService>();
+        services.AddScoped<ICreditoBarberoService, CreditoBarberoService>();
 
         return services;
     }

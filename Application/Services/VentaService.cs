@@ -160,13 +160,23 @@ public class VentaService : IVentaService
         using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         try
         {
+            bool esVentaBarbero = string.Equals(input.TipoVenta, "Barbero", StringComparison.OrdinalIgnoreCase);
+
+            if (esVentaBarbero)
+            {
+                if (!input.BarberoId.HasValue)
+                    return ServiceResult<object>.Fail("Se requiere BarberoId para ventas de tipo Barbero");
+                if (input.Detalles.Any(d => d.ServicioId.HasValue || d.PaqueteId.HasValue))
+                    return ServiceResult<object>.Fail("Las ventas a barberos solo pueden incluir productos");
+            }
+
             bool tieneServicioDirecto = input.Detalles.Any(d => d.ServicioId.HasValue);
             bool paqueteConServicio = false;
             var paqueteIds = input.Detalles.Where(d => d.PaqueteId.HasValue).Select(d => d.PaqueteId!.Value).Distinct().ToList();
             if (paqueteIds.Count > 0)
                 paqueteConServicio = await _context.DetallePaquetes.AnyAsync(dp => paqueteIds.Contains(dp.PaqueteId) && dp.ServicioId != null);
 
-            bool requiereBarbero = tieneServicioDirecto || paqueteConServicio;
+            bool requiereBarbero = esVentaBarbero || tieneServicioDirecto || paqueteConServicio;
             if (requiereBarbero && !input.BarberoId.HasValue)
                 return ServiceResult<object>.Fail("Se requiere BarberoId cuando la venta incluye servicios");
 
@@ -242,19 +252,66 @@ public class VentaService : IVentaService
                 {
                     if (!ventaProductos.TryGetValue(detInput.ProductoId.Value, out var producto))
                         return ServiceResult<object>.Fail($"Producto {detInput.ProductoId} no encontrado");
-                    if (producto.StockVentas < detInput.Cantidad)
+                    if (producto.Stock < detInput.Cantidad)
                         return ServiceResult<object>.Fail($"Stock insuficiente para el producto {producto.Nombre}");
-                    producto.StockVentas -= detInput.Cantidad;
-                    producto.StockVentas = Math.Max(0, producto.StockVentas);
-                    producto.StockTotal = producto.StockVentas + producto.StockInsumos;
+
+                    if (esVentaBarbero)
+                    {
+                        detalle.PrecioUnitario = producto.PrecioCompra;
+                        detalle.Subtotal = detalle.Cantidad * detalle.PrecioUnitario;
+                    }
+
+                    producto.Stock -= detInput.Cantidad;
+                    producto.Stock = Math.Max(0, producto.Stock);
                 }
                 venta.DetalleVenta.Add(detalle);
             }
 
+            if (esVentaBarbero)
+                subtotal = venta.DetalleVenta.Sum(d => d.Subtotal);
+
             venta.Subtotal = subtotal;
             venta.Total = (subtotal + venta.IVA.Value) - venta.Descuento.Value;
 
-            if (input.ClienteId.HasValue)
+            if (esVentaBarbero)
+            {
+                bool usaCredito = string.Equals(input.MetodoPago, "CreditoBarbero", StringComparison.OrdinalIgnoreCase);
+                if (usaCredito)
+                {
+                    var credito = await _context.CreditosBarbero
+                        .FirstOrDefaultAsync(c => c.BarberoId == input.BarberoId!.Value);
+
+                    if (credito == null)
+                    {
+                        credito = new CreditoBarbero
+                        {
+                            BarberoId = input.BarberoId!.Value,
+                            CupoMaximo = 200000,
+                            SaldoDeuda = 0,
+                            Estado = "Activo",
+                            FechaCreacion = DateTime.Now
+                        };
+                        _context.CreditosBarbero.Add(credito);
+                        await _context.SaveChangesAsync();
+                    }
+
+                    if (string.Equals(credito.Estado, "Bloqueado", StringComparison.OrdinalIgnoreCase))
+                        return ServiceResult<object>.Fail("El crédito del barbero está bloqueado. Debe realizar un abono antes de continuar");
+
+                    var nuevaDeuda = credito.SaldoDeuda + venta.Total;
+                    if (nuevaDeuda > credito.CupoMaximo)
+                        return ServiceResult<object>.Fail($"Cupo insuficiente. Deuda actual: {credito.SaldoDeuda:C}, esta venta: {venta.Total:C}, cupo máximo: {credito.CupoMaximo:C}");
+
+                    credito.SaldoDeuda = nuevaDeuda;
+                    credito.FechaActualizacion = DateTime.Now;
+                    if (credito.SaldoDeuda >= credito.CupoMaximo)
+                        credito.Estado = "Bloqueado";
+
+                    venta.CreditoBarberoId = credito.Id;
+                    venta.CreditoBarberoUsado = venta.Total;
+                }
+            }
+            else if (input.ClienteId.HasValue)
             {
                 var clienteId = input.ClienteId.Value;
                 var totalDevoluciones = await _context.Devoluciones
@@ -337,6 +394,19 @@ public class VentaService : IVentaService
             venta.Estado = "Anulada";
             if ((venta.SaldoAFavorUsado ?? 0) > 0) venta.SaldoAFavorUsado = 0;
 
+            if (venta.CreditoBarberoId.HasValue && (venta.CreditoBarberoUsado ?? 0) > 0)
+            {
+                var credito = await _context.CreditosBarbero.FindAsync(venta.CreditoBarberoId.Value);
+                if (credito != null)
+                {
+                    credito.SaldoDeuda = Math.Max(0, credito.SaldoDeuda - venta.CreditoBarberoUsado!.Value);
+                    credito.FechaActualizacion = DateTime.Now;
+                    if (credito.SaldoDeuda < credito.CupoMaximo && credito.Estado == "Bloqueado")
+                        credito.Estado = "Activo";
+                }
+                venta.CreditoBarberoUsado = 0;
+            }
+
             foreach (var detalle in venta.DetalleVenta)
             {
                 if (detalle.ProductoId.HasValue)
@@ -344,8 +414,7 @@ public class VentaService : IVentaService
                     var producto = await _context.Productos.FindAsync(detalle.ProductoId.Value);
                     if (producto != null)
                     {
-                        producto.StockVentas += detalle.Cantidad;
-                        producto.StockTotal = producto.StockVentas + producto.StockInsumos;
+                        producto.Stock += detalle.Cantidad;
                     }
                 }
             }

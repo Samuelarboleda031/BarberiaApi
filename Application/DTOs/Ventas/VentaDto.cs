@@ -17,7 +17,9 @@ public class VentaDto
     public int? BarberoId { get; set; }
     public int UsuarioId { get; set; }
     public decimal? SaldoAFavorUsado { get; set; }
-    
+    public decimal? CreditoBarberoUsado { get; set; }
+    public int? CreditoBarberoId { get; set; }
+
     // Proyecciones
     public string? ClienteNombreCompleto { get; set; }
     public string? BarberoNombreCompleto { get; set; }

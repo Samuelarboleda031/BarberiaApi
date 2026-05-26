@@ -57,7 +57,7 @@ public class ProductoService : IProductoService
         if (pageSize < 1) pageSize = 5;
         var baseQ = _context.Productos
             .Include(p => p.Categoria)
-            .Where(p => p.StockTotal <= 5 && p.Estado == true)
+            .Where(p => p.Stock <= 5 && p.Estado == true)
             .AsNoTracking()
             .AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))
@@ -72,7 +72,7 @@ public class ProductoService : IProductoService
         }
         var totalCount = await baseQ.CountAsync();
         var items = await baseQ
-            .OrderBy(p => p.StockTotal)
+            .OrderBy(p => p.Stock)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ProjectTo<ProductoDto>(_mapper.ConfigurationProvider)
@@ -123,8 +123,7 @@ public class ProductoService : IProductoService
 
         producto.Id = 0;
         producto.Estado = true;
-        producto.StockVentas = 0;
-        producto.StockInsumos = 0;
+        producto.Stock = 0;
 
         _context.Productos.Add(producto);
         await _context.SaveChangesAsync();
@@ -172,12 +171,9 @@ public class ProductoService : IProductoService
         productoExistente.Nombre = producto.Nombre?.Trim() ?? productoExistente.Nombre;
         productoExistente.Descripcion = producto.Descripcion ?? "";
         productoExistente.Marca = producto.Marca ?? "";
-        productoExistente.Tipo = producto.Tipo ?? productoExistente.Tipo;
         productoExistente.PrecioVenta = producto.PrecioVenta;
         productoExistente.PrecioCompra = producto.PrecioCompra;
-        productoExistente.StockVentas = producto.StockVentas;
-        productoExistente.StockInsumos = producto.StockInsumos;
-        productoExistente.StockTotal = productoExistente.StockVentas + productoExistente.StockInsumos;
+        productoExistente.Stock = producto.Stock;
         productoExistente.CategoriaId = producto.CategoriaId;
         productoExistente.Estado = producto.Estado;
         productoExistente.ImagenProduc = producto.ImagenProduc ?? productoExistente.ImagenProduc;
@@ -196,9 +192,7 @@ public class ProductoService : IProductoService
         return ServiceResult<object>.Ok(new
         {
             productoExistente.Id,
-            productoExistente.StockVentas,
-            productoExistente.StockInsumos,
-            productoExistente.StockTotal
+            productoExistente.Stock
         });
     }
 
@@ -223,60 +217,11 @@ public class ProductoService : IProductoService
         return ServiceResult<object>.Ok(response);
     }
 
-    public async Task<ServiceResult<object>> TransferirStockAsync(int id, TransferirStockInput input)
-    {
-        if (input == null)
-            return ServiceResult<object>.Fail("Input requerido");
-
-        var producto = await _context.Productos.FindAsync(id);
-        if (producto == null) return ServiceResult<object>.NotFound();
-
-        var origen = input.Origen?.ToLower();
-        var destino = input.Destino?.ToLower();
-
-        if (origen == destino)
-            return ServiceResult<object>.Fail("Origen y destino no pueden ser iguales");
-
-        if (input.Cantidad <= 0)
-            return ServiceResult<object>.Fail("La cantidad debe ser mayor a 0");
-
-        if (origen == "ventas")
-        {
-            if (producto.StockVentas < input.Cantidad)
-                return ServiceResult<object>.Fail($"Stock de ventas insuficiente. Disponible: {producto.StockVentas}");
-            producto.StockVentas -= input.Cantidad;
-            producto.StockInsumos += input.Cantidad;
-        }
-        else if (origen == "insumos")
-        {
-            if (producto.StockInsumos < input.Cantidad)
-                return ServiceResult<object>.Fail($"Stock de insumos insuficiente. Disponible: {producto.StockInsumos}");
-            producto.StockInsumos -= input.Cantidad;
-            producto.StockVentas += input.Cantidad;
-        }
-        else
-        {
-            return ServiceResult<object>.Fail("Origen debe ser 'ventas' o 'insumos'");
-        }
-
-        producto.StockTotal = producto.StockVentas + producto.StockInsumos;
-        await _context.SaveChangesAsync();
-
-        return ServiceResult<object>.Ok(new ProductoDto
-        {
-            Id = producto.Id, Nombre = producto.Nombre, Descripcion = producto.Descripcion, Marca = producto.Marca, Tipo = producto.Tipo,
-            PrecioVenta = producto.PrecioVenta, PrecioCompra = producto.PrecioCompra,
-            StockVentas = producto.StockVentas, StockInsumos = producto.StockInsumos, StockTotal = producto.StockTotal,
-            CategoriaId = producto.CategoriaId, Estado = producto.Estado, ImagenProduc = producto.ImagenProduc
-        });
-    }
-
     public async Task<ServiceResult<object>> DeleteAsync(int id)
     {
         var producto = await _context.Productos
             .Include(p => p.DetalleVenta)
             .Include(p => p.DetalleCompras)
-            .Include(p => p.DetalleEntregasInsumos)
             .Include(p => p.Devoluciones)
             .FirstOrDefaultAsync(p => p.Id == id);
 
@@ -284,7 +229,6 @@ public class ProductoService : IProductoService
 
         if (producto.DetalleVenta.Any() ||
             producto.DetalleCompras.Any() ||
-            producto.DetalleEntregasInsumos.Any() ||
             producto.Devoluciones.Any())
         {
             producto.Estado = false;

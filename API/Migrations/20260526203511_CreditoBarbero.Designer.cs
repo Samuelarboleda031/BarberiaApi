@@ -4,6 +4,7 @@ using BarberiaApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BarberiaApi.Migrations
 {
     [DbContext(typeof(BarberiaContext))]
-    partial class BarberiaContextModelSnapshot : ModelSnapshot
+    [Migration("20260526203511_CreditoBarbero")]
+    partial class CreditoBarbero
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -32,10 +35,6 @@ namespace BarberiaApi.Migrations
 
                     b.Property<int>("CreditoBarberoId")
                         .HasColumnType("int");
-
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("Fecha")
                         .ValueGeneratedOnAdd()
@@ -754,6 +753,9 @@ namespace BarberiaApi.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(0);
+
+                    b.Property<string>("Tipo")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 

@@ -4,6 +4,7 @@ using BarberiaApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BarberiaApi.Migrations
 {
     [DbContext(typeof(BarberiaContext))]
-    partial class BarberiaContextModelSnapshot : ModelSnapshot
+    [Migration("20260526202837_UnificarStockProducto")]
+    partial class UnificarStockProducto
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,50 +24,6 @@ namespace BarberiaApi.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("BarberiaApi.Domain.Entities.AbonoCreditoBarbero", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CreditoBarberoId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("Fecha")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasDefaultValueSql("GETDATE()");
-
-                    b.Property<string>("MetodoPago")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<decimal>("Monto")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Notas")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("UsuarioId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreditoBarberoId");
-
-                    b.HasIndex("UsuarioId");
-
-                    b.ToTable("AbonosCreditoBarbero", (string)null);
-                });
 
             modelBuilder.Entity("BarberiaApi.Domain.Entities.Agendamiento", b =>
                 {
@@ -367,52 +326,6 @@ namespace BarberiaApi.Migrations
                     b.HasIndex("UsuarioId");
 
                     b.ToTable("Compras", (string)null);
-                });
-
-            modelBuilder.Entity("BarberiaApi.Domain.Entities.CreditoBarbero", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("BarberoId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("CupoMaximo")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(200000m);
-
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasDefaultValue("Activo");
-
-                    b.Property<DateTime?>("FechaActualizacion")
-                        .HasColumnType("datetime");
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasDefaultValueSql("GETDATE()");
-
-                    b.Property<decimal>("SaldoDeuda")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BarberoId")
-                        .IsUnique();
-
-                    b.ToTable("CreditosBarbero", (string)null);
                 });
 
             modelBuilder.Entity("BarberiaApi.Domain.Entities.DetalleCompra", b =>
@@ -754,6 +667,9 @@ namespace BarberiaApi.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
                         .HasDefaultValue(0);
+
+                    b.Property<string>("Tipo")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -1128,15 +1044,6 @@ namespace BarberiaApi.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<int?>("CreditoBarberoId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal?>("CreditoBarberoUsado")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
-                        .HasDefaultValue(0m);
-
                     b.Property<decimal?>("Descuento")
                         .ValueGeneratedOnAdd()
                         .HasPrecision(18, 2)
@@ -1199,8 +1106,6 @@ namespace BarberiaApi.Migrations
 
                     b.HasIndex("ClienteId");
 
-                    b.HasIndex("CreditoBarberoId");
-
                     b.HasIndex("NumeroRecibo")
                         .IsUnique()
                         .HasFilter("[NumeroRecibo] IS NOT NULL");
@@ -1208,25 +1113,6 @@ namespace BarberiaApi.Migrations
                     b.HasIndex("UsuarioId");
 
                     b.ToTable("Ventas", (string)null);
-                });
-
-            modelBuilder.Entity("BarberiaApi.Domain.Entities.AbonoCreditoBarbero", b =>
-                {
-                    b.HasOne("BarberiaApi.Domain.Entities.CreditoBarbero", "CreditoBarbero")
-                        .WithMany("Abonos")
-                        .HasForeignKey("CreditoBarberoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("BarberiaApi.Domain.Entities.Usuario", "Usuario")
-                        .WithMany("AbonosCreditoBarbero")
-                        .HasForeignKey("UsuarioId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("CreditoBarbero");
-
-                    b.Navigation("Usuario");
                 });
 
             modelBuilder.Entity("BarberiaApi.Domain.Entities.Agendamiento", b =>
@@ -1346,17 +1232,6 @@ namespace BarberiaApi.Migrations
                     b.Navigation("Proveedor");
 
                     b.Navigation("Usuario");
-                });
-
-            modelBuilder.Entity("BarberiaApi.Domain.Entities.CreditoBarbero", b =>
-                {
-                    b.HasOne("BarberiaApi.Domain.Entities.Barbero", "Barbero")
-                        .WithOne("CreditoBarbero")
-                        .HasForeignKey("BarberiaApi.Domain.Entities.CreditoBarbero", "BarberoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Barbero");
                 });
 
             modelBuilder.Entity("BarberiaApi.Domain.Entities.DetalleCompra", b =>
@@ -1570,11 +1445,6 @@ namespace BarberiaApi.Migrations
                         .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("BarberiaApi.Domain.Entities.CreditoBarbero", "CreditoBarbero")
-                        .WithMany("Ventas")
-                        .HasForeignKey("CreditoBarberoId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("BarberiaApi.Domain.Entities.Usuario", "Usuario")
                         .WithMany("Ventas")
                         .HasForeignKey("UsuarioId")
@@ -1584,8 +1454,6 @@ namespace BarberiaApi.Migrations
                     b.Navigation("Barbero");
 
                     b.Navigation("Cliente");
-
-                    b.Navigation("CreditoBarbero");
 
                     b.Navigation("Usuario");
                 });
@@ -1600,8 +1468,6 @@ namespace BarberiaApi.Migrations
             modelBuilder.Entity("BarberiaApi.Domain.Entities.Barbero", b =>
                 {
                     b.Navigation("Agendamientos");
-
-                    b.Navigation("CreditoBarbero");
 
                     b.Navigation("HorariosSemanales");
 
@@ -1625,13 +1491,6 @@ namespace BarberiaApi.Migrations
             modelBuilder.Entity("BarberiaApi.Domain.Entities.Compra", b =>
                 {
                     b.Navigation("DetalleCompras");
-                });
-
-            modelBuilder.Entity("BarberiaApi.Domain.Entities.CreditoBarbero", b =>
-                {
-                    b.Navigation("Abonos");
-
-                    b.Navigation("Ventas");
                 });
 
             modelBuilder.Entity("BarberiaApi.Domain.Entities.HorarioSemanal", b =>
@@ -1692,8 +1551,6 @@ namespace BarberiaApi.Migrations
 
             modelBuilder.Entity("BarberiaApi.Domain.Entities.Usuario", b =>
                 {
-                    b.Navigation("AbonosCreditoBarbero");
-
                     b.Navigation("Barbero");
 
                     b.Navigation("Cliente");

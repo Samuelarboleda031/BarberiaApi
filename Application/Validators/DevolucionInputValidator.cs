@@ -22,9 +22,8 @@ public class DevolucionInputValidator : AbstractValidator<DevolucionInput>
         RuleFor(x => x.MontoDevuelto)
             .GreaterThanOrEqualTo(0).WithMessage("El monto devuelto no puede ser negativo");
 
-        RuleFor(x => x)
-            .Must(x => x.VentaId.HasValue || x.EntregaId.HasValue)
-            .WithMessage("Debe especificar un VentaId o un EntregaId");
+        RuleFor(x => x.VentaId)
+            .NotNull().WithMessage("Debe especificar un VentaId");
     }
 }
 

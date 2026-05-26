@@ -143,9 +143,8 @@ public class ClienteService : IClienteService
         bool tieneAgendamientosActivos = cliente.Agendamientos.Any(a => a.Estado != "Cancelada");
         bool tieneVentasCompletadas = cliente.Venta.Any(v => v.Estado == "Completada");
         bool tieneComprasUsuario = await _context.Compras.AnyAsync(c => c.UsuarioId == usuario.Id);
-        bool tieneEntregasUsuario = await _context.EntregasInsumos.AnyAsync(e => e.UsuarioId == usuario.Id);
 
-        if (tieneAgendamientosActivos || tieneVentasCompletadas || tieneComprasUsuario || tieneEntregasUsuario)
+        if (tieneAgendamientosActivos || tieneVentasCompletadas || tieneComprasUsuario)
         {
             cliente.Estado = false;
             if (usuario != null) usuario.Estado = false;

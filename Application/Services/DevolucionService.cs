@@ -25,122 +25,7 @@ public class DevolucionService : IDevolucionService
         return det.Contains("error") && det.Contains("compra");
     }
 
-    public async Task<ServiceResult<object>> DevolucionInsumosBarberoAsync(EntregaInput input)
-    {
-        if (input == null || input.Detalles == null || !input.Detalles.Any())
-            return ServiceResult<object>.Fail("La devolución debe tener al menos un detalle");
-
-        using var transaction = await _context.Database.BeginTransactionAsync();
-        try
-        {
-            var entrega = new EntregasInsumo
-            {
-                BarberoId = input.BarberoId,
-                UsuarioId = input.UsuarioId,
-                Fecha = DateTime.Now,
-                Estado = "Entregado"
-            };
-
-            int cantidadTotal = 0;
-            decimal valorTotal = 0;
-
-            bool esErrorCompraInsumos = IsErrorCompra(input.MotivoCategoria, input.MotivoDetalle);
-
-            foreach (var det in input.Detalles)
-            {
-                var producto = await _context.Productos.FindAsync(det.ProductoId);
-                if (producto == null)
-                {
-                    await transaction.RollbackAsync();
-                    return ServiceResult<object>.Fail($"Producto {det.ProductoId} no encontrado");
-                }
-
-                var entregado = await _context.DetalleEntregasInsumos
-                    .Where(d => d.ProductoId == det.ProductoId &&
-                                d.Entrega.BarberoId == input.BarberoId &&
-                                d.Entrega.Estado == "Entregado")
-                    .SumAsync(d => (int?)d.Cantidad) ?? 0;
-
-                var devuelto = await _context.Devoluciones
-                    .Where(d => d.ProductoId == det.ProductoId &&
-                                d.BarberoId == input.BarberoId &&
-                                d.Estado == "Activo")
-                    .SumAsync(d => (int?)d.Cantidad) ?? 0;
-
-                var disponible = entregado - devuelto;
-                if (det.Cantidad > disponible)
-                {
-                    await transaction.RollbackAsync();
-                    return ServiceResult<object>.Fail($"Cantidad a devolver para el producto {producto.Nombre} ({det.Cantidad}) excede lo entregado al barbero ({disponible}).");
-                }
-
-                if (esErrorCompraInsumos)
-                {
-                    producto.StockInsumos += det.Cantidad;
-                    producto.StockTotal = producto.StockVentas + producto.StockInsumos;
-                }
-
-                var detalle = new DetalleEntregasInsumo
-                {
-                    ProductoId = det.ProductoId,
-                    Cantidad = det.Cantidad,
-                    PrecioHistorico = det.PrecioHistorico ?? producto.PrecioVenta
-                };
-
-                cantidadTotal += det.Cantidad;
-                valorTotal += (detalle.PrecioHistorico ?? 0) * det.Cantidad;
-
-                entrega.DetalleEntregasInsumos.Add(detalle);
-            }
-
-            entrega.CantidadTotal = cantidadTotal;
-            entrega.ValorTotal = valorTotal;
-
-            _context.EntregasInsumos.Add(entrega);
-            await _context.SaveChangesAsync();
-
-            foreach (var det in input.Detalles)
-            {
-                var dev = new Devolucion
-                {
-                    VentaId = null,
-                    ClienteId = null,
-                    UsuarioId = input.UsuarioId,
-                    BarberoId = input.BarberoId,
-                    EntregaId = entrega.Id,
-                    ProductoId = det.ProductoId,
-                    Cantidad = det.Cantidad,
-                    MotivoCategoria = input.MotivoCategoria ?? "Insumos",
-                    MotivoDetalle = input.MotivoDetalle,
-                    Observaciones = null,
-                    MontoDevuelto = 0,
-                    SaldoAFavor = 0,
-                    Fecha = DateTime.Now,
-                    Estado = "Activo"
-                };
-                _context.Devoluciones.Add(dev);
-            }
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            return ServiceResult<object>.Ok(new
-            {
-                entrega.Id,
-                entrega.BarberoId,
-                entrega.UsuarioId,
-                entrega.CantidadTotal,
-                entrega.ValorTotal,
-                entrega.Estado
-            });
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-            return ServiceResult<object>.Fail($"Error interno: {ex.Message}", 500);
-        }
-    }
-
-    public async Task<ServiceResult<object>> GetAllAsync(int? barberoId, int? clienteId, int? productoId, int? entregaId, DateTime? desde, DateTime? hasta, int page, int pageSize, string? q)
+    public async Task<ServiceResult<object>> GetAllAsync(int? clienteId, int? productoId, DateTime? desde, DateTime? hasta, int page, int pageSize, string? q)
     {
         try
         {
@@ -148,10 +33,8 @@ public class DevolucionService : IDevolucionService
                 .AsNoTracking()
                 .AsQueryable();
 
-            if (barberoId.HasValue) query = query.Where(d => d.BarberoId == barberoId.Value);
             if (clienteId.HasValue) query = query.Where(d => d.ClienteId == clienteId.Value);
             if (productoId.HasValue) query = query.Where(d => d.ProductoId == productoId.Value);
-            if (entregaId.HasValue) query = query.Where(d => d.EntregaId == entregaId.Value);
             if (desde.HasValue) query = query.Where(d => d.Fecha >= desde.Value);
             if (hasta.HasValue)
             {
@@ -172,17 +55,13 @@ public class DevolucionService : IDevolucionService
                     (d.Cliente != null && d.Cliente.Usuario != null && (
                         (d.Cliente.Usuario.Nombre != null && d.Cliente.Usuario.Nombre.ToLower().Contains(term)) ||
                         (d.Cliente.Usuario.Apellido != null && d.Cliente.Usuario.Apellido.ToLower().Contains(term))
-                    )) ||
-                    (d.Barbero != null && d.Barbero.Usuario != null && (
-                        (d.Barbero.Usuario.Nombre != null && d.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
-                        (d.Barbero.Usuario.Apellido != null && d.Barbero.Usuario.Apellido.ToLower().Contains(term))
                     ))
                 );
             }
 
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 5;
-            
+
             var totalCount = await query.CountAsync();
             var items = await query
                     .OrderByDescending(d => d.Fecha)
@@ -192,10 +71,8 @@ public class DevolucionService : IDevolucionService
                     {
                         d.Id,
                         d.VentaId,
-                        d.EntregaId,
                         d.ClienteId,
                         d.UsuarioId,
-                        d.BarberoId,
                         d.ProductoId,
                         d.Cantidad,
                         d.MotivoCategoria,
@@ -207,11 +84,10 @@ public class DevolucionService : IDevolucionService
                         d.Estado,
                         ProductoNombre = d.Producto != null ? d.Producto.Nombre : "Producto",
                         UsuarioNombre = d.Usuario != null ? d.Usuario.Nombre : "Sistema",
-                        ClienteNombre = d.Cliente != null && d.Cliente.Usuario != null ? d.Cliente.Usuario.Nombre + " " + d.Cliente.Usuario.Apellido : null,
-                        BarberoNombre = d.Barbero != null && d.Barbero.Usuario != null ? d.Barbero.Usuario.Nombre + " " + d.Barbero.Usuario.Apellido : null
+                        ClienteNombre = d.Cliente != null && d.Cliente.Usuario != null ? d.Cliente.Usuario.Nombre + " " + d.Cliente.Usuario.Apellido : null
                     })
                     .ToListAsync();
-            
+
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
         }
@@ -229,10 +105,8 @@ public class DevolucionService : IDevolucionService
             {
                 d.Id,
                 d.VentaId,
-                d.EntregaId,
                 d.ClienteId,
                 d.UsuarioId,
-                d.BarberoId,
                 d.ProductoId,
                 d.Cantidad,
                 d.MotivoCategoria,
@@ -246,12 +120,6 @@ public class DevolucionService : IDevolucionService
                 Usuario = new { d.Usuario.Id, d.Usuario.Nombre },
                 Cliente = d.ClienteId.HasValue && d.Cliente != null && d.Cliente.Usuario != null
                     ? new { d.Cliente.Id, Nombre = d.Cliente.Usuario.Nombre }
-                    : null,
-                Barbero = d.BarberoId.HasValue && d.Barbero != null && d.Barbero.Usuario != null
-                    ? new { d.Barbero.Id, Nombre = d.Barbero.Usuario.Nombre }
-                    : null,
-                Entrega = d.EntregaId.HasValue && d.Entrega != null
-                    ? new { d.Entrega.Id, d.Entrega.Estado, d.Entrega.Fecha }
                     : null
             })
             .FirstOrDefaultAsync();
@@ -269,9 +137,6 @@ public class DevolucionService : IDevolucionService
         {
             if (!input.VentaId.HasValue)
                 return ServiceResult<object>.Fail("VentaId es requerido para devoluciones de ventas");
-
-            if (input.BarberoId.HasValue || input.EntregaId.HasValue)
-                return ServiceResult<object>.Fail("Una devolución de ventas no puede tener BarberoId ni EntregaId");
 
             var venta = await _context.Ventas
                 .FirstOrDefaultAsync(v => v.Id == input.VentaId.Value);
@@ -306,8 +171,6 @@ public class DevolucionService : IDevolucionService
                 VentaId = input.VentaId,
                 ClienteId = input.ClienteId ?? venta.ClienteId,
                 UsuarioId = input.UsuarioId,
-                BarberoId = null,
-                EntregaId = null,
                 ProductoId = input.ProductoId,
                 Cantidad = input.Cantidad,
                 MotivoCategoria = input.MotivoCategoria,
@@ -324,8 +187,7 @@ public class DevolucionService : IDevolucionService
                 var producto = await _context.Productos.FindAsync(input.ProductoId);
                 if (producto != null)
                 {
-                    producto.StockVentas += input.Cantidad;
-                    producto.StockTotal = producto.StockVentas + producto.StockInsumos;
+                    producto.Stock += input.Cantidad;
                 }
             }
 
@@ -352,9 +214,6 @@ public class DevolucionService : IDevolucionService
         {
             var venta = await _context.Ventas.FindAsync(input.VentaId);
             if (venta == null) return ServiceResult<object>.Fail("La venta no existe");
-
-            if (input.BarberoId.HasValue)
-                return ServiceResult<object>.Fail("Una devolución de ventas por lote no puede tener BarberoId ni EntregaId");
 
             var clienteId = input.ClienteId ?? venta.ClienteId;
             if (clienteId == null) return ServiceResult<object>.Fail("Venta no asociada a cliente");
@@ -425,8 +284,7 @@ public class DevolucionService : IDevolucionService
 
                 if (esErrorCompraBatch && batchProductos.TryGetValue(it.ProductoId, out var p))
                 {
-                    p.StockVentas += it.Cantidad;
-                    p.StockTotal = p.StockVentas + p.StockInsumos;
+                    p.Stock += it.Cantidad;
                 }
             }
 
@@ -470,44 +328,23 @@ public class DevolucionService : IDevolucionService
 
                 bool esReactivacion = string.Equals(input.estado, "Activo", StringComparison.OrdinalIgnoreCase) &&
                                      string.Equals(estadoAnterior, "Anulado", StringComparison.OrdinalIgnoreCase);
+
                 if (esErrorCompra && devolucion.VentaId.HasValue)
                 {
                     if (esAnulacion)
                     {
-                        if (devolucion.Producto.StockVentas >= devolucion.Cantidad)
+                        if (devolucion.Producto.Stock >= devolucion.Cantidad)
                         {
-                            devolucion.Producto.StockVentas -= devolucion.Cantidad;
-                            devolucion.Producto.StockTotal = devolucion.Producto.StockVentas + devolucion.Producto.StockInsumos;
+                            devolucion.Producto.Stock -= devolucion.Cantidad;
                         }
                         else
                         {
-                            return ServiceResult<object>.Fail($"Stock insuficiente. Stock actual: {devolucion.Producto.StockVentas}, requerido: {devolucion.Cantidad}");
+                            return ServiceResult<object>.Fail($"Stock insuficiente. Stock actual: {devolucion.Producto.Stock}, requerido: {devolucion.Cantidad}");
                         }
                     }
                     else if (esReactivacion)
                     {
-                        devolucion.Producto.StockVentas += devolucion.Cantidad;
-                        devolucion.Producto.StockTotal = devolucion.Producto.StockVentas + devolucion.Producto.StockInsumos;
-                    }
-                }
-                else if (esErrorCompra && devolucion.BarberoId.HasValue)
-                {
-                    if (esAnulacion)
-                    {
-                        if (devolucion.Producto.StockInsumos >= devolucion.Cantidad)
-                        {
-                            devolucion.Producto.StockInsumos -= devolucion.Cantidad;
-                            devolucion.Producto.StockTotal = devolucion.Producto.StockVentas + devolucion.Producto.StockInsumos;
-                        }
-                        else
-                        {
-                            return ServiceResult<object>.Fail($"Stock insuficiente. Stock actual insumos: {devolucion.Producto.StockInsumos}, requerido: {devolucion.Cantidad}");
-                        }
-                    }
-                    else if (esReactivacion)
-                    {
-                        devolucion.Producto.StockInsumos += devolucion.Cantidad;
-                        devolucion.Producto.StockTotal = devolucion.Producto.StockVentas + devolucion.Producto.StockInsumos;
+                        devolucion.Producto.Stock += devolucion.Cantidad;
                     }
                 }
             }
@@ -532,10 +369,8 @@ public class DevolucionService : IDevolucionService
     public async Task<ServiceResult<object>> GetByClienteAsync(int clienteId, int page, int pageSize)
     {
         return await GetAllAsync(
-            barberoId: null,
             clienteId: clienteId,
             productoId: null,
-            entregaId: null,
             desde: null,
             hasta: null,
             page: page,

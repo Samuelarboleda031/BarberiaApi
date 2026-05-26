@@ -16,19 +16,11 @@ namespace BarberiaApi.Controllers
             _devolucionService = devolucionService;
         }
 
-        [HttpPost("insumos/barbero")]
-        public async Task<ActionResult<object>> DevolucionInsumosBarbero([FromBody] EntregaInput input)
-        {
-            var result = await _devolucionService.DevolucionInsumosBarberoAsync(input);
-            if (!result.Success) return StatusCode(result.StatusCode, result.Error);
-            return Ok(result.Data);
-        }
-
         [HttpGet]
         [OutputCache(PolicyName = "short")]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int? barberoId, [FromQuery] int? clienteId, [FromQuery] int? productoId, [FromQuery] int? entregaId, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int? clienteId, [FromQuery] int? productoId, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
-            var result = await _devolucionService.GetAllAsync(barberoId, clienteId, productoId, entregaId, desde, hasta, page, pageSize, q);
+            var result = await _devolucionService.GetAllAsync(clienteId, productoId, desde, hasta, page, pageSize, q);
             return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
         }
 

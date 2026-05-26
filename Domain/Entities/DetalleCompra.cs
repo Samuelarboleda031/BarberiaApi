@@ -13,10 +13,6 @@ public partial class DetalleCompra
 
     public int Cantidad { get; set; }
 
-    public int CantidadVentas { get; set; }
-
-    public int CantidadInsumos { get; set; }
-
     public decimal PrecioUnitario { get; set; }
 
     public decimal Subtotal { get; set; }
