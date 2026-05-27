@@ -3,6 +3,7 @@ using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Helpers;
 using BarberiaApi.Infrastructure.Services;
 using BarberiaApi.Infrastructure.Jobs;
+using BarberiaApi.Jobs;
 using BarberiaApi.Domain.Interfaces;
 using BarberiaApi.Infrastructure.Repositories;
 using BarberiaApi.Application.Interfaces;
@@ -33,6 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailProxyService, EmailProxyService>();
         services.AddScoped<INotificacionCreditoService, NotificacionCreditoService>();
         services.AddHostedService<NotificacionCreditoJob>();
+        services.AddHostedService<RecalcularCreditosJob>();
 
         return services;
     }

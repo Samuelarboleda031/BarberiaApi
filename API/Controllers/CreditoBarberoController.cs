@@ -56,4 +56,18 @@ public class CreditoBarberoController : ControllerBase
         var r = await _service.AnularAbonoAsync(abonoId, input);
         return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound(r.Error) : BadRequest(r.Error);
     }
+
+    [HttpPut("barbero/{barberoId}/extender-plazo")]
+    public async Task<ActionResult> ExtenderPlazo(int barberoId, [FromBody] ExtenderPlazoInput input)
+    {
+        var r = await _service.ExtenderPlazoAsync(barberoId, input);
+        return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound(r.Error) : BadRequest(r.Error);
+    }
+
+    [HttpPost("barbero/{barberoId}/nuevo-ciclo")]
+    public async Task<ActionResult> NuevoCiclo(int barberoId, [FromBody] NuevoCicloInput input)
+    {
+        var r = await _service.NuevoCicloAsync(barberoId, input);
+        return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound(r.Error) : BadRequest(r.Error);
+    }
 }

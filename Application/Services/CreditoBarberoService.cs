@@ -24,6 +24,88 @@ public class CreditoBarberoService : ICreditoBarberoService
         _logger = logger;
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // CÁLCULO DE ESTADO CENTRALIZADO
+    // ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Recalcula el estado del crédito según las reglas de negocio.
+    /// Retorna true si el estado cambió.
+    /// </summary>
+    private static bool RecalcularEstado(CreditoBarbero c)
+    {
+        var ahora = DateTime.UtcNow.AddHours(-5);
+        var vencido = ahora > c.FechaVencimiento && c.SaldoPendiente > 0;
+        var limiteAlcanzado = c.SaldoPendiente >= c.LimiteCredito;
+
+        string nuevoEstado;
+        if (c.SaldoPendiente == 0)
+            nuevoEstado = "Pagado";
+        else if (limiteAlcanzado && vencido)
+            nuevoEstado = "BloqueadoLimiteYVencimiento";
+        else if (limiteAlcanzado)
+            nuevoEstado = "BloqueadoLimite";
+        else if (vencido)
+            nuevoEstado = "BloqueadoVencimiento";
+        else
+            nuevoEstado = "Activo";
+
+        if (c.Estado == nuevoEstado) return false;
+        c.Estado = nuevoEstado;
+        return true;
+    }
+
+    private static CreditoBarberoDto ToDto(CreditoBarbero c) => new()
+    {
+        Id = c.Id,
+        BarberoId = c.BarberoId,
+        BarberoNombre = c.Barbero?.Usuario != null
+            ? $"{c.Barbero.Usuario.Nombre} {c.Barbero.Usuario.Apellido}".Trim()
+            : null,
+        CupoMaximo = c.LimiteCredito,
+        SaldoDeuda = c.SaldoPendiente,
+        CupoDisponible = Math.Max(0, c.LimiteCredito - c.SaldoPendiente),
+        Estado = c.Estado,
+        PlazoDias = c.PlazoDias,
+        FechaCreacion = c.FechaCreacion,
+        FechaInicio = c.FechaInicio,
+        FechaVencimiento = c.FechaVencimiento,
+        FechaCierre = c.FechaCierre,
+        ExtensionUsada = c.ExtensionUsada,
+        FechaActualizacion = null
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // OBTENER CRÉDITO ACTIVO/VIGENTE DE UN BARBERO
+    // ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Retorna el crédito activo/bloqueado de un barbero.
+    /// Si todos están Pagados, retorna el más reciente.
+    /// </summary>
+    private async Task<CreditoBarbero?> ObtenerCreditoVigenteAsync(int barberoId, bool tracking = true)
+    {
+        var q = _context.CreditosBarbero
+            .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
+            .Where(c => c.BarberoId == barberoId);
+
+        if (!tracking) q = q.AsNoTracking();
+
+        var creditos = await q.OrderByDescending(c => c.FechaInicio).ToListAsync();
+        if (!creditos.Any()) return null;
+
+        return creditos.FirstOrDefault(c =>
+                   c.Estado == "Activo" ||
+                   c.Estado == "BloqueadoLimite" ||
+                   c.Estado == "BloqueadoVencimiento" ||
+                   c.Estado == "BloqueadoLimiteYVencimiento")
+               ?? creditos.First();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // QUERIES
+    // ─────────────────────────────────────────────────────────────
+
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
         if (page < 1) page = 1;
@@ -40,31 +122,19 @@ public class CreditoBarberoService : ICreditoBarberoService
             baseQ = baseQ.Where(c =>
                 (c.Barbero.Usuario.Nombre != null && c.Barbero.Usuario.Nombre.ToLower().Contains(term)) ||
                 (c.Barbero.Usuario.Apellido != null && c.Barbero.Usuario.Apellido.ToLower().Contains(term)) ||
-                (c.Estado != null && c.Estado.ToLower().Contains(term))
-            );
+                (c.Estado != null && c.Estado.ToLower().Contains(term)));
         }
 
         var totalCount = await baseQ.CountAsync();
         var items = await baseQ
-            .OrderByDescending(c => c.SaldoDeuda)
+            .OrderByDescending(c => c.FechaInicio)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(c => new CreditoBarberoDto
-            {
-                Id = c.Id,
-                BarberoId = c.BarberoId,
-                BarberoNombre = c.Barbero.Usuario.Nombre + " " + c.Barbero.Usuario.Apellido,
-                CupoMaximo = c.CupoMaximo,
-                SaldoDeuda = c.SaldoDeuda,
-                CupoDisponible = c.CupoMaximo - c.SaldoDeuda,
-                Estado = c.Estado,
-                FechaCreacion = c.FechaCreacion,
-                FechaActualizacion = c.FechaActualizacion
-            })
             .ToListAsync();
 
+        var dtos = items.Select(ToDto).ToList();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-        return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
+        return ServiceResult<object>.Ok(new { items = dtos, totalCount, page, pageSize, totalPages });
     }
 
     public async Task<ServiceResult<object>> GetByBarberoAsync(int barberoId)
@@ -72,10 +142,7 @@ public class CreditoBarberoService : ICreditoBarberoService
         var barbero = await _context.Barberos.FindAsync(barberoId);
         if (barbero == null) return ServiceResult<object>.NotFound();
 
-        var credito = await _context.CreditosBarbero
-            .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.BarberoId == barberoId);
+        var credito = await ObtenerCreditoVigenteAsync(barberoId, tracking: false);
 
         if (credito == null)
         {
@@ -85,24 +152,15 @@ public class CreditoBarberoService : ICreditoBarberoService
                 CupoMaximo = 200000,
                 SaldoDeuda = 0,
                 CupoDisponible = 200000,
-                Estado = "Sin crédito"
+                Estado = "Sin crédito",
+                PlazoDias = 7,
+                FechaCreacion = DateTime.UtcNow.AddHours(-5),
+                FechaInicio = DateTime.UtcNow.AddHours(-5),
+                FechaVencimiento = DateTime.UtcNow.AddHours(-5).AddDays(7)
             });
         }
 
-        return ServiceResult<object>.Ok(new CreditoBarberoDto
-        {
-            Id = credito.Id,
-            BarberoId = credito.BarberoId,
-            BarberoNombre = credito.Barbero?.Usuario != null
-                ? credito.Barbero.Usuario.Nombre + " " + credito.Barbero.Usuario.Apellido
-                : null,
-            CupoMaximo = credito.CupoMaximo,
-            SaldoDeuda = credito.SaldoDeuda,
-            CupoDisponible = credito.CupoMaximo - credito.SaldoDeuda,
-            Estado = credito.Estado,
-            FechaCreacion = credito.FechaCreacion,
-            FechaActualizacion = credito.FechaActualizacion
-        });
+        return ServiceResult<object>.Ok(ToDto(credito));
     }
 
     public async Task<ServiceResult<object>> GetAbonosAsync(int barberoId, int page, int pageSize)
@@ -110,10 +168,7 @@ public class CreditoBarberoService : ICreditoBarberoService
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 10;
 
-        var credito = await _context.CreditosBarbero
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.BarberoId == barberoId);
-
+        var credito = await ObtenerCreditoVigenteAsync(barberoId, tracking: false);
         if (credito == null) return ServiceResult<object>.NotFound();
 
         var baseQ = _context.AbonosCreditoBarbero
@@ -132,6 +187,7 @@ public class CreditoBarberoService : ICreditoBarberoService
                 CreditoBarberoId = a.CreditoBarberoId,
                 UsuarioId = a.UsuarioId,
                 UsuarioNombre = a.Usuario != null ? a.Usuario.Nombre + " " + a.Usuario.Apellido : null,
+                VentaId = a.VentaId,
                 Monto = a.Monto,
                 MetodoPago = a.MetodoPago,
                 Fecha = a.Fecha,
@@ -143,6 +199,39 @@ public class CreditoBarberoService : ICreditoBarberoService
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
         return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
     }
+
+    public async Task<ServiceResult<object>> GetOrCreateAsync(int barberoId)
+    {
+        var barbero = await _context.Barberos.FindAsync(barberoId);
+        if (barbero == null) return ServiceResult<object>.NotFound();
+
+        var credito = await ObtenerCreditoVigenteAsync(barberoId);
+
+        if (credito == null)
+        {
+            var ahora = DateTime.UtcNow.AddHours(-5);
+            credito = new CreditoBarbero
+            {
+                BarberoId = barberoId,
+                LimiteCredito = 200000,
+                SaldoPendiente = 0,
+                PlazoDias = 7,
+                FechaInicio = ahora,
+                FechaVencimiento = ahora.AddDays(7),
+                Estado = "Activo",
+                CreadoPor = 1,
+                FechaCreacion = ahora
+            };
+            _context.CreditosBarbero.Add(credito);
+            await _context.SaveChangesAsync();
+        }
+
+        return ServiceResult<object>.Ok(ToDto(credito));
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // ABONOS
+    // ─────────────────────────────────────────────────────────────
 
     public async Task<ServiceResult<object>> RegistrarAbonoAsync(int barberoId, AbonoInput input)
     {
@@ -157,32 +246,55 @@ public class CreditoBarberoService : ICreditoBarberoService
         var usuario = await _context.Usuarios.FindAsync(input.UsuarioId);
         if (usuario == null) return ServiceResult<object>.Fail("El usuario no existe");
 
-        var credito = await _context.CreditosBarbero
-            .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
-            .FirstOrDefaultAsync(c => c.BarberoId == barberoId);
-
+        var credito = await ObtenerCreditoVigenteAsync(barberoId);
         if (credito == null)
             return ServiceResult<object>.Fail("El barbero no tiene un crédito registrado");
 
-        if (credito.SaldoDeuda <= 0)
+        if (credito.SaldoPendiente <= 0)
             return ServiceResult<object>.Fail("El barbero no tiene deuda pendiente");
 
-        var montoAplicable = Math.Min(input.Monto, credito.SaldoDeuda);
-        credito.SaldoDeuda -= montoAplicable;
-        credito.FechaActualizacion = DateTime.Now;
+        // Si se vincula a una venta, verificar que exista y pertenezca al barbero
+        if (input.VentaId.HasValue)
+        {
+            var ventaExiste = await _context.Ventas
+                .AnyAsync(v => v.Id == input.VentaId.Value && v.BarberoId == barberoId);
+            if (!ventaExiste)
+                return ServiceResult<object>.Fail("La venta especificada no existe o no pertenece a este barbero");
+        }
 
-        if (credito.Estado == "Bloqueado" && credito.SaldoDeuda < credito.CupoMaximo)
-            credito.Estado = "Activo";
+        var estadoAnterior = credito.Estado;
+        var montoAplicable = Math.Min(input.Monto, credito.SaldoPendiente);
+        credito.SaldoPendiente -= montoAplicable;
+
+        RecalcularEstado(credito);
+
+        if (credito.Estado == "Pagado" && credito.FechaCierre == null)
+            credito.FechaCierre = DateTime.UtcNow.AddHours(-5);
 
         var abono = new AbonoCreditoBarbero
         {
             CreditoBarberoId = credito.Id,
             UsuarioId = input.UsuarioId,
+            VentaId = input.VentaId,
             Monto = montoAplicable,
             MetodoPago = input.MetodoPago ?? "Efectivo",
-            Fecha = DateTime.Now,
-            Notas = input.Notas
+            Fecha = DateTime.UtcNow.AddHours(-5),
+            Notas = input.Notas,
+            Estado = "Completado"
         };
+
+        if (estadoAnterior != credito.Estado)
+        {
+            _context.HistorialEstadoCredito.Add(new HistorialEstadoCredito
+            {
+                CreditoBarberoId = credito.Id,
+                EstadoAnterior = estadoAnterior,
+                EstadoNuevo = credito.Estado,
+                FechaCambio = DateTime.UtcNow.AddHours(-5),
+                ResponsableId = input.UsuarioId,
+                Observacion = $"Abono de {montoAplicable:C} registrado"
+            });
+        }
 
         _context.AbonosCreditoBarbero.Add(abono);
         await _context.SaveChangesAsync();
@@ -192,10 +304,10 @@ public class CreditoBarberoService : ICreditoBarberoService
             mensaje = $"Abono de {montoAplicable:C} registrado exitosamente",
             abonoId = abono.Id,
             creditoBarberoId = credito.Id,
-            saldoDeudaAnterior = credito.SaldoDeuda + montoAplicable,
+            saldoDeudaAnterior = credito.SaldoPendiente + montoAplicable,
             montoAbonado = montoAplicable,
-            saldoDeudaActual = credito.SaldoDeuda,
-            cupoDisponible = credito.CupoMaximo - credito.SaldoDeuda,
+            saldoDeudaActual = credito.SaldoPendiente,
+            cupoDisponible = Math.Max(0, credito.LimiteCredito - credito.SaldoPendiente),
             estadoCredito = credito.Estado
         });
     }
@@ -206,27 +318,37 @@ public class CreditoBarberoService : ICreditoBarberoService
             .Include(a => a.CreditoBarbero)
             .FirstOrDefaultAsync(a => a.Id == abonoId);
 
-        if (abono == null)
-            return ServiceResult<object>.NotFound();
-
+        if (abono == null) return ServiceResult<object>.NotFound();
         if (abono.Estado == "Anulado")
             return ServiceResult<object>.Fail("El abono ya está anulado");
 
         var usuario = await _context.Usuarios.FindAsync(input.UsuarioId);
-        if (usuario == null)
-            return ServiceResult<object>.Fail("El usuario no existe");
+        if (usuario == null) return ServiceResult<object>.Fail("El usuario no existe");
 
-        // Revertir el monto al saldo de deuda del crédito
+        var estadoAnterior = abono.CreditoBarbero.Estado;
+
         abono.Estado = "Anulado";
-        abono.CreditoBarbero.SaldoDeuda += abono.Monto;
-        abono.CreditoBarbero.FechaActualizacion = DateTime.Now;
+        abono.CreditoBarbero.SaldoPendiente += abono.Monto;
 
-        var quedaBloqueado = false;
-        // Si el crédito superó el cupo, marcarlo como Bloqueado
-        if (abono.CreditoBarbero.SaldoDeuda >= abono.CreditoBarbero.CupoMaximo)
+        // Si el ciclo estaba marcado como Pagado, reabrirlo
+        if (abono.CreditoBarbero.FechaCierre.HasValue &&
+            abono.CreditoBarbero.SaldoPendiente > 0)
+            abono.CreditoBarbero.FechaCierre = null;
+
+        RecalcularEstado(abono.CreditoBarbero);
+        var quedaBloqueado = abono.CreditoBarbero.Estado.StartsWith("Bloqueado");
+
+        if (estadoAnterior != abono.CreditoBarbero.Estado)
         {
-            abono.CreditoBarbero.Estado = "Bloqueado";
-            quedaBloqueado = true;
+            _context.HistorialEstadoCredito.Add(new HistorialEstadoCredito
+            {
+                CreditoBarberoId = abono.CreditoBarberoId,
+                EstadoAnterior = estadoAnterior,
+                EstadoNuevo = abono.CreditoBarbero.Estado,
+                FechaCambio = DateTime.UtcNow.AddHours(-5),
+                ResponsableId = input.UsuarioId,
+                Observacion = $"Abono #{abonoId} anulado — monto revertido: {abono.Monto:C}"
+            });
         }
 
         await _context.SaveChangesAsync();
@@ -247,11 +369,11 @@ public class CreditoBarberoService : ICreditoBarberoService
                     {
                         await _notificaciones.NotificarCreditoBloqueadoAsync(
                             credConBarbero.BarberoId, nombre, u.Correo,
-                            credConBarbero.SaldoDeuda, credConBarbero.CupoMaximo);
+                            credConBarbero.SaldoPendiente, credConBarbero.LimiteCredito);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Error enviando notificación de crédito bloqueado (anulación abono).");
+                        _logger.LogWarning(ex, "Error al notificar bloqueo tras anulación de abono.");
                     }
                 });
             }
@@ -261,42 +383,177 @@ public class CreditoBarberoService : ICreditoBarberoService
         {
             mensaje = $"Abono #{abonoId} anulado. Saldo restaurado: {abono.Monto:C}",
             abonoId,
-            montorevertido = abono.Monto,
-            saldoDeudaActual = abono.CreditoBarbero.SaldoDeuda,
+            montoRevertido = abono.Monto,
+            saldoDeudaActual = abono.CreditoBarbero.SaldoPendiente,
             estadoCredito = abono.CreditoBarbero.Estado
         });
     }
 
-    public async Task<ServiceResult<object>> GetOrCreateAsync(int barberoId)
+    // ─────────────────────────────────────────────────────────────
+    // EXTENSIÓN DE PLAZO
+    // ─────────────────────────────────────────────────────────────
+
+    public async Task<ServiceResult<object>> ExtenderPlazoAsync(int barberoId, ExtenderPlazoInput input)
     {
-        var barbero = await _context.Barberos.FindAsync(barberoId);
-        if (barbero == null) return ServiceResult<object>.NotFound();
+        var usuario = await _context.Usuarios.FindAsync(input.UsuarioId);
+        if (usuario == null) return ServiceResult<object>.Fail("El usuario no existe");
 
-        var credito = await _context.CreditosBarbero
-            .FirstOrDefaultAsync(c => c.BarberoId == barberoId);
+        var credito = await ObtenerCreditoVigenteAsync(barberoId);
+        if (credito == null) return ServiceResult<object>.NotFound();
 
-        if (credito == null)
+        if (credito.Estado == "Pagado")
+            return ServiceResult<object>.Fail("El crédito ya está pagado; no se puede extender");
+
+        if (credito.ExtensionUsada)
+            return ServiceResult<object>.Fail("Este ciclo ya tuvo una extensión de plazo. Solo se permite una por ciclo");
+
+        if (credito.PlazoDias != 7)
+            return ServiceResult<object>.Fail("Solo se puede extender créditos con plazo original de 7 días");
+
+        var estadoAnterior = credito.Estado;
+        credito.PlazoDias = 14;
+        credito.FechaVencimiento = credito.FechaInicio.AddDays(14);
+        credito.ExtensionUsada = true;
+
+        RecalcularEstado(credito);
+
+        _context.HistorialEstadoCredito.Add(new HistorialEstadoCredito
         {
-            credito = new CreditoBarbero
-            {
-                BarberoId = barberoId,
-                CupoMaximo = 200000,
-                SaldoDeuda = 0,
-                Estado = "Activo",
-                FechaCreacion = DateTime.Now
-            };
-            _context.CreditosBarbero.Add(credito);
-            await _context.SaveChangesAsync();
-        }
+            CreditoBarberoId = credito.Id,
+            EstadoAnterior = estadoAnterior,
+            EstadoNuevo = credito.Estado,
+            FechaCambio = DateTime.UtcNow.AddHours(-5),
+            ResponsableId = input.UsuarioId,
+            Observacion = $"Plazo extendido de 7 a 14 días. Nueva fecha vencimiento: {credito.FechaVencimiento:dd/MM/yyyy}"
+        });
+
+        await _context.SaveChangesAsync();
 
         return ServiceResult<object>.Ok(new
         {
-            credito.Id,
-            credito.BarberoId,
-            credito.CupoMaximo,
-            credito.SaldoDeuda,
-            cupoDisponible = credito.CupoMaximo - credito.SaldoDeuda,
-            credito.Estado
+            mensaje = "Plazo extendido a 14 días exitosamente",
+            creditoId = credito.Id,
+            plazoDias = credito.PlazoDias,
+            fechaVencimiento = credito.FechaVencimiento,
+            estadoCredito = credito.Estado
         });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // NUEVO CICLO
+    // ─────────────────────────────────────────────────────────────
+
+    public async Task<ServiceResult<object>> NuevoCicloAsync(int barberoId, NuevoCicloInput input)
+    {
+        if (input.PlazoDias != 7 && input.PlazoDias != 14)
+            return ServiceResult<object>.Fail("PlazoDias debe ser 7 o 14");
+
+        var usuario = await _context.Usuarios.FindAsync(input.UsuarioId);
+        if (usuario == null) return ServiceResult<object>.Fail("El usuario no existe");
+
+        var barbero = await _context.Barberos.FindAsync(barberoId);
+        if (barbero == null) return ServiceResult<object>.NotFound();
+
+        // Verificar que no haya un ciclo activo/bloqueado en curso
+        var cicloVigente = await _context.CreditosBarbero
+            .AnyAsync(c => c.BarberoId == barberoId &&
+                           (c.Estado == "Activo" ||
+                            c.Estado == "BloqueadoLimite" ||
+                            c.Estado == "BloqueadoVencimiento" ||
+                            c.Estado == "BloqueadoLimiteYVencimiento"));
+
+        if (cicloVigente)
+            return ServiceResult<object>.Fail("El barbero ya tiene un ciclo de crédito activo o bloqueado. Ciérrelo antes de abrir uno nuevo");
+
+        var ahora = DateTime.UtcNow.AddHours(-5);
+        var limite = input.LimiteCredito ?? 200000m;
+
+        var nuevoCiclo = new CreditoBarbero
+        {
+            BarberoId = barberoId,
+            LimiteCredito = limite,
+            SaldoPendiente = 0,
+            PlazoDias = input.PlazoDias,
+            FechaInicio = ahora,
+            FechaVencimiento = ahora.AddDays(input.PlazoDias),
+            Estado = "Activo",
+            ExtensionUsada = false,
+            CreadoPor = input.UsuarioId,
+            FechaCreacion = ahora
+        };
+
+        _context.CreditosBarbero.Add(nuevoCiclo);
+        await _context.SaveChangesAsync();
+
+        _context.HistorialEstadoCredito.Add(new HistorialEstadoCredito
+        {
+            CreditoBarberoId = nuevoCiclo.Id,
+            EstadoAnterior = "Ninguno",
+            EstadoNuevo = "Activo",
+            FechaCambio = ahora,
+            ResponsableId = input.UsuarioId,
+            Observacion = $"Nuevo ciclo creado. Límite: {limite:C}, Plazo: {input.PlazoDias} días"
+        });
+
+        await _context.SaveChangesAsync();
+
+        return ServiceResult<object>.Ok(new
+        {
+            mensaje = "Nuevo ciclo de crédito creado exitosamente",
+            creditoId = nuevoCiclo.Id,
+            limiteCredito = nuevoCiclo.LimiteCredito,
+            plazoDias = nuevoCiclo.PlazoDias,
+            fechaVencimiento = nuevoCiclo.FechaVencimiento,
+            estado = nuevoCiclo.Estado
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // JOB PERIÓDICO — RECALCULAR VENCIMIENTOS
+    // ─────────────────────────────────────────────────────────────
+
+    public async Task RecalcularEstadosVencidosAsync(CancellationToken ct = default)
+    {
+        var ahora = DateTime.UtcNow.AddHours(-5);
+
+        // Traer todos los créditos que no están pagados y tienen saldo
+        var creditos = await _context.CreditosBarbero
+            .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
+            .Where(c => c.Estado != "Pagado" && c.SaldoPendiente > 0)
+            .ToListAsync(ct);
+
+        var cambiados = new List<CreditoBarbero>();
+        foreach (var c in creditos)
+        {
+            var cambio = RecalcularEstado(c);
+            if (cambio) cambiados.Add(c);
+        }
+
+        if (cambiados.Count == 0) return;
+
+        await _context.SaveChangesAsync(ct);
+
+        // Notificar a los que quedaron bloqueados por vencimiento
+        foreach (var c in cambiados.Where(c =>
+                     c.Estado == "BloqueadoVencimiento" ||
+                     c.Estado == "BloqueadoLimiteYVencimiento"))
+        {
+            if (ct.IsCancellationRequested) break;
+            var correo = c.Barbero?.Usuario?.Correo ?? string.Empty;
+            var nombre = c.Barbero?.Usuario != null
+                ? $"{c.Barbero.Usuario.Nombre} {c.Barbero.Usuario.Apellido}".Trim()
+                : "Barbero";
+            try
+            {
+                await _notificaciones.NotificarCreditoBloqueadoAsync(
+                    c.BarberoId, nombre, correo, c.SaldoPendiente, c.LimiteCredito, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error notificando bloqueo por vencimiento a barberoId={Id}", c.BarberoId);
+            }
+        }
+
+        _logger.LogInformation("RecalcularEstados: {N} créditos actualizados.", cambiados.Count);
     }
 }

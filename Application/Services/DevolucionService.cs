@@ -267,6 +267,9 @@ public class DevolucionService : IDevolucionService
                 batchProductos = await _context.Productos.Where(p => batchPids.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
             }
 
+            bool esVentaBarberoCredito = venta.TipoVenta == "Venta Barbero" && venta.CreditoBarberoId.HasValue;
+            decimal totalMontoDevueltoCreditoBarbero = 0m;
+
             foreach (var it in input.Items)
             {
                 var dev = new Devolucion
@@ -280,16 +283,31 @@ public class DevolucionService : IDevolucionService
                     MotivoDetalle = input.MotivoDetalle,
                     Observaciones = input.Observaciones,
                     MontoDevuelto = it.MontoDevuelto,
-                    SaldoAFavor = it.MontoDevuelto,
+                    SaldoAFavor = esVentaBarberoCredito ? 0 : it.MontoDevuelto,
                     Fecha = DateTime.Now,
                     Estado = "Activo"
                 };
 
                 _context.Devoluciones.Add(dev);
 
+                if (esVentaBarberoCredito)
+                    totalMontoDevueltoCreditoBarbero += it.MontoDevuelto;
+
                 if (esErrorCompraBatch && batchProductos.TryGetValue(it.ProductoId, out var p))
                 {
                     p.Stock += it.Cantidad;
+                }
+            }
+
+            // Para devoluciones de ventas barbero con crédito: reducir SaldoPendiente en lugar de acumular SaldoAFavor
+            if (esVentaBarberoCredito && totalMontoDevueltoCreditoBarbero > 0)
+            {
+                var credito = await _context.CreditosBarbero.FindAsync(venta.CreditoBarberoId!.Value);
+                if (credito != null)
+                {
+                    credito.SaldoPendiente = Math.Max(0, credito.SaldoPendiente - totalMontoDevueltoCreditoBarbero);
+                    if (credito.SaldoPendiente == 0)
+                        credito.FechaCierre = DateTime.UtcNow.AddHours(-5);
                 }
             }
 

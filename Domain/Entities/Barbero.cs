@@ -29,7 +29,7 @@ public partial class Barbero
 
     public virtual ICollection<Venta> Venta { get; set; } = new List<Venta>();
 
-    public virtual CreditoBarbero? CreditoBarbero { get; set; }
+    public virtual ICollection<CreditoBarbero> CreditosBarbero { get; set; } = new List<CreditoBarbero>();
 
     public virtual Usuario Usuario { get; set; } = null!;
 }

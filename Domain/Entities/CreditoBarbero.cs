@@ -9,19 +9,33 @@ public partial class CreditoBarbero
 
     public int BarberoId { get; set; }
 
-    public decimal CupoMaximo { get; set; } = 200000;
+    public decimal LimiteCredito { get; set; } = 200000;
 
-    public decimal SaldoDeuda { get; set; } = 0;
+    public int PlazoDias { get; set; } = 7;
+
+    public decimal SaldoPendiente { get; set; } = 0;
+
+    public DateTime FechaInicio { get; set; }
+
+    public DateTime FechaVencimiento { get; set; }
+
+    public DateTime? FechaCierre { get; set; }
 
     public string Estado { get; set; } = "Activo";
 
+    public bool ExtensionUsada { get; set; } = false;
+
+    public int CreadoPor { get; set; }
+
     public DateTime FechaCreacion { get; set; }
 
-    public DateTime? FechaActualizacion { get; set; }
-
     public virtual Barbero Barbero { get; set; } = null!;
+
+    public virtual Usuario CreadoPorUsuario { get; set; } = null!;
 
     public virtual ICollection<AbonoCreditoBarbero> Abonos { get; set; } = new List<AbonoCreditoBarbero>();
 
     public virtual ICollection<Venta> Ventas { get; set; } = new List<Venta>();
+
+    public virtual ICollection<HistorialEstadoCredito> Historial { get; set; } = new List<HistorialEstadoCredito>();
 }

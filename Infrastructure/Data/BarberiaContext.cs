@@ -42,6 +42,7 @@ public partial class BarberiaContext : DbContext
     public virtual DbSet<SugerenciaCambioHorario> SugerenciasCambioHorario { get; set; }
     public virtual DbSet<CreditoBarbero> CreditosBarbero { get; set; }
     public virtual DbSet<AbonoCreditoBarbero> AbonosCreditoBarbero { get; set; }
+    public virtual DbSet<HistorialEstadoCredito> HistorialEstadoCredito { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -376,6 +377,7 @@ public partial class BarberiaContext : DbContext
             entity.HasOne(d => d.Usuario).WithMany(p => p.Ventas).HasForeignKey(d => d.UsuarioId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(d => d.Cliente).WithMany(p => p.Venta).HasForeignKey(d => d.ClienteId).OnDelete(DeleteBehavior.SetNull);
             entity.HasOne(d => d.Barbero).WithMany(p => p.Venta).HasForeignKey(d => d.BarberoId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(d => d.BarberoPrestador).WithMany().HasForeignKey(d => d.BarberoPrestadorId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(d => d.CreditoBarbero).WithMany(p => p.Ventas).HasForeignKey(d => d.CreditoBarberoId).OnDelete(DeleteBehavior.SetNull);
         });
 
@@ -423,14 +425,19 @@ public partial class BarberiaContext : DbContext
             entity.HasKey(e => e.Id);
             entity.ToTable("CreditosBarbero");
 
-            entity.Property(e => e.CupoMaximo).HasPrecision(18, 2).HasDefaultValue(200000m);
-            entity.Property(e => e.SaldoDeuda).HasPrecision(18, 2).HasDefaultValue(0m);
-            entity.Property(e => e.Estado).HasMaxLength(20).HasDefaultValue("Activo");
+            entity.Property(e => e.LimiteCredito).HasPrecision(18, 2).HasDefaultValue(200000m);
+            entity.Property(e => e.PlazoDias).HasDefaultValue(7);
+            entity.Property(e => e.SaldoPendiente).HasPrecision(18, 2).HasDefaultValue(0m);
+            entity.Property(e => e.FechaInicio).HasColumnType("datetime");
+            entity.Property(e => e.FechaVencimiento).HasColumnType("datetime");
+            entity.Property(e => e.FechaCierre).HasColumnType("datetime");
+            entity.Property(e => e.Estado).HasMaxLength(50).HasDefaultValue("Activo");
+            entity.Property(e => e.ExtensionUsada).HasDefaultValue(false);
+            entity.Property(e => e.CreadoPor).IsRequired();
             entity.Property(e => e.FechaCreacion).HasColumnType("datetime").HasDefaultValueSql("GETDATE()");
-            entity.Property(e => e.FechaActualizacion).HasColumnType("datetime");
 
-            entity.HasIndex(e => e.BarberoId).IsUnique();
-            entity.HasOne(d => d.Barbero).WithOne(p => p.CreditoBarbero).HasForeignKey<CreditoBarbero>(d => d.BarberoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(d => d.Barbero).WithMany(p => p.CreditosBarbero).HasForeignKey(d => d.BarberoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(d => d.CreadoPorUsuario).WithMany().HasForeignKey(d => d.CreadoPor).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<AbonoCreditoBarbero>(entity =>
@@ -442,9 +449,25 @@ public partial class BarberiaContext : DbContext
             entity.Property(e => e.MetodoPago).HasMaxLength(50);
             entity.Property(e => e.Fecha).HasColumnType("datetime").HasDefaultValueSql("GETDATE()");
             entity.Property(e => e.Notas).HasMaxLength(500);
+            entity.Property(e => e.Estado).HasMaxLength(20).HasDefaultValue("Completado");
 
             entity.HasOne(d => d.CreditoBarbero).WithMany(p => p.Abonos).HasForeignKey(d => d.CreditoBarberoId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(d => d.Usuario).WithMany(p => p.AbonosCreditoBarbero).HasForeignKey(d => d.UsuarioId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(d => d.Venta).WithMany().HasForeignKey(d => d.VentaId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<HistorialEstadoCredito>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("HistorialEstadoCredito");
+
+            entity.Property(e => e.EstadoAnterior).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.EstadoNuevo).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.FechaCambio).HasColumnType("datetime").HasDefaultValueSql("GETDATE()");
+            entity.Property(e => e.Observacion).HasMaxLength(500);
+
+            entity.HasOne(d => d.CreditoBarbero).WithMany(p => p.Historial).HasForeignKey(d => d.CreditoBarberoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(d => d.Responsable).WithMany().HasForeignKey(d => d.ResponsableId).OnDelete(DeleteBehavior.Restrict);
         });
 
         OnModelCreatingPartial(modelBuilder);

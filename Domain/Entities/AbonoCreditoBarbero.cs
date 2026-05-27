@@ -10,6 +10,8 @@ public partial class AbonoCreditoBarbero
 
     public int UsuarioId { get; set; }
 
+    public int? VentaId { get; set; }
+
     public decimal Monto { get; set; }
 
     public string? MetodoPago { get; set; }
@@ -18,9 +20,11 @@ public partial class AbonoCreditoBarbero
 
     public string? Notas { get; set; }
 
-    public string Estado { get; set; } = "Activo";
+    public string Estado { get; set; } = "Completado";
 
     public virtual CreditoBarbero CreditoBarbero { get; set; } = null!;
 
     public virtual Usuario Usuario { get; set; } = null!;
+
+    public virtual Venta? Venta { get; set; }
 }

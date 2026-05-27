@@ -56,7 +56,8 @@ public sealed class NotificacionCreditoService : INotificacionCreditoService
         var bloqueados = await _context.CreditosBarbero
             .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
             .AsNoTracking()
-            .Where(c => c.Estado == "Bloqueado" && c.SaldoDeuda > 0)
+            .Where(c => c.Estado == "BloqueadoLimite" || c.Estado == "BloqueadoVencimiento" || c.Estado == "BloqueadoLimiteYVencimiento")
+            .Where(c => c.SaldoPendiente > 0)
             .ToListAsync(cancellationToken);
 
         foreach (var credito in bloqueados)
@@ -70,7 +71,7 @@ public sealed class NotificacionCreditoService : INotificacionCreditoService
 
             await NotificarCreditoBloqueadoAsync(
                 credito.BarberoId, nombre, correo ?? string.Empty,
-                credito.SaldoDeuda, credito.CupoMaximo, cancellationToken);
+                credito.SaldoPendiente, credito.LimiteCredito, cancellationToken);
         }
 
         _logger.LogInformation("Notificaciones periódicas enviadas a {Count} barberos bloqueados.", bloqueados.Count);
@@ -95,7 +96,7 @@ public sealed class NotificacionCreditoService : INotificacionCreditoService
         var bloqueados = await _context.CreditosBarbero
             .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
             .AsNoTracking()
-            .Where(c => c.Estado == "Bloqueado")
+            .Where(c => c.Estado == "BloqueadoLimite" || c.Estado == "BloqueadoVencimiento" || c.Estado == "BloqueadoLimiteYVencimiento")
             .ToListAsync(cancellationToken);
 
         var activos = await _context.CreditosBarbero
@@ -104,7 +105,7 @@ public sealed class NotificacionCreditoService : INotificacionCreditoService
 
         var deudaTotal = await _context.CreditosBarbero
             .AsNoTracking()
-            .SumAsync(c => c.SaldoDeuda, cancellationToken);
+            .SumAsync(c => c.SaldoPendiente, cancellationToken);
 
         var appName = _configuration["AppName"] ?? "Barbería App";
         var subject = $"{appName} - Resumen semanal de créditos de barberos";
@@ -114,8 +115,8 @@ public sealed class NotificacionCreditoService : INotificacionCreditoService
                 Nombre = c.Barbero?.Usuario != null
                     ? $"{c.Barbero.Usuario.Nombre} {c.Barbero.Usuario.Apellido}".Trim()
                     : "Barbero",
-                SaldoDeuda = c.SaldoDeuda,
-                CupoMaximo = c.CupoMaximo
+                SaldoDeuda = c.SaldoPendiente,
+                CupoMaximo = c.LimiteCredito
             }).ToList(), appName);
 
         foreach (var admin in admins)

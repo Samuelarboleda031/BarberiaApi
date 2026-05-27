@@ -58,8 +58,12 @@ public class BarberoService : IBarberoService
                 FotoPerfil = b.Usuario != null ? b.Usuario.FotoPerfil : null,
                 Estado = b.Estado,
                 FechaContratacion = b.FechaContratacion,
-                SaldoDisponible = b.CreditoBarbero != null
-                    ? b.CreditoBarbero.CupoMaximo - b.CreditoBarbero.SaldoDeuda
+                SaldoDisponible = b.CreditosBarbero != null && b.CreditosBarbero.Any()
+                    ? b.CreditosBarbero
+                        .Where(c => c.Estado == "Activo" || c.Estado == "BloqueadoLimite" || c.Estado == "BloqueadoVencimiento" || c.Estado == "BloqueadoLimiteYVencimiento")
+                        .OrderByDescending(c => c.FechaInicio)
+                        .Select(c => c.LimiteCredito - c.SaldoPendiente)
+                        .FirstOrDefault()
                     : 200000m
             })
             .ToListAsync();

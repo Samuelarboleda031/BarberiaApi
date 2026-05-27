@@ -20,11 +20,15 @@ public class MappingProfile : Profile
                 src.Cliente != null && src.Cliente.Usuario != null 
                     ? $"{src.Cliente.Usuario.Nombre} {src.Cliente.Usuario.Apellido}" 
                     : (src.ClienteNombre ?? "Cliente")))
-            .ForMember(dest => dest.BarberoNombreCompleto, opt => opt.MapFrom(src => 
-                src.Barbero != null && src.Barbero.Usuario != null 
-                    ? $"{src.Barbero.Usuario.Nombre} {src.Barbero.Usuario.Apellido}" 
+            .ForMember(dest => dest.BarberoNombreCompleto, opt => opt.MapFrom(src =>
+                src.Barbero != null && src.Barbero.Usuario != null
+                    ? $"{src.Barbero.Usuario.Nombre} {src.Barbero.Usuario.Apellido}"
                     : "Sin asignar"))
-            .ForMember(dest => dest.UsuarioNombreCompleto, opt => opt.MapFrom(src => 
+            .ForMember(dest => dest.BarberoPrestadorNombreCompleto, opt => opt.MapFrom(src =>
+                src.BarberoPrestador != null && src.BarberoPrestador.Usuario != null
+                    ? $"{src.BarberoPrestador.Usuario.Nombre} {src.BarberoPrestador.Usuario.Apellido}"
+                    : null))
+            .ForMember(dest => dest.UsuarioNombreCompleto, opt => opt.MapFrom(src =>
                 src.Usuario != null 
                     ? $"{src.Usuario.Nombre} {src.Usuario.Apellido}" 
                     : null))

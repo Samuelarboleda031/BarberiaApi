@@ -15,6 +15,7 @@ public class VentaDto
     public string? ClienteNombre { get; set; }
     public int? ClienteId { get; set; }
     public int? BarberoId { get; set; }
+    public int? BarberoPrestadorId { get; set; }
     public int UsuarioId { get; set; }
     public decimal? SaldoAFavorUsado { get; set; }
     public decimal? CreditoBarberoUsado { get; set; }
@@ -23,6 +24,7 @@ public class VentaDto
     // Proyecciones
     public string? ClienteNombreCompleto { get; set; }
     public string? BarberoNombreCompleto { get; set; }
+    public string? BarberoPrestadorNombreCompleto { get; set; }
     public string? UsuarioNombreCompleto { get; set; }
     
     public List<DetalleVentaDto> Detalles { get; set; } = new();

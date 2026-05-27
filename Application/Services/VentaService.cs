@@ -228,6 +228,7 @@ public class VentaService : IVentaService
                 UsuarioId = usuarioId,
                 ClienteId = input.ClienteId,
                 BarberoId = input.BarberoId,
+                BarberoPrestadorId = input.BarberoPrestadorId,
                 Fecha = DateTime.UtcNow.AddHours(-5),
                 MetodoPago = input.MetodoPago ?? "Efectivo",
                 TipoVenta = input.TipoVenta ?? (input.ClienteId.HasValue ? "Venta Cliente" : "Venta Invitado"),
@@ -297,27 +298,33 @@ public class VentaService : IVentaService
                         credito = new CreditoBarbero
                         {
                             BarberoId = input.BarberoId!.Value,
-                            CupoMaximo = 200000,
-                            SaldoDeuda = 0,
+                            LimiteCredito = 200000,
+                            SaldoPendiente = 0,
+                            PlazoDias = 7,
+                            FechaInicio = DateTime.UtcNow.AddHours(-5),
+                            FechaVencimiento = DateTime.UtcNow.AddHours(-5).AddDays(7),
                             Estado = "Activo",
-                            FechaCreacion = DateTime.Now
+                            CreadoPor = input.UsuarioId,
+                            FechaCreacion = DateTime.UtcNow.AddHours(-5)
                         };
                         _context.CreditosBarbero.Add(credito);
                         await _context.SaveChangesAsync();
                     }
 
-                    if (string.Equals(credito.Estado, "Bloqueado", StringComparison.OrdinalIgnoreCase))
+                    var esBloqueado = credito.Estado == "BloqueadoLimite"
+                        || credito.Estado == "BloqueadoVencimiento"
+                        || credito.Estado == "BloqueadoLimiteYVencimiento";
+                    if (esBloqueado)
                         return ServiceResult<object>.Fail("El crédito del barbero está bloqueado. Debe realizar un abono antes de continuar");
 
-                    var nuevaDeuda = credito.SaldoDeuda + venta.Total;
-                    if (nuevaDeuda > credito.CupoMaximo)
-                        return ServiceResult<object>.Fail($"Cupo insuficiente. Deuda actual: {credito.SaldoDeuda:C}, esta venta: {venta.Total:C}, cupo máximo: {credito.CupoMaximo:C}");
+                    var nuevaDeuda = credito.SaldoPendiente + venta.Total;
+                    if (nuevaDeuda > credito.LimiteCredito)
+                        return ServiceResult<object>.Fail($"Cupo insuficiente. Deuda actual: {credito.SaldoPendiente:C}, esta venta: {venta.Total:C}, límite: {credito.LimiteCredito:C}");
 
-                    credito.SaldoDeuda = nuevaDeuda;
-                    credito.FechaActualizacion = DateTime.Now;
-                    if (credito.SaldoDeuda >= credito.CupoMaximo)
+                    credito.SaldoPendiente = nuevaDeuda;
+                    if (credito.SaldoPendiente >= credito.LimiteCredito)
                     {
-                        credito.Estado = "Bloqueado";
+                        credito.Estado = "BloqueadoLimite";
                         creditoBloquedoPorVenta = true;
                     }
 
@@ -370,7 +377,7 @@ public class VentaService : IVentaService
                         {
                             await _notificaciones.NotificarCreditoBloqueadoAsync(
                                 credConBarbero.BarberoId, nombre, u.Correo,
-                                credConBarbero.SaldoDeuda, credConBarbero.CupoMaximo);
+                                credConBarbero.SaldoPendiente, credConBarbero.LimiteCredito);
                         }
                         catch (Exception ex)
                         {
@@ -381,7 +388,9 @@ public class VentaService : IVentaService
             }
 
             var ventaCompleta = await _context.Ventas
-                .Include(v => v.Cliente).Include(v => v.Usuario).Include(v => v.Barbero)
+                .Include(v => v.Cliente).Include(v => v.Usuario)
+                .Include(v => v.Barbero).ThenInclude(b => b!.Usuario)
+                .Include(v => v.BarberoPrestador).ThenInclude(b => b!.Usuario)
                 .Include(v => v.DetalleVenta).ThenInclude(d => d.Producto)
                 .Include(v => v.DetalleVenta).ThenInclude(d => d.Servicio)
                 .Include(v => v.DetalleVenta).ThenInclude(d => d.Paquete)
@@ -446,10 +455,17 @@ public class VentaService : IVentaService
                 var credito = await _context.CreditosBarbero.FindAsync(venta.CreditoBarberoId.Value);
                 if (credito != null)
                 {
-                    credito.SaldoDeuda = Math.Max(0, credito.SaldoDeuda - venta.CreditoBarberoUsado!.Value);
-                    credito.FechaActualizacion = DateTime.Now;
-                    if (credito.SaldoDeuda < credito.CupoMaximo && credito.Estado == "Bloqueado")
-                        credito.Estado = "Activo";
+                    credito.SaldoPendiente = Math.Max(0, credito.SaldoPendiente - venta.CreditoBarberoUsado!.Value);
+                    // Reactivar si ya no supera el límite y estaba bloqueado por límite
+                    if (credito.SaldoPendiente < credito.LimiteCredito &&
+                        (credito.Estado == "BloqueadoLimite" || credito.Estado == "BloqueadoLimiteYVencimiento"))
+                    {
+                        credito.Estado = credito.Estado == "BloqueadoLimiteYVencimiento"
+                            ? "BloqueadoVencimiento"
+                            : "Activo";
+                    }
+                    if (credito.SaldoPendiente == 0)
+                        credito.FechaCierre = DateTime.UtcNow.AddHours(-5);
                 }
                 venta.CreditoBarberoUsado = 0;
             }
