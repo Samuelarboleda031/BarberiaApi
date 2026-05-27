@@ -291,18 +291,25 @@ public class VentaService : IVentaService
                 if (usaCredito)
                 {
                     var credito = await _context.CreditosBarbero
-                        .FirstOrDefaultAsync(c => c.BarberoId == input.BarberoId!.Value);
+                        .Where(c => c.BarberoId == input.BarberoId!.Value
+                            && (c.Estado == "Activo"
+                                || c.Estado == "BloqueadoLimite"
+                                || c.Estado == "BloqueadoVencimiento"
+                                || c.Estado == "BloqueadoLimiteYVencimiento"))
+                        .OrderByDescending(c => c.FechaInicio)
+                        .FirstOrDefaultAsync();
 
                     if (credito == null)
                     {
+                        var plazo = input.PlazoDias is > 0 ? input.PlazoDias.Value : 7;
                         credito = new CreditoBarbero
                         {
                             BarberoId = input.BarberoId!.Value,
                             LimiteCredito = 200000,
                             SaldoPendiente = 0,
-                            PlazoDias = 7,
+                            PlazoDias = plazo,
                             FechaInicio = DateTime.UtcNow.AddHours(-5),
-                            FechaVencimiento = DateTime.UtcNow.AddHours(-5).AddDays(7),
+                            FechaVencimiento = DateTime.UtcNow.AddHours(-5).AddDays(plazo),
                             Estado = "Activo",
                             CreadoPor = input.UsuarioId,
                             FechaCreacion = DateTime.UtcNow.AddHours(-5)

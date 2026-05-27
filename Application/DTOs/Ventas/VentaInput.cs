@@ -15,6 +15,7 @@ public class VentaInput
     public decimal? IVA { get; set; }
     public decimal? SaldoAFavorUsado { get; set; }
     public bool? UsarSaldoAFavor { get; set; }
+    public int? PlazoDias { get; set; }
     public List<DetalleVentaInput> Detalles { get; set; } = new();
 }
 
