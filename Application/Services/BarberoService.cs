@@ -38,8 +38,31 @@ public class BarberoService : IBarberoService
                 (b.Especialidad != null && b.Especialidad.ToLower().Contains(term)));
         }
         var totalCount = await baseQ.CountAsync();
-        var items = await baseQ.OrderBy(b => b.Usuario.Nombre).Skip((page - 1) * pageSize).Take(pageSize)
-            .ProjectTo<BarberoDto>(_mapper.ConfigurationProvider).ToListAsync();
+        var items = await baseQ
+            .OrderBy(b => b.Usuario.Nombre)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(b => new BarberoDto
+            {
+                Id = b.Id,
+                UsuarioId = b.UsuarioId,
+                Nombre = b.Usuario != null ? b.Usuario.Nombre ?? string.Empty : string.Empty,
+                Apellido = b.Usuario != null ? b.Usuario.Apellido ?? string.Empty : string.Empty,
+                Documento = b.Usuario != null ? b.Usuario.Documento ?? string.Empty : string.Empty,
+                Correo = b.Usuario != null ? b.Usuario.Correo ?? string.Empty : string.Empty,
+                Telefono = b.Telefono,
+                Direccion = b.Direccion,
+                Barrio = b.Barrio,
+                FechaNacimiento = b.FechaNacimiento,
+                Especialidad = b.Especialidad ?? string.Empty,
+                FotoPerfil = b.Usuario != null ? b.Usuario.FotoPerfil : null,
+                Estado = b.Estado,
+                FechaContratacion = b.FechaContratacion,
+                SaldoDisponible = b.CreditoBarbero != null
+                    ? b.CreditoBarbero.CupoMaximo - b.CreditoBarbero.SaldoDeuda
+                    : 200000m
+            })
+            .ToListAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
         return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
     }

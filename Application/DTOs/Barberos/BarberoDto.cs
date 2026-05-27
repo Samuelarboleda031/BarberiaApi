@@ -35,4 +35,9 @@ public class BarberoDto
     public bool Estado { get; set; }
     public DateTime FechaContratacion { get; set; }
     public UsuarioDto? Usuario { get; set; }
+    /// <summary>
+    /// Saldo disponible de crédito del barbero (CupoMaximo - SaldoDeuda).
+    /// Si no tiene crédito registrado, se asume cupo máximo de 200.000.
+    /// </summary>
+    public decimal SaldoDisponible { get; set; }
 }

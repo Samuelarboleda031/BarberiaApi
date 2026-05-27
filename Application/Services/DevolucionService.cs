@@ -84,7 +84,9 @@ public class DevolucionService : IDevolucionService
                         d.Estado,
                         ProductoNombre = d.Producto != null ? d.Producto.Nombre : "Producto",
                         UsuarioNombre = d.Usuario != null ? d.Usuario.Nombre : "Sistema",
-                        ClienteNombre = d.Cliente != null && d.Cliente.Usuario != null ? d.Cliente.Usuario.Nombre + " " + d.Cliente.Usuario.Apellido : null
+                        ClienteNombre = d.Cliente != null && d.Cliente.Usuario != null ? d.Cliente.Usuario.Nombre + " " + d.Cliente.Usuario.Apellido : null,
+                        BarberoId = d.Venta != null ? d.Venta.BarberoId : null,
+                        BarberoNombre = d.Venta != null && d.Venta.Barbero != null && d.Venta.Barbero.Usuario != null ? d.Venta.Barbero.Usuario.Nombre + " " + d.Venta.Barbero.Usuario.Apellido : null
                     })
                     .ToListAsync();
 
@@ -216,7 +218,10 @@ public class DevolucionService : IDevolucionService
             if (venta == null) return ServiceResult<object>.Fail("La venta no existe");
 
             var clienteId = input.ClienteId ?? venta.ClienteId;
-            if (clienteId == null) return ServiceResult<object>.Fail("Venta no asociada a cliente");
+            var barberoId = input.BarberoId ?? venta.BarberoId;
+
+            if (clienteId == null && barberoId == null)
+                return ServiceResult<object>.Fail("La venta debe estar asociada a un cliente o un barbero");
 
             var fechaVenta = venta.Fecha ?? DateTime.Now;
             var exp = fechaVenta.AddDays(15);
