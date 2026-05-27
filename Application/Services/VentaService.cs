@@ -427,6 +427,13 @@ public class VentaService : IVentaService
         if (venta == null) return ServiceResult<object>.NotFound();
         if (venta.Estado == "Anulada") return ServiceResult<object>.Fail("La venta ya esta anulada");
 
+        var tieneAbono = await _context.AbonosCreditoBarbero
+            .AnyAsync(a => a.Estado != "Anulado" &&
+                           a.Notas != null &&
+                           a.Notas.Contains($"[ventaId:{id}]"));
+        if (tieneAbono)
+            return ServiceResult<object>.Fail($"La venta #{venta.Id} tiene abonos registrados. Anula primero los abonos en Crédito Barberos antes de anular la venta.");
+
         using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         try
         {
