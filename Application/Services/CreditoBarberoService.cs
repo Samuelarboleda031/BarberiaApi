@@ -238,7 +238,7 @@ public class CreditoBarberoService : ICreditoBarberoService
         if (input.Monto <= 0)
             return ServiceResult<object>.Fail("El monto del abono debe ser mayor a 0");
 
-        var metodosValidos = new[] { "Efectivo", "Transferencia", "Tarjeta", "Nequi", "Daviplata", "Otro" };
+        var metodosValidos = new[] { "Efectivo", "Transferencia", "Tarjeta" };
         if (!string.IsNullOrWhiteSpace(input.MetodoPago) &&
             !metodosValidos.Contains(input.MetodoPago, StringComparer.OrdinalIgnoreCase))
             return ServiceResult<object>.Fail($"Método de pago no válido. Opciones: {string.Join(", ", metodosValidos)}");
@@ -262,8 +262,12 @@ public class CreditoBarberoService : ICreditoBarberoService
                 return ServiceResult<object>.Fail("La venta especificada no existe o no pertenece a este barbero");
         }
 
+        if (input.Monto > credito.SaldoPendiente)
+            return ServiceResult<object>.Fail(
+                $"El monto del abono ({input.Monto:C}) supera el saldo pendiente ({credito.SaldoPendiente:C}). No se permiten abonos que excedan la deuda.");
+
         var estadoAnterior = credito.Estado;
-        var montoAplicable = Math.Min(input.Monto, credito.SaldoPendiente);
+        var montoAplicable = input.Monto;
         credito.SaldoPendiente -= montoAplicable;
 
         RecalcularEstado(credito);
@@ -403,6 +407,10 @@ public class CreditoBarberoService : ICreditoBarberoService
 
         if (credito.Estado == "Pagado")
             return ServiceResult<object>.Fail("El crédito ya está pagado; no se puede extender");
+
+        if (credito.Estado != "BloqueadoVencimiento")
+            return ServiceResult<object>.Fail(
+                $"La extensión de plazo solo está disponible cuando el crédito está en estado 'BloqueadoVencimiento'. Estado actual: '{credito.Estado}'.");
 
         if (credito.ExtensionUsada)
             return ServiceResult<object>.Fail("Este ciclo ya tuvo una extensión de plazo. Solo se permite una por ciclo");

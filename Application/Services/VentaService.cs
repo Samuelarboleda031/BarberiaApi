@@ -30,6 +30,29 @@ public class VentaService : IVentaService
         _logger = logger;
     }
 
+    private static bool RecalcularEstadoCredito(CreditoBarbero c)
+    {
+        var ahora = DateTime.UtcNow.AddHours(-5);
+        var vencido = ahora > c.FechaVencimiento && c.SaldoPendiente > 0;
+        var limiteAlcanzado = c.SaldoPendiente >= c.LimiteCredito;
+
+        string nuevoEstado;
+        if (c.SaldoPendiente == 0)
+            nuevoEstado = "Pagado";
+        else if (limiteAlcanzado && vencido)
+            nuevoEstado = "BloqueadoLimiteYVencimiento";
+        else if (limiteAlcanzado)
+            nuevoEstado = "BloqueadoLimite";
+        else if (vencido)
+            nuevoEstado = "BloqueadoVencimiento";
+        else
+            nuevoEstado = "Activo";
+
+        if (c.Estado == nuevoEstado) return false;
+        c.Estado = nuevoEstado;
+        return true;
+    }
+
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? searchTerm)
     {
         try
@@ -329,11 +352,10 @@ public class VentaService : IVentaService
                         return ServiceResult<object>.Fail($"Cupo insuficiente. Deuda actual: {credito.SaldoPendiente:C}, esta venta: {venta.Total:C}, límite: {credito.LimiteCredito:C}");
 
                     credito.SaldoPendiente = nuevaDeuda;
-                    if (credito.SaldoPendiente >= credito.LimiteCredito)
-                    {
-                        credito.Estado = "BloqueadoLimite";
+                    var estadoAnteriorVenta = credito.Estado;
+                    RecalcularEstadoCredito(credito);
+                    if (credito.Estado != estadoAnteriorVenta && credito.Estado.StartsWith("Bloqueado"))
                         creditoBloquedoPorVenta = true;
-                    }
 
                     venta.CreditoBarberoId = credito.Id;
                     venta.CreditoBarberoUsado = venta.Total;
@@ -443,12 +465,14 @@ public class VentaService : IVentaService
         if (venta == null) return ServiceResult<object>.NotFound();
         if (venta.Estado == "Anulada") return ServiceResult<object>.Fail("La venta ya esta anulada");
 
-        var tieneAbono = await _context.AbonosCreditoBarbero
-            .AnyAsync(a => a.Estado != "Anulado" &&
-                           a.Notas != null &&
-                           a.Notas.Contains($"[ventaId:{id}]"));
-        if (tieneAbono)
-            return ServiceResult<object>.Fail($"La venta #{venta.Id} tiene abonos registrados. Anula primero los abonos en Crédito Barberos antes de anular la venta.");
+        if (venta.CreditoBarberoId.HasValue)
+        {
+            var tieneAbonoCompletado = await _context.AbonosCreditoBarbero
+                .AnyAsync(a => a.CreditoBarberoId == venta.CreditoBarberoId.Value
+                            && a.Estado == "Completado");
+            if (tieneAbonoCompletado)
+                return ServiceResult<object>.Fail($"La venta #{venta.Id} no puede anularse porque el crédito tiene abonos completados. Anula primero los abonos en Crédito Barberos.");
+        }
 
         using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         try
@@ -463,15 +487,8 @@ public class VentaService : IVentaService
                 if (credito != null)
                 {
                     credito.SaldoPendiente = Math.Max(0, credito.SaldoPendiente - venta.CreditoBarberoUsado!.Value);
-                    // Reactivar si ya no supera el límite y estaba bloqueado por límite
-                    if (credito.SaldoPendiente < credito.LimiteCredito &&
-                        (credito.Estado == "BloqueadoLimite" || credito.Estado == "BloqueadoLimiteYVencimiento"))
-                    {
-                        credito.Estado = credito.Estado == "BloqueadoLimiteYVencimiento"
-                            ? "BloqueadoVencimiento"
-                            : "Activo";
-                    }
-                    if (credito.SaldoPendiente == 0)
+                    RecalcularEstadoCredito(credito);
+                    if (credito.Estado == "Pagado" && credito.FechaCierre == null)
                         credito.FechaCierre = DateTime.UtcNow.AddHours(-5);
                 }
                 venta.CreditoBarberoUsado = 0;
