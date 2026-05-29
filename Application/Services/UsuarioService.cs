@@ -324,6 +324,10 @@ public class UsuarioService : IUsuarioService
             // FK constraint — anonimizar datos personales y liberar correo/documento
             await transaction.RollbackAsync();
 
+            // El Remove() dejó la entidad en estado Deleted en el change tracker.
+            // Debemos resetearla a Modified para que EF genere un UPDATE, no otro DELETE.
+            _context.Entry(usuario).State = EntityState.Modified;
+
             usuario.Nombre = "Usuario";
             usuario.Apellido = "Eliminado";
             usuario.Correo = $"eliminado_{id}@baja.local";
@@ -336,6 +340,7 @@ public class UsuarioService : IUsuarioService
 
             if (usuario.Cliente != null)
             {
+                _context.Entry(usuario.Cliente).State = EntityState.Modified;
                 usuario.Cliente.Telefono = null;
                 usuario.Cliente.Direccion = null;
                 usuario.Cliente.Barrio = null;
@@ -345,6 +350,7 @@ public class UsuarioService : IUsuarioService
 
             if (usuario.Barbero != null)
             {
+                _context.Entry(usuario.Barbero).State = EntityState.Modified;
                 usuario.Barbero.Telefono = null;
                 usuario.Barbero.Direccion = null;
                 usuario.Barbero.Barrio = null;
