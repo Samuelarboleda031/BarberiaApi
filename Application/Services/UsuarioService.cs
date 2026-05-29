@@ -311,8 +311,49 @@ public class UsuarioService : IUsuarioService
             .FirstOrDefaultAsync(u => u.Id == id);
         if (usuario == null) return ServiceResult<object>.NotFound();
 
-        _context.Usuarios.Remove(usuario);
-        await _context.SaveChangesAsync();
-        return ServiceResult<object>.Ok(new { message = "Usuario eliminado permanentemente", eliminado = true });
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            _context.Usuarios.Remove(usuario);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return ServiceResult<object>.Ok(new { message = "Usuario eliminado permanentemente", anonimizado = false });
+        }
+        catch (DbUpdateException)
+        {
+            // FK constraint — anonimizar datos personales y liberar correo/documento
+            await transaction.RollbackAsync();
+
+            usuario.Nombre = "Usuario";
+            usuario.Apellido = "Eliminado";
+            usuario.Correo = $"eliminado_{id}@baja.local";
+            usuario.Contrasena = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString());
+            usuario.Documento = null;
+            usuario.TipoDocumento = null;
+            usuario.FotoPerfil = null;
+            usuario.Estado = false;
+            usuario.FechaModificacion = DateTime.Now;
+
+            if (usuario.Cliente != null)
+            {
+                usuario.Cliente.Telefono = null;
+                usuario.Cliente.Direccion = null;
+                usuario.Cliente.Barrio = null;
+                usuario.Cliente.FechaNacimiento = null;
+                usuario.Cliente.Estado = false;
+            }
+
+            if (usuario.Barbero != null)
+            {
+                usuario.Barbero.Telefono = null;
+                usuario.Barbero.Direccion = null;
+                usuario.Barbero.Barrio = null;
+                usuario.Barbero.FechaNacimiento = null;
+                usuario.Barbero.Estado = false;
+            }
+
+            await _context.SaveChangesAsync();
+            return ServiceResult<object>.Ok(new { message = "Datos personales eliminados, historial conservado", anonimizado = true });
+        }
     }
 }
