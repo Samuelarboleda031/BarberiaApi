@@ -10,17 +10,20 @@ public sealed class NotificacionCreditoService : INotificacionCreditoService
 {
     private readonly BarberiaContext _context;
     private readonly IEmailProxyService _email;
+    private readonly IWhatsAppService _whatsApp;
     private readonly ILogger<NotificacionCreditoService> _logger;
     private readonly IConfiguration _configuration;
 
     public NotificacionCreditoService(
         BarberiaContext context,
         IEmailProxyService email,
+        IWhatsAppService whatsApp,
         ILogger<NotificacionCreditoService> logger,
         IConfiguration configuration)
     {
         _context = context;
         _email = email;
+        _whatsApp = whatsApp;
         _logger = logger;
         _configuration = configuration;
     }
@@ -31,24 +34,39 @@ public sealed class NotificacionCreditoService : INotificacionCreditoService
         string correo,
         decimal saldoDeuda,
         decimal cupoMaximo,
+        string? telefono = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(correo))
+        var appName = _configuration["AppName"] ?? "Barbería App";
+
+        if (!string.IsNullOrWhiteSpace(correo))
         {
-            _logger.LogWarning("No se pudo notificar crédito bloqueado para barberoId={Id}: correo vacío.", barberoId);
-            return;
+            var subject = $"{appName} - Tu crédito ha sido bloqueado";
+            var html = BuildBloqueoHtml(barberoNombre, saldoDeuda, cupoMaximo, appName);
+            var result = await _email.EnviarEmailAsync(correo, barberoNombre, subject, html, cancellationToken);
+            if (result.Enviado)
+                _logger.LogInformation("Email crédito bloqueado enviado a {Email} (barberoId={Id}).", correo, barberoId);
+            else
+                _logger.LogWarning("Fallo email crédito bloqueado a {Email}: {Msg}", correo, result.Mensaje);
+        }
+        else
+        {
+            _logger.LogWarning("No se pudo enviar email crédito bloqueado para barberoId={Id}: correo vacío.", barberoId);
         }
 
-        var appName = _configuration["AppName"] ?? "Barbería App";
-        var subject = $"{appName} - Tu crédito ha sido bloqueado";
-        var html = BuildBloqueoHtml(barberoNombre, saldoDeuda, cupoMaximo, appName);
-
-        var result = await _email.EnviarEmailAsync(correo, barberoNombre, subject, html, cancellationToken);
-
-        if (result.Enviado)
-            _logger.LogInformation("Notificación de crédito bloqueado enviada a {Email} (barberoId={Id}).", correo, barberoId);
-        else
-            _logger.LogWarning("Fallo al notificar crédito bloqueado a {Email}: {Msg}", correo, result.Mensaje);
+        if (_whatsApp.EstaHabilitado && !string.IsNullOrWhiteSpace(telefono))
+        {
+            var template = _configuration["WhatsApp:Templates:CreditoBloqueado"] ?? "credito_bloqueado";
+            var wa = await _whatsApp.EnviarTemplateAsync(
+                telefono,
+                template,
+                new[] { barberoNombre, saldoDeuda.ToString("C0"), cupoMaximo.ToString("C0") },
+                cancellationToken);
+            if (wa.Enviado)
+                _logger.LogInformation("WhatsApp crédito bloqueado enviado a {Tel} (barberoId={Id}).", telefono, barberoId);
+            else
+                _logger.LogWarning("Fallo WhatsApp crédito bloqueado a {Tel}: {Msg}", telefono, wa.Mensaje);
+        }
     }
 
     public async Task NotificarBloqueadosActivosAsync(CancellationToken cancellationToken = default)
@@ -71,7 +89,9 @@ public sealed class NotificacionCreditoService : INotificacionCreditoService
 
             await NotificarCreditoBloqueadoAsync(
                 credito.BarberoId, nombre, correo ?? string.Empty,
-                credito.SaldoPendiente, credito.LimiteCredito, cancellationToken);
+                credito.SaldoPendiente, credito.LimiteCredito,
+                telefono: credito.Barbero?.Telefono,
+                cancellationToken: cancellationToken);
         }
 
         _logger.LogInformation("Notificaciones periódicas enviadas a {Count} barberos bloqueados.", bloqueados.Count);
@@ -131,6 +151,24 @@ public sealed class NotificacionCreditoService : INotificacionCreditoService
                 _logger.LogInformation("Resumen semanal enviado a admin {Email}.", admin.Correo);
             else
                 _logger.LogWarning("Fallo al enviar resumen semanal a {Email}: {Msg}", admin.Correo, result.Mensaje);
+        }
+
+        if (_whatsApp.EstaHabilitado)
+        {
+            var adminTel = _configuration["WhatsApp:AdminTelefono"];
+            if (!string.IsNullOrWhiteSpace(adminTel))
+            {
+                var template = _configuration["WhatsApp:Templates:ResumenSemanal"] ?? "resumen_semanal_credito";
+                var wa = await _whatsApp.EnviarTemplateAsync(
+                    adminTel,
+                    template,
+                    new[] { bloqueados.Count.ToString(), activos.ToString(), deudaTotal.ToString("C0") },
+                    cancellationToken);
+                if (wa.Enviado)
+                    _logger.LogInformation("WhatsApp resumen semanal enviado a admin {Tel}.", adminTel);
+                else
+                    _logger.LogWarning("Fallo WhatsApp resumen semanal a {Tel}: {Msg}", adminTel, wa.Mensaje);
+            }
         }
     }
 

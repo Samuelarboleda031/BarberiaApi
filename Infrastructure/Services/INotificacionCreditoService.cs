@@ -8,6 +8,7 @@ public interface INotificacionCreditoService
         string correo,
         decimal saldoDeuda,
         decimal cupoMaximo,
+        string? telefono = null,
         CancellationToken cancellationToken = default);
 
     Task NotificarBloqueadosActivosAsync(CancellationToken cancellationToken = default);

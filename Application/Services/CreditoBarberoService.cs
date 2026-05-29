@@ -373,7 +373,8 @@ public class CreditoBarberoService : ICreditoBarberoService
                     {
                         await _notificaciones.NotificarCreditoBloqueadoAsync(
                             credConBarbero.BarberoId, nombre, u.Correo,
-                            credConBarbero.SaldoPendiente, credConBarbero.LimiteCredito);
+                            credConBarbero.SaldoPendiente, credConBarbero.LimiteCredito,
+                            telefono: credConBarbero.Barbero?.Telefono);
                     }
                     catch (Exception ex)
                     {
@@ -554,7 +555,8 @@ public class CreditoBarberoService : ICreditoBarberoService
             try
             {
                 await _notificaciones.NotificarCreditoBloqueadoAsync(
-                    c.BarberoId, nombre, correo, c.SaldoPendiente, c.LimiteCredito, ct);
+                    c.BarberoId, nombre, correo, c.SaldoPendiente, c.LimiteCredito,
+                    telefono: c.Barbero?.Telefono, cancellationToken: ct);
             }
             catch (Exception ex)
             {

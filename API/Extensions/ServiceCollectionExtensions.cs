@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         // Notificaciones
         services.AddScoped<INotificacionCitasService, NotificacionCitasService>();
         services.AddScoped<IEmailProxyService, EmailProxyService>();
+        services.AddScoped<IWhatsAppService, WhatsAppService>();
         services.AddScoped<INotificacionCreditoService, NotificacionCreditoService>();
         services.AddHostedService<NotificacionCreditoJob>();
         services.AddHostedService<RecalcularCreditosJob>();

@@ -406,7 +406,8 @@ public class VentaService : IVentaService
                         {
                             await _notificaciones.NotificarCreditoBloqueadoAsync(
                                 credConBarbero.BarberoId, nombre, u.Correo,
-                                credConBarbero.SaldoPendiente, credConBarbero.LimiteCredito);
+                                credConBarbero.SaldoPendiente, credConBarbero.LimiteCredito,
+                                telefono: credConBarbero.Barbero?.Telefono);
                         }
                         catch (Exception ex)
                         {
