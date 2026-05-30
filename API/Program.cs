@@ -219,6 +219,6 @@ app.UseAuthorization();
 app.UseMiddleware<ExceptionMiddleware>();
 app.MapControllers();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapMethods("/health", new[] { "GET", "HEAD" }, () => Results.Ok(new { status = "ok" }));
 
 app.Run();
