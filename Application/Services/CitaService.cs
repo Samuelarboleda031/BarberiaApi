@@ -171,6 +171,19 @@ public class CitaService : ICitaService
         if (!DateTime.TryParse($"{input.fecha} {input.hora}", out DateTime fechaHora))
             return ServiceResult<object>.Fail("Formato de fecha u hora inválido");
 
+        if (cliente?.Id > 0)
+        {
+            var inicioSemana = fechaHora.Date.AddDays(-(((int)fechaHora.DayOfWeek + 6) % 7));
+            var finSemana = inicioSemana.AddDays(7);
+            var citasSemana = await _context.Agendamientos.CountAsync(a =>
+                a.ClienteId == cliente.Id &&
+                a.FechaHora >= inicioSemana &&
+                a.FechaHora < finSemana &&
+                (a.Estado == "Pendiente" || a.Estado == "Completada"));
+            if (citasSemana >= 3)
+                return ServiceResult<object>.Fail("Has alcanzado el límite de 3 citas por semana.");
+        }
+
         if (!barbero.Estado || !barbero.Usuario.Estado)
             return ServiceResult<object>.Fail("El barbero seleccionado no está activo.");
 
