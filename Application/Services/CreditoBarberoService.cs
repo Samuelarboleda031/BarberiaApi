@@ -106,6 +106,14 @@ public class CreditoBarberoService : ICreditoBarberoService
     // QUERIES
     // ─────────────────────────────────────────────────────────────
 
+    private static int EstadoPrioridad(string estado)
+    {
+        if (estado.StartsWith("Bloqueado", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (string.Equals(estado, "Activo", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (string.Equals(estado, "Pagado", StringComparison.OrdinalIgnoreCase)) return 2;
+        return 3;
+    }
+
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
         if (page < 1) page = 1;
@@ -125,16 +133,25 @@ public class CreditoBarberoService : ICreditoBarberoService
                 (c.Estado != null && c.Estado.ToLower().Contains(term)));
         }
 
-        var totalCount = await baseQ.CountAsync();
-        var items = await baseQ
-            .OrderByDescending(c => c.FechaInicio)
+        // Un ciclo por barbero: el más reciente (independiente del estado)
+        var all = await baseQ.OrderByDescending(c => c.FechaInicio).ToListAsync();
+
+        var porBarbero = all
+            .GroupBy(c => c.BarberoId)
+            .Select(g => g.First())
+            .OrderBy(c => EstadoPrioridad(c.Estado))
+            .ThenByDescending(c => c.FechaInicio)
+            .ToList();
+
+        var totalCount = porBarbero.Count;
+        var items = porBarbero
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .ToListAsync();
+            .Select(ToDto)
+            .ToList();
 
-        var dtos = items.Select(ToDto).ToList();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-        return ServiceResult<object>.Ok(new { items = dtos, totalCount, page, pageSize, totalPages });
+        return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
     }
 
     public async Task<ServiceResult<object>> GetByBarberoAsync(int barberoId)
@@ -200,6 +217,84 @@ public class CreditoBarberoService : ICreditoBarberoService
         return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
     }
 
+    public async Task<ServiceResult<object>> GetAllAbonosByBarberoAsync(int barberoId, int page, int pageSize)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+
+        var cicloIds = await _context.CreditosBarbero
+            .Where(c => c.BarberoId == barberoId)
+            .Select(c => c.Id)
+            .ToListAsync();
+
+        if (!cicloIds.Any()) return ServiceResult<object>.NotFound();
+
+        var baseQ = _context.AbonosCreditoBarbero
+            .Include(a => a.Usuario)
+            .Where(a => cicloIds.Contains(a.CreditoBarberoId))
+            .AsNoTracking();
+
+        var totalCount = await baseQ.CountAsync();
+        var items = await baseQ
+            .OrderByDescending(a => a.Fecha)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(a => new AbonoCreditoBarberoDto
+            {
+                Id = a.Id,
+                CreditoBarberoId = a.CreditoBarberoId,
+                UsuarioId = a.UsuarioId,
+                UsuarioNombre = a.Usuario != null ? a.Usuario.Nombre + " " + a.Usuario.Apellido : null,
+                VentaId = a.VentaId,
+                Monto = a.Monto,
+                MetodoPago = a.MetodoPago,
+                Fecha = a.Fecha,
+                Notas = a.Notas,
+                Estado = a.Estado
+            })
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+        return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
+    }
+
+    public async Task<ServiceResult<object>> GetAbonosByCicloAsync(int cicloId, int page, int pageSize)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+
+        var existe = await _context.CreditosBarbero.AsNoTracking().AnyAsync(c => c.Id == cicloId);
+        if (!existe) return ServiceResult<object>.NotFound();
+
+        var baseQ = _context.AbonosCreditoBarbero
+            .Include(a => a.Usuario)
+            .Where(a => a.CreditoBarberoId == cicloId)
+            .AsNoTracking();
+
+        var totalCount = await baseQ.CountAsync();
+        var items = await baseQ
+            .OrderByDescending(a => a.Fecha)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(a => new AbonoCreditoBarberoDto
+            {
+                Id = a.Id,
+                CreditoBarberoId = a.CreditoBarberoId,
+                UsuarioId = a.UsuarioId,
+                UsuarioNombre = a.Usuario != null ? a.Usuario.Nombre + " " + a.Usuario.Apellido : null,
+                VentaId = a.VentaId,
+                Monto = a.Monto,
+                MetodoPago = a.MetodoPago,
+                Fecha = a.Fecha,
+                Notas = a.Notas,
+                Estado = a.Estado
+            })
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+        return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
+    }
+
     public async Task<ServiceResult<object>> GetOrCreateAsync(int barberoId)
     {
         var barbero = await _context.Barberos.FindAsync(barberoId);
@@ -238,7 +333,7 @@ public class CreditoBarberoService : ICreditoBarberoService
         if (input.Monto <= 0)
             return ServiceResult<object>.Fail("El monto del abono debe ser mayor a 0");
 
-        var metodosValidos = new[] { "Efectivo", "Transferencia", "Tarjeta" };
+        var metodosValidos = new[] { "Efectivo", "Transferencia", "Tarjeta", "Nequi", "Daviplata", "Otro" };
         if (!string.IsNullOrWhiteSpace(input.MetodoPago) &&
             !metodosValidos.Contains(input.MetodoPago, StringComparer.OrdinalIgnoreCase))
             return ServiceResult<object>.Fail($"Método de pago no válido. Opciones: {string.Join(", ", metodosValidos)}");

@@ -36,6 +36,20 @@ public class CreditoBarberoController : ControllerBase
         return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error);
     }
 
+    [HttpGet("{cicloId}/abonos")]
+    public async Task<ActionResult> GetAbonosByCiclo(int cicloId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    {
+        var r = await _service.GetAbonosByCicloAsync(cicloId, page, pageSize);
+        return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error);
+    }
+
+    [HttpGet("barbero/{barberoId}/abonos/todos")]
+    public async Task<ActionResult> GetAllAbonosByBarbero(int barberoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    {
+        var r = await _service.GetAllAbonosByBarberoAsync(barberoId, page, pageSize);
+        return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error);
+    }
+
     [HttpPost("barbero/{barberoId}/abono")]
     public async Task<ActionResult> RegistrarAbono(int barberoId, [FromBody] AbonoInput input)
     {
