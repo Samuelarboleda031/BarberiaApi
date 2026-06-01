@@ -33,17 +33,19 @@ public class VentaService : IVentaService
     private static bool RecalcularEstadoCredito(CreditoBarbero c)
     {
         var ahora = DateTime.UtcNow.AddHours(-5);
-        var vencido = ahora > c.FechaVencimiento && c.SaldoPendiente > 0;
-        var limiteAlcanzado = c.SaldoPendiente >= c.LimiteCredito;
+        var plazoVencido       = ahora > c.FechaVencimiento && c.SaldoPendiente > 0;
+        var superaMitad        = c.SaldoPendiente > c.LimiteCredito / 2;
+        var vencidoYBloqueable = plazoVencido && superaMitad;
+        var limiteAlcanzado    = c.SaldoPendiente >= c.LimiteCredito;
 
         string nuevoEstado;
         if (c.SaldoPendiente == 0)
             nuevoEstado = "Pagado";
-        else if (limiteAlcanzado && vencido)
+        else if (limiteAlcanzado && vencidoYBloqueable)
             nuevoEstado = "BloqueadoLimiteYVencimiento";
         else if (limiteAlcanzado)
             nuevoEstado = "BloqueadoLimite";
-        else if (vencido)
+        else if (vencidoYBloqueable)
             nuevoEstado = "BloqueadoVencimiento";
         else
             nuevoEstado = "Activo";
@@ -345,7 +347,7 @@ public class VentaService : IVentaService
                         || credito.Estado == "BloqueadoVencimiento"
                         || credito.Estado == "BloqueadoLimiteYVencimiento";
                     if (esBloqueado)
-                        return ServiceResult<object>.Fail("El crédito del barbero está bloqueado. Debe realizar un abono antes de continuar");
+                        return ServiceResult<object>.Fail($"El crédito del barbero está bloqueado (estado: {credito.Estado}). Debe realizar un abono antes de continuar.");
 
                     var nuevaDeuda = credito.SaldoPendiente + venta.Total;
                     if (nuevaDeuda > credito.LimiteCredito)

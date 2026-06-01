@@ -35,17 +35,19 @@ public class CreditoBarberoService : ICreditoBarberoService
     private static bool RecalcularEstado(CreditoBarbero c)
     {
         var ahora = DateTime.UtcNow.AddHours(-5);
-        var vencido = ahora > c.FechaVencimiento && c.SaldoPendiente > 0;
-        var limiteAlcanzado = c.SaldoPendiente >= c.LimiteCredito;
+        var plazoVencido   = ahora > c.FechaVencimiento && c.SaldoPendiente > 0;
+        var superaMitad    = c.SaldoPendiente > c.LimiteCredito / 2;  // > $100.000
+        var vencidoYBloqueable = plazoVencido && superaMitad;          // vencido Y debe más de la mitad
+        var limiteAlcanzado    = c.SaldoPendiente >= c.LimiteCredito;
 
         string nuevoEstado;
         if (c.SaldoPendiente == 0)
             nuevoEstado = "Pagado";
-        else if (limiteAlcanzado && vencido)
+        else if (limiteAlcanzado && vencidoYBloqueable)
             nuevoEstado = "BloqueadoLimiteYVencimiento";
         else if (limiteAlcanzado)
             nuevoEstado = "BloqueadoLimite";
-        else if (vencido)
+        else if (vencidoYBloqueable)
             nuevoEstado = "BloqueadoVencimiento";
         else
             nuevoEstado = "Activo";
