@@ -435,12 +435,9 @@ public class CreditoBarberoService : ICreditoBarberoService
         if (credito.ExtensionUsada)
             return ServiceResult<object>.Fail("Este ciclo ya tuvo una extensión de plazo. Solo se permite una por ciclo");
 
-        if (credito.PlazoDias != 7)
-            return ServiceResult<object>.Fail("Solo se puede extender créditos con plazo original de 7 días");
-
         var estadoAnterior = credito.Estado;
-        credito.PlazoDias = 14;
-        credito.FechaVencimiento = credito.FechaInicio.AddDays(14);
+        credito.PlazoDias += 7;
+        credito.FechaVencimiento = credito.FechaInicio.AddDays(credito.PlazoDias);
         credito.ExtensionUsada = true;
 
         RecalcularEstado(credito);
