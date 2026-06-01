@@ -10,8 +10,7 @@ public interface ICreditoBarberoService
     Task<ServiceResult<object>> GetAbonosByCicloAsync(int cicloId, int page, int pageSize);
     Task<ServiceResult<object>> GetAllAbonosByBarberoAsync(int barberoId, int page, int pageSize);
     Task<ServiceResult<object>> RegistrarAbonoAsync(int barberoId, AbonoInput input);
-    Task<ServiceResult<object>> AnularAbonoAsync(int abonoId, AnularAbonoInput input);
-    Task<ServiceResult<object>> GetOrCreateAsync(int barberoId);
+Task<ServiceResult<object>> GetOrCreateAsync(int barberoId);
     Task<ServiceResult<object>> ExtenderPlazoAsync(int barberoId, ExtenderPlazoInput input);
     Task<ServiceResult<object>> NuevoCicloAsync(int barberoId, NuevoCicloInput input);
     Task RecalcularEstadosVencidosAsync(CancellationToken ct = default);

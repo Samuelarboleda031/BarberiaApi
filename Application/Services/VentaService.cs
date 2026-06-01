@@ -472,7 +472,7 @@ public class VentaService : IVentaService
                 .AnyAsync(a => a.CreditoBarberoId == venta.CreditoBarberoId.Value
                             && a.Estado == "Completado");
             if (tieneAbonoCompletado)
-                return ServiceResult<object>.Fail($"La venta #{venta.Id} no puede anularse porque el crédito tiene abonos completados. Anula primero los abonos en Crédito Barberos.");
+                return ServiceResult<object>.Fail($"La venta #{venta.Id} no puede anularse porque el crédito tiene abonos registrados. Los abonos no se pueden anular.");
         }
 
         using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);

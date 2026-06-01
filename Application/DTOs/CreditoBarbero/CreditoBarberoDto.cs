@@ -46,11 +46,6 @@ public class AbonoInput
     public int? VentaId { get; set; }
 }
 
-public class AnularAbonoInput
-{
-    public int UsuarioId { get; set; }
-}
-
 public class ExtenderPlazoInput
 {
     public int UsuarioId { get; set; }

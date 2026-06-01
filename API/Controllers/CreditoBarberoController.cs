@@ -64,14 +64,7 @@ public class CreditoBarberoController : ControllerBase
         return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error);
     }
 
-    [HttpPost("abono/{abonoId}/anular")]
-    public async Task<ActionResult> AnularAbono(int abonoId, [FromBody] AnularAbonoInput input)
-    {
-        var r = await _service.AnularAbonoAsync(abonoId, input);
-        return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound(r.Error) : BadRequest(r.Error);
-    }
-
-    [HttpPut("barbero/{barberoId}/extender-plazo")]
+[HttpPut("barbero/{barberoId}/extender-plazo")]
     public async Task<ActionResult> ExtenderPlazo(int barberoId, [FromBody] ExtenderPlazoInput input)
     {
         var r = await _service.ExtenderPlazoAsync(barberoId, input);
