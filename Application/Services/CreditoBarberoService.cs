@@ -428,9 +428,9 @@ public class CreditoBarberoService : ICreditoBarberoService
         if (credito.Estado == "Pagado")
             return ServiceResult<object>.Fail("El crédito ya está pagado; no se puede extender");
 
-        if (credito.Estado != "BloqueadoVencimiento")
-            return ServiceResult<object>.Fail(
-                $"La extensión de plazo solo está disponible cuando el crédito está en estado 'BloqueadoVencimiento'. Estado actual: '{credito.Estado}'.");
+        var ahora = DateTime.UtcNow.AddHours(-5);
+        if (ahora <= credito.FechaVencimiento)
+            return ServiceResult<object>.Fail("El plazo del ciclo aún no ha vencido; no es necesario extender");
 
         if (credito.ExtensionUsada)
             return ServiceResult<object>.Fail("Este ciclo ya tuvo una extensión de plazo. Solo se permite una por ciclo");
