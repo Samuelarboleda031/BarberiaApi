@@ -145,6 +145,7 @@ public partial class BarberiaContext : DbContext
             entity.ToTable("Compras");
 
             entity.Property(e => e.NumeroFactura).HasMaxLength(50);
+            entity.Property(e => e.NumeroRecibo).HasMaxLength(50);
             entity.Property(e => e.FechaRegistro).HasColumnType("datetime").HasDefaultValueSql("GETDATE()");
             entity.Property(e => e.FechaFactura).HasColumnType("date");
             entity.Property(e => e.Subtotal).HasPrecision(18, 2);

@@ -87,6 +87,7 @@ public class CompraService : ICompraService
                 ProveedorId = input.ProveedorId,
                 UsuarioId = input.UsuarioId,
                 NumeroFactura = input.NumeroFactura,
+                NumeroRecibo = input.NumeroRecibo,
                 FechaFactura = input.FechaFactura.HasValue ? DateOnly.FromDateTime(input.FechaFactura.Value) : DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-5)),
                 FechaRegistro = DateTime.UtcNow.AddHours(-5),
                 MetodoPago = input.MetodoPago,

@@ -6,6 +6,7 @@ public class CompraDto
     public int ProveedorId { get; set; }
     public int UsuarioId { get; set; }
     public string? NumeroFactura { get; set; }
+    public string? NumeroRecibo { get; set; }
     public DateOnly FechaFactura { get; set; }
     public DateTime FechaRegistro { get; set; }
     public string? MetodoPago { get; set; }

@@ -13,6 +13,8 @@ public partial class Compra
 
     public string? NumeroFactura { get; set; }
 
+    public string? NumeroRecibo { get; set; }
+
     public DateTime? FechaRegistro { get; set; }
 
     public DateOnly? FechaFactura { get; set; }

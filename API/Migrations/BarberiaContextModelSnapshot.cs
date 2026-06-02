@@ -443,48 +443,6 @@ namespace BarberiaApi.Migrations
                     b.ToTable("CreditosBarbero", (string)null);
                 });
 
-            modelBuilder.Entity("BarberiaApi.Domain.Entities.HistorialEstadoCredito", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CreditoBarberoId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("EstadoAnterior")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("EstadoNuevo")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime>("FechaCambio")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime")
-                        .HasDefaultValueSql("GETDATE()");
-
-                    b.Property<string>("Observacion")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("ResponsableId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreditoBarberoId");
-
-                    b.HasIndex("ResponsableId");
-
-                    b.ToTable("HistorialEstadoCredito", (string)null);
-                });
-
             modelBuilder.Entity("BarberiaApi.Domain.Entities.DetalleCompra", b =>
                 {
                     b.Property<int>("Id")
@@ -691,6 +649,48 @@ namespace BarberiaApi.Migrations
                     b.HasIndex("VentaId");
 
                     b.ToTable("Devoluciones", (string)null);
+                });
+
+            modelBuilder.Entity("BarberiaApi.Domain.Entities.HistorialEstadoCredito", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CreditoBarberoId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EstadoAnterior")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("EstadoNuevo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("FechaCambio")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasDefaultValueSql("GETDATE()");
+
+                    b.Property<string>("Observacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("ResponsableId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreditoBarberoId");
+
+                    b.HasIndex("ResponsableId");
+
+                    b.ToTable("HistorialEstadoCredito", (string)null);
                 });
 
             modelBuilder.Entity("BarberiaApi.Domain.Entities.HorarioSemanal", b =>
@@ -1449,25 +1449,6 @@ namespace BarberiaApi.Migrations
                     b.Navigation("CreadoPorUsuario");
                 });
 
-            modelBuilder.Entity("BarberiaApi.Domain.Entities.HistorialEstadoCredito", b =>
-                {
-                    b.HasOne("BarberiaApi.Domain.Entities.CreditoBarbero", "CreditoBarbero")
-                        .WithMany("Historial")
-                        .HasForeignKey("CreditoBarberoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("BarberiaApi.Domain.Entities.Usuario", "Responsable")
-                        .WithMany()
-                        .HasForeignKey("ResponsableId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("CreditoBarbero");
-
-                    b.Navigation("Responsable");
-                });
-
             modelBuilder.Entity("BarberiaApi.Domain.Entities.DetalleCompra", b =>
                 {
                     b.HasOne("BarberiaApi.Domain.Entities.Compra", "Compra")
@@ -1586,6 +1567,25 @@ namespace BarberiaApi.Migrations
                     b.Navigation("Usuario");
 
                     b.Navigation("Venta");
+                });
+
+            modelBuilder.Entity("BarberiaApi.Domain.Entities.HistorialEstadoCredito", b =>
+                {
+                    b.HasOne("BarberiaApi.Domain.Entities.CreditoBarbero", "CreditoBarbero")
+                        .WithMany("Historial")
+                        .HasForeignKey("CreditoBarberoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BarberiaApi.Domain.Entities.Usuario", "Responsable")
+                        .WithMany()
+                        .HasForeignKey("ResponsableId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreditoBarbero");
+
+                    b.Navigation("Responsable");
                 });
 
             modelBuilder.Entity("BarberiaApi.Domain.Entities.HorarioSemanal", b =>

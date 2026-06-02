@@ -6,6 +6,7 @@ public class CompraInput
     public int ProveedorId { get; set; }
     public int UsuarioId { get; set; }
     public string? NumeroFactura { get; set; }
+    public string? NumeroRecibo { get; set; }
     public DateTime? FechaFactura { get; set; }
     public string? MetodoPago { get; set; }
     public decimal? IVA { get; set; }

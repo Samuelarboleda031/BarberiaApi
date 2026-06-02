@@ -437,7 +437,7 @@ public class CreditoBarberoService : ICreditoBarberoService
 
         var estadoAnterior = credito.Estado;
         credito.PlazoDias += 7;
-        credito.FechaVencimiento = credito.FechaInicio.AddDays(credito.PlazoDias);
+        credito.FechaVencimiento = ahora.AddDays(7);
         credito.ExtensionUsada = true;
 
         RecalcularEstado(credito);
@@ -449,7 +449,7 @@ public class CreditoBarberoService : ICreditoBarberoService
             EstadoNuevo = credito.Estado,
             FechaCambio = DateTime.UtcNow.AddHours(-5),
             ResponsableId = input.UsuarioId,
-            Observacion = $"Plazo extendido de 7 a 14 días. Nueva fecha vencimiento: {credito.FechaVencimiento:dd/MM/yyyy}"
+            Observacion = $"Plazo extendido +7 días desde hoy. Nueva fecha vencimiento: {credito.FechaVencimiento:dd/MM/yyyy}"
         });
 
         await _context.SaveChangesAsync();
