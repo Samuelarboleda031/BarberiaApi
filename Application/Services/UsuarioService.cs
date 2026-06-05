@@ -1,5 +1,6 @@
 using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
+using BarberiaApi.Application.Helpers;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Constants;
 using BarberiaApi.Domain.Entities;
