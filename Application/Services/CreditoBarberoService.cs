@@ -1,6 +1,7 @@
 using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using BarberiaApi.Domain.Constants;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Services;
@@ -45,15 +46,15 @@ public class CreditoBarberoService : ICreditoBarberoService
 
         string nuevoEstado;
         if (c.SaldoPendiente == 0)
-            nuevoEstado = "Pagado";
+            nuevoEstado = EstadosCredito.Pagado;
         else if (limiteAlcanzado && vencidoYBloqueable)
-            nuevoEstado = "BloqueadoLimiteYVencimiento";
+            nuevoEstado = EstadosCredito.BloqueadoLimiteYVencimiento;
         else if (limiteAlcanzado)
-            nuevoEstado = "BloqueadoLimite";
+            nuevoEstado = EstadosCredito.BloqueadoLimite;
         else if (vencidoYBloqueable)
-            nuevoEstado = "BloqueadoVencimiento";
+            nuevoEstado = EstadosCredito.BloqueadoVencimiento;
         else
-            nuevoEstado = "Activo";
+            nuevoEstado = EstadosCredito.Activo;
 
         if (c.Estado == nuevoEstado) return false;
         c.Estado = nuevoEstado;
@@ -100,10 +101,10 @@ public class CreditoBarberoService : ICreditoBarberoService
         if (!creditos.Any()) return null;
 
         return creditos.FirstOrDefault(c =>
-                   c.Estado == "Activo" ||
-                   c.Estado == "BloqueadoLimite" ||
-                   c.Estado == "BloqueadoVencimiento" ||
-                   c.Estado == "BloqueadoLimiteYVencimiento")
+                   c.Estado == EstadosCredito.Activo ||
+                   c.Estado == EstadosCredito.BloqueadoLimite ||
+                   c.Estado == EstadosCredito.BloqueadoVencimiento ||
+                   c.Estado == EstadosCredito.BloqueadoLimiteYVencimiento)
                ?? creditos.First();
     }
 
@@ -115,7 +116,7 @@ public class CreditoBarberoService : ICreditoBarberoService
     {
         if (estado.StartsWith("Bloqueado", StringComparison.OrdinalIgnoreCase)) return 0;
         if (string.Equals(estado, "Activo", StringComparison.OrdinalIgnoreCase)) return 1;
-        if (string.Equals(estado, "Pagado", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (string.Equals(estado, EstadosCredito.Pagado, StringComparison.OrdinalIgnoreCase)) return 2;
         return 3;
     }
 
@@ -318,7 +319,7 @@ public class CreditoBarberoService : ICreditoBarberoService
                 PlazoDias = 7,
                 FechaInicio = ahora,
                 FechaVencimiento = ahora.AddDays(7),
-                Estado = "Activo",
+                Estado = EstadosCredito.Activo,
                 CreadoPor = 1,
                 FechaCreacion = ahora
             };
@@ -372,7 +373,7 @@ public class CreditoBarberoService : ICreditoBarberoService
 
         RecalcularEstado(credito, _dt.NowColombia);
 
-        if (credito.Estado == "Pagado" && credito.FechaCierre == null)
+        if (credito.Estado == EstadosCredito.Pagado && credito.FechaCierre == null)
             credito.FechaCierre = _dt.NowColombia;
 
         var abono = new AbonoCreditoBarbero
@@ -428,7 +429,7 @@ public class CreditoBarberoService : ICreditoBarberoService
         var credito = await ObtenerCreditoVigenteAsync(barberoId);
         if (credito == null) return ServiceResult<object>.NotFound();
 
-        if (credito.Estado == "Pagado")
+        if (credito.Estado == EstadosCredito.Pagado)
             return ServiceResult<object>.Fail("El crédito ya está pagado; no se puede extender");
 
         var ahora = _dt.NowColombia;
@@ -485,10 +486,10 @@ public class CreditoBarberoService : ICreditoBarberoService
         // Verificar que no haya un ciclo activo/bloqueado en curso
         var cicloVigente = await _context.CreditosBarbero
             .AnyAsync(c => c.BarberoId == barberoId &&
-                           (c.Estado == "Activo" ||
-                            c.Estado == "BloqueadoLimite" ||
-                            c.Estado == "BloqueadoVencimiento" ||
-                            c.Estado == "BloqueadoLimiteYVencimiento"));
+                           (c.Estado == EstadosCredito.Activo ||
+                            c.Estado == EstadosCredito.BloqueadoLimite ||
+                            c.Estado == EstadosCredito.BloqueadoVencimiento ||
+                            c.Estado == EstadosCredito.BloqueadoLimiteYVencimiento));
 
         if (cicloVigente)
             return ServiceResult<object>.Fail("El barbero ya tiene un ciclo de crédito activo o bloqueado. Ciérrelo antes de abrir uno nuevo");
@@ -504,7 +505,7 @@ public class CreditoBarberoService : ICreditoBarberoService
             PlazoDias = input.PlazoDias,
             FechaInicio = ahora,
             FechaVencimiento = ahora.AddDays(input.PlazoDias),
-            Estado = "Activo",
+            Estado = EstadosCredito.Activo,
             ExtensionUsada = false,
             CreadoPor = input.UsuarioId,
             FechaCreacion = ahora
@@ -547,7 +548,7 @@ public class CreditoBarberoService : ICreditoBarberoService
         // Traer todos los créditos que no están pagados y tienen saldo
         var creditos = await _context.CreditosBarbero
             .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
-            .Where(c => c.Estado != "Pagado" && c.SaldoPendiente > 0)
+            .Where(c => c.Estado != EstadosCredito.Pagado && c.SaldoPendiente > 0)
             .ToListAsync(ct);
 
         var cambiados = new List<CreditoBarbero>();
@@ -563,8 +564,8 @@ public class CreditoBarberoService : ICreditoBarberoService
 
         // Notificar a los que quedaron bloqueados por vencimiento
         foreach (var c in cambiados.Where(c =>
-                     c.Estado == "BloqueadoVencimiento" ||
-                     c.Estado == "BloqueadoLimiteYVencimiento"))
+                     c.Estado == EstadosCredito.BloqueadoVencimiento ||
+                     c.Estado == EstadosCredito.BloqueadoLimiteYVencimiento))
         {
             if (ct.IsCancellationRequested) break;
             var correo = c.Barbero?.Usuario?.Correo ?? string.Empty;

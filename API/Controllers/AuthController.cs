@@ -19,10 +19,13 @@ namespace BarberiaApi.Controllers
         public async Task<IActionResult> CreateUser([FromBody] CreateUserDto req)
         {
             // 1. Crear usuario en Firebase
-            var args = new UserRecordArgs()
+            // Generar contraseña temporal aleatoria y segura (no hardcodeada)
+        var tempPassword = $"Tmp{Guid.NewGuid():N}"[..16] + "!2";
+
+        var args = new UserRecordArgs()
             {
                 Email = req.Email,
-                Password = "TemporaryPassword123!", // Enviar esto al email del usuario
+                Password = tempPassword, // Se envía por email al usuario; no se almacena aquí
                 DisplayName = req.Name,
             };
 

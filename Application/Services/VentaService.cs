@@ -1,6 +1,7 @@
 using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using BarberiaApi.Domain.Constants;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Services;
@@ -45,11 +46,11 @@ public class VentaService : IVentaService
         if (c.SaldoPendiente == 0)
             nuevoEstado = "Pagado";
         else if (limiteAlcanzado && vencidoYBloqueable)
-            nuevoEstado = "BloqueadoLimiteYVencimiento";
+            nuevoEstado = EstadosCredito.BloqueadoLimiteYVencimiento;
         else if (limiteAlcanzado)
-            nuevoEstado = "BloqueadoLimite";
+            nuevoEstado = EstadosCredito.BloqueadoLimite;
         else if (vencidoYBloqueable)
-            nuevoEstado = "BloqueadoVencimiento";
+            nuevoEstado = EstadosCredito.BloqueadoVencimiento;
         else
             nuevoEstado = "Activo";
 
@@ -263,7 +264,7 @@ public class VentaService : IVentaService
                 ClienteNombre = input.ClienteNombre,
                 Descuento = input.Descuento ?? 0,
                 IVA = 0,
-                Estado = "Completada"
+                Estado = EstadosVenta.Completada
             };
 
             // NOTA: Cantidad <= 0 y PrecioUnitario < 0 ya validados por FluentValidation.
@@ -321,10 +322,10 @@ public class VentaService : IVentaService
                 {
                     var credito = await _context.CreditosBarbero
                         .Where(c => c.BarberoId == input.BarberoId!.Value
-                            && (c.Estado == "Activo"
-                                || c.Estado == "BloqueadoLimite"
-                                || c.Estado == "BloqueadoVencimiento"
-                                || c.Estado == "BloqueadoLimiteYVencimiento"))
+                            && (c.Estado == EstadosCredito.Activo
+                                || c.Estado == EstadosCredito.BloqueadoLimite
+                                || c.Estado == EstadosCredito.BloqueadoVencimiento
+                                || c.Estado == EstadosCredito.BloqueadoLimiteYVencimiento))
                         .OrderByDescending(c => c.FechaInicio)
                         .FirstOrDefaultAsync();
 
@@ -347,9 +348,9 @@ public class VentaService : IVentaService
                         await _context.SaveChangesAsync();
                     }
 
-                    var esBloqueado = credito.Estado == "BloqueadoLimite"
-                        || credito.Estado == "BloqueadoVencimiento"
-                        || credito.Estado == "BloqueadoLimiteYVencimiento";
+                    var esBloqueado = credito.Estado == EstadosCredito.BloqueadoLimite
+                        || credito.Estado == EstadosCredito.BloqueadoVencimiento
+                        || credito.Estado == EstadosCredito.BloqueadoLimiteYVencimiento;
                     if (esBloqueado)
                         return ServiceResult<object>.Fail($"El crédito del barbero está bloqueado (estado: {credito.Estado}). Debe realizar un abono antes de continuar.");
 
@@ -374,7 +375,7 @@ public class VentaService : IVentaService
                     .Where(d => d.ClienteId == clienteId && (d.Estado == "Activo" || d.Estado == "Completada" || d.Estado == "Procesado"))
                     .SumAsync(d => d.SaldoAFavor ?? 0);
                 var totalUsado = await _context.Ventas
-                    .Where(v => v.ClienteId == clienteId && v.Estado != "Anulada")
+                    .Where(v => v.ClienteId == clienteId && v.Estado != EstadosVenta.Anulada)
                     .SumAsync(v => v.SaldoAFavorUsado ?? 0);
                 var disponible = Math.Max(0, totalDevoluciones - totalUsado);
 
@@ -474,7 +475,7 @@ public class VentaService : IVentaService
             .FirstOrDefaultAsync(v => v.Id == id);
 
         if (venta == null) return ServiceResult<object>.NotFound();
-        if (venta.Estado == "Anulada") return ServiceResult<object>.Fail("La venta ya esta anulada");
+        if (venta.Estado == EstadosVenta.Anulada) return ServiceResult<object>.Fail("La venta ya esta anulada");
 
         if (venta.CreditoBarberoId.HasValue)
         {
@@ -489,7 +490,7 @@ public class VentaService : IVentaService
         try
         {
             var estadoAnterior = venta.Estado;
-            venta.Estado = "Anulada";
+            venta.Estado = EstadosVenta.Anulada;
             if ((venta.SaldoAFavorUsado ?? 0) > 0) venta.SaldoAFavorUsado = 0;
 
             if (venta.CreditoBarberoId.HasValue && (venta.CreditoBarberoUsado ?? 0) > 0)

@@ -7,7 +7,7 @@ public class CompraDto
     public int UsuarioId { get; set; }
     public string? NumeroFactura { get; set; }
     public string? NumeroRecibo { get; set; }
-    public DateOnly FechaFactura { get; set; }
+    public DateOnly? FechaFactura { get; set; } // Nullable para reflejar que la entidad puede no tener fecha
     public DateTime FechaRegistro { get; set; }
     public string? MetodoPago { get; set; }
     public decimal Subtotal { get; set; }

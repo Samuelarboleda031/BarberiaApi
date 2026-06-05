@@ -1,6 +1,7 @@
 using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using BarberiaApi.Domain.Constants;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -73,9 +74,12 @@ public class ClienteService : IClienteService
     {
         // NOTA: Validación estructural básica manejada por FluentValidation.
 
-        var usuario = await _context.Usuarios.FindAsync(input.UsuarioId);
+        var usuario = await _context.Usuarios
+            .Include(u => u.Rol)
+            .FirstOrDefaultAsync(u => u.Id == input.UsuarioId);
         if (usuario == null) return ServiceResult<object>.Fail("El usuario no existe");
-        if (usuario.RolId != 3) return ServiceResult<object>.Fail("El usuario no tiene un rol de Cliente");
+        if (!string.Equals(usuario.Rol?.Nombre, RolesNombres.Cliente, StringComparison.OrdinalIgnoreCase))
+            return ServiceResult<object>.Fail("El usuario no tiene un rol de Cliente");
         if (await _context.Clientes.AnyAsync(c => c.UsuarioId == input.UsuarioId))
             return ServiceResult<object>.Fail("Ya existe un perfil de cliente para este usuario");
 

@@ -1,6 +1,7 @@
 using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using BarberiaApi.Domain.Constants;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,7 @@ public class CompraService : ICompraService
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 5;
 
-        var baseQ = _context.Compras.Include(c => c.Proveedor).Include(c => c.Usuario).AsQueryable();
+        var baseQ = _context.Compras.AsNoTracking().Include(c => c.Proveedor).Include(c => c.Usuario).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -153,7 +154,7 @@ public class CompraService : ICompraService
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (compra == null) return ServiceResult<object>.NotFound();
-        if (compra.Estado == "Anulada") return ServiceResult<object>.Fail("La compra ya esta anulada");
+        if (compra.Estado == EstadosVenta.Anulada) return ServiceResult<object>.Fail("La compra ya esta anulada");
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
@@ -174,7 +175,7 @@ public class CompraService : ICompraService
             }
 
             // 3. Mutar estado solo después de que todo es válido
-            compra.Estado = "Anulada";
+            compra.Estado = EstadosVenta.Anulada;
 
             foreach (var detalle in compra.DetalleCompras)
             {

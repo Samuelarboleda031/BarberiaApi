@@ -1,6 +1,7 @@
 using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using BarberiaApi.Domain.Constants;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Services;
@@ -188,7 +189,12 @@ public class UsuarioService : IUsuarioService
             _context.Usuarios.Add(usuario);
             await _context.SaveChangesAsync();
 
-            if (input.RolId == 3) // Cliente
+            // Resolver el nombre del rol para evitar comparaciones por ID numérico
+            var nombreRol = input.RolId > 0
+                ? (await _context.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Id == input.RolId))?.Nombre ?? string.Empty
+                : string.Empty;
+
+            if (string.Equals(nombreRol, RolesNombres.Cliente, StringComparison.OrdinalIgnoreCase))
             {
                 var cliente = new Cliente
                 {
@@ -202,7 +208,7 @@ public class UsuarioService : IUsuarioService
                 };
                 _context.Clientes.Add(cliente);
             }
-            else if (input.RolId == 2) // Barbero
+            else if (string.Equals(nombreRol, RolesNombres.Barbero, StringComparison.OrdinalIgnoreCase))
             {
                 var barbero = new Barbero
                 {
@@ -263,7 +269,12 @@ public class UsuarioService : IUsuarioService
             usuarioExistente.Estado = input.Estado;
             usuarioExistente.FechaModificacion = _dt.NowColombia;
 
-            if (input.RolId == 3) // Cliente
+            // Resolver el nombre del rol para evitar comparaciones por ID numérico
+            var nombreRolUpdate = input.RolId > 0
+                ? (await _context.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Id == input.RolId))?.Nombre ?? string.Empty
+                : string.Empty;
+
+            if (string.Equals(nombreRolUpdate, RolesNombres.Cliente, StringComparison.OrdinalIgnoreCase))
             {
                 if (usuarioExistente.Cliente != null)
                 {
@@ -273,7 +284,7 @@ public class UsuarioService : IUsuarioService
                     usuarioExistente.Cliente.FechaNacimiento = input.FechaNacimiento;
                 }
             }
-            else if (input.RolId == 2) // Barbero
+            else if (string.Equals(nombreRolUpdate, RolesNombres.Barbero, StringComparison.OrdinalIgnoreCase))
             {
                 if (usuarioExistente.Barbero != null)
                 {

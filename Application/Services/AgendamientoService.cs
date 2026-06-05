@@ -1,6 +1,7 @@
 using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using BarberiaApi.Domain.Constants;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Services;
@@ -476,7 +477,7 @@ public class AgendamientoService : IAgendamientoService
             .Where(a =>
                 a.BarberoId == input.BarberoId &&
                 a.FechaHora.Date == fechaDia &&
-                a.Estado != "Cancelada")
+                a.Estado != EstadosAgendamiento.Cancelada)
             .Include(a => a.Servicio)
             .ToListAsync();
 
@@ -502,7 +503,7 @@ public class AgendamientoService : IAgendamientoService
             Notas = BuildNotasWithMetadata(input.Notas, servicioIds, productosCantidad.Select(p => p.ProductoId).ToList()),
             Duracion = input.Duracion ?? $"{duracionMinutos} minutos",
             Precio = input.Precio ?? precioCalculado,
-            Estado = "Pendiente"
+            Estado = EstadosAgendamiento.Pendiente
         };
 
         if (servicioIds.Count > 0)
@@ -613,7 +614,7 @@ public class AgendamientoService : IAgendamientoService
             a.BarberoId == input.BarberoId &&
             a.FechaHora < horaFin &&
             a.FechaHora.AddMinutes(duracionMinutos) > input.FechaHora &&
-            a.Estado != "Cancelada");
+            a.Estado != EstadosAgendamiento.Cancelada);
 
         if (existeTraslape)
             return ServiceResult<object>.Fail("El barbero ya tiene una cita programada en ese horario.");
@@ -668,7 +669,7 @@ public class AgendamientoService : IAgendamientoService
             .FirstOrDefaultAsync(a => a.Id == id);
         if (agendamiento == null) return ServiceResult<object>.NotFound();
 
-        var estadosValidos = new[] { "Pendiente", "Confirmada", "En Proceso", "Completada", "Cancelada" };
+        var estadosValidos = new[] { "Pendiente", "Confirmada", "En Proceso", "Completada", EstadosAgendamiento.Cancelada };
         if (!estadosValidos.Contains(input.estado))
             return ServiceResult<object>.Fail("Estado inválido.");
 
@@ -890,8 +891,8 @@ public class AgendamientoService : IAgendamientoService
                 }
                 await _context.SaveChangesAsync();
             }
-            if (string.Equals(input.estado, "Cancelada", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(estadoAnterior, "Cancelada", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(input.estado, EstadosAgendamiento.Cancelada, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(estadoAnterior, EstadosAgendamiento.Cancelada, StringComparison.OrdinalIgnoreCase))
             {
                 ResultadoNotificacionCita? notificacionCancelacion = null;
 
@@ -1158,8 +1159,8 @@ public class AgendamientoService : IAgendamientoService
             .AsNoTracking()
             .AsSplitQuery()
             .Where(a => a.FechaHora >= startOfWeek
-                        && a.Estado != "Completada"
-                        && a.Estado != "Cancelada")
+                        && a.Estado != EstadosAgendamiento.Completada
+                        && a.Estado != EstadosAgendamiento.Cancelada)
             .OrderByDescending(a => a.FechaHora)
             .ToListAsync();
 

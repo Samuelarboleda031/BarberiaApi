@@ -1,6 +1,7 @@
 using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using BarberiaApi.Domain.Constants;
 using BarberiaApi.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,7 +26,7 @@ public class DashboardService : IDashboardService
 
         // Obtener solo las ventas de los últimos 30 días activas
         var ventasRecientes = await _context.Ventas.AsNoTracking().AsSplitQuery()
-            .Where(v => v.Fecha >= hoy.AddDays(-30) && v.Estado != "Anulada" && v.Estado != "Cancelada")
+            .Where(v => v.Fecha >= hoy.AddDays(-30) && v.Estado != EstadosVenta.Anulada && v.Estado != EstadosVenta.Cancelada)
             .Include(v => v.Cliente).ThenInclude(c => c.Usuario)
             .Include(v => v.Barbero).ThenInclude(b => b.Usuario)
             .Include(v => v.DetalleVenta).ThenInclude(d => d.Producto)
@@ -45,7 +46,7 @@ public class DashboardService : IDashboardService
 
         // Para el histórico anual, enviamos totales desglosados solo de ventas activas
         var ventasHistoricas = await _context.Ventas.AsNoTracking()
-            .Where(v => v.Fecha >= desdeVentas && v.Fecha < hoy.AddDays(-30) && v.Estado != "Anulada" && v.Estado != "Cancelada")
+            .Where(v => v.Fecha >= desdeVentas && v.Fecha < hoy.AddDays(-30) && v.Estado != EstadosVenta.Anulada && v.Estado != EstadosVenta.Cancelada)
             .Include(v => v.Barbero).ThenInclude(b => b.Usuario)
             .Select(v => new { 
                 fecha = v.Fecha, 
