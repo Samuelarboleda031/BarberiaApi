@@ -244,9 +244,7 @@ public class AgendamientoService : IAgendamientoService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q, bool? estaSemana)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 100;
-        if (pageSize > 300) pageSize = 300;
+        PaginationHelper.Sanitize(ref page, ref pageSize, maxPageSize: 300);
         
         var baseQ = _context.Agendamientos
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
@@ -349,9 +347,7 @@ public class AgendamientoService : IAgendamientoService
 
     public async Task<ServiceResult<object>> GetByClienteAsync(int clienteId, int page, int pageSize, string? q, bool? estaSemana)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 100;
-        if (pageSize > 300) pageSize = 300;
+        PaginationHelper.Sanitize(ref page, ref pageSize, maxPageSize: 300);
 
         var baseQ = _context.Agendamientos
             .Where(a => a.ClienteId == clienteId)

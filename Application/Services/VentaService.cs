@@ -63,8 +63,7 @@ public class VentaService : IVentaService
     {
         try
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
+            PaginationHelper.Sanitize(ref page, ref pageSize);
 
             var baseQ = _context.Ventas.AsNoTracking().AsQueryable();
 
@@ -130,8 +129,7 @@ public class VentaService : IVentaService
     {
         try
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
+            PaginationHelper.Sanitize(ref page, ref pageSize);
 
             var baseQ = _context.Ventas
                 .AsNoTracking()

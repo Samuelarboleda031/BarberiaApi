@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Application.DTOs;
@@ -28,8 +29,7 @@ namespace BarberiaApi.Controllers
         [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
+            PaginationHelper.Sanitize(ref page, ref pageSize);
             var q = _context.DetallePaquetes
                 .Include(dp => dp.Paquete)
                 .Include(dp => dp.Servicio)
@@ -59,8 +59,7 @@ namespace BarberiaApi.Controllers
         [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetByPaquete(int paqueteId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5)
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
+            PaginationHelper.Sanitize(ref page, ref pageSize);
             var q = _context.DetallePaquetes
                 .Include(dp => dp.Servicio)
                 .Where(dp => dp.PaqueteId == paqueteId)

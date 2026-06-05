@@ -122,8 +122,7 @@ public class CreditoBarberoService : ICreditoBarberoService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 10;
+        PaginationHelper.Sanitize(ref page, ref pageSize, maxPageSize: 200);
 
         var baseQ = _context.CreditosBarbero
             .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
@@ -188,8 +187,7 @@ public class CreditoBarberoService : ICreditoBarberoService
 
     public async Task<ServiceResult<object>> GetAbonosAsync(int barberoId, int page, int pageSize)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 10;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
 
         var credito = await ObtenerCreditoVigenteAsync(barberoId, tracking: false);
         if (credito == null) return ServiceResult<object>.NotFound();
@@ -225,8 +223,7 @@ public class CreditoBarberoService : ICreditoBarberoService
 
     public async Task<ServiceResult<object>> GetAllAbonosByBarberoAsync(int barberoId, int page, int pageSize)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 10;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
 
         var cicloIds = await _context.CreditosBarbero
             .Where(c => c.BarberoId == barberoId)
@@ -266,8 +263,7 @@ public class CreditoBarberoService : ICreditoBarberoService
 
     public async Task<ServiceResult<object>> GetAbonosByCicloAsync(int cicloId, int page, int pageSize)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 10;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
 
         var existe = await _context.CreditosBarbero.AsNoTracking().AnyAsync(c => c.Id == cicloId);
         if (!existe) return ServiceResult<object>.NotFound();

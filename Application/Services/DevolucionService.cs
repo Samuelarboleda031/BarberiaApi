@@ -62,8 +62,7 @@ public class DevolucionService : IDevolucionService
                 );
             }
 
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
+            PaginationHelper.Sanitize(ref page, ref pageSize);
 
             var totalCount = await query.CountAsync();
             var items = await query

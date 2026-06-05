@@ -29,11 +29,11 @@ public class UsuarioService : IUsuarioService
 
     public async Task<ServiceResult<object>> AnalisisAsync(int page, int pageSize)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 5;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
 
         var q = _context.Usuarios
             .AsNoTracking()
+            .OrderBy(u => u.Nombre).ThenBy(u => u.Apellido)
             .Select(u => new AnalisisUsuarioDto
             {
                 Id = u.Id,
@@ -100,8 +100,7 @@ public class UsuarioService : IUsuarioService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 5;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
 
         var baseQ = _context.Usuarios.AsNoTracking().AsQueryable();
 

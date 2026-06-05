@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Application.DTOs;
@@ -26,11 +27,11 @@ namespace BarberiaApi.Controllers
         [HttpGet("compra/{compraId}")]
         public async Task<ActionResult<object>> GetByCompra(int compraId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
+            PaginationHelper.Sanitize(ref page, ref pageSize);
             var baseQ = _context.DetalleCompras
                 .Include(d => d.Producto)
                 .Where(d => d.CompraId == compraId)
+                .AsNoTracking()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {

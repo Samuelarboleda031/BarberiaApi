@@ -20,9 +20,7 @@ public class CitaService : ICitaService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 100;
-        if (pageSize > 300) pageSize = 300;
+        PaginationHelper.Sanitize(ref page, ref pageSize, maxPageSize: 300);
         var baseQ = _context.Agendamientos
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)

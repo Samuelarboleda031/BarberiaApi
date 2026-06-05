@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -21,7 +22,7 @@ public class ProveedorService : IProveedorService
 
     private async Task<ServiceResult<object>> GetByTipoAsync(string? tipo, int page, int pageSize, string? q)
     {
-        if (page < 1) page = 1; if (pageSize < 1) pageSize = 5;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
         var baseQ = _context.Proveedores.AsQueryable();
         if (tipo != null) baseQ = baseQ.Where(p => p.TipoProveedor == tipo);
         if (!string.IsNullOrWhiteSpace(q))

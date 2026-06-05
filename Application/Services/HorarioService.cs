@@ -182,8 +182,7 @@ public class HorarioService : IHorarioService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 5;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
         var baseQ = _context.HorariosSemanales
             .Include(h => h.Detalles)
             .Include(h => h.Barbero).ThenInclude(b => b.Usuario)
@@ -220,8 +219,7 @@ public class HorarioService : IHorarioService
 
     public async Task<ServiceResult<object>> GetByBarberoAsync(int barberoId, int page, int pageSize, string? q)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 5;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
         var baseQ = _context.HorariosSemanales
             .Include(h => h.Detalles)
             .Include(h => h.Barbero).ThenInclude(b => b.Usuario)

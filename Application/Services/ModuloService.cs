@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -13,9 +14,7 @@ public class ModuloService : IModuloService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 5;
-        if (pageSize > 1000) pageSize = 1000; // tope explícito para evitar abuso
+        PaginationHelper.Sanitize(ref page, ref pageSize, maxPageSize: 200);
 
         var baseQ = _context.Modulos.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))

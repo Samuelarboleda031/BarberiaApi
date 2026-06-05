@@ -25,8 +25,7 @@ public class CompraService : ICompraService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? searchTerm)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 5;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
 
         var baseQ = _context.Compras.AsNoTracking().Include(c => c.Proveedor).Include(c => c.Usuario).AsQueryable();
 

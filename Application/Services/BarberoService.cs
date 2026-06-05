@@ -25,8 +25,7 @@ public class BarberoService : IBarberoService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 5;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
         var baseQ = _context.Barberos.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))
         {

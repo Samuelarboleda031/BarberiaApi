@@ -20,8 +20,7 @@ public class SolicitudCambioHorarioService : ISolicitudCambioHorarioService
 
     public async Task<ServiceResult<object>> GetAllAsync(string? estado, int? barberoId, int page, int pageSize)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 10;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
 
         var query = _context.SolicitudesCambioHorario
             .AsNoTracking()

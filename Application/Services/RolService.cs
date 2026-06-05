@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -13,7 +14,7 @@ public class RolService : IRolService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
-        if (page < 1) page = 1; if (pageSize < 1) pageSize = 5;
+        PaginationHelper.Sanitize(ref page, ref pageSize);
         var baseQ = _context.Roles.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))
         {

@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Application.DTOs;
@@ -26,8 +27,7 @@ namespace BarberiaApi.Controllers
         [HttpGet]
         public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
+            PaginationHelper.Sanitize(ref page, ref pageSize);
             var baseQ = _context.DetalleVentas
                 .Include(d => d.Producto)
                 .Include(d => d.Servicio)
@@ -66,8 +66,7 @@ namespace BarberiaApi.Controllers
         [HttpGet("venta/{ventaId}")]
         public async Task<ActionResult<object>> GetByVenta(int ventaId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
+            PaginationHelper.Sanitize(ref page, ref pageSize);
             var baseQ = _context.DetalleVentas
                 .Include(d => d.Producto)
                 .Include(d => d.Servicio)

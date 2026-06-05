@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Application.DTOs;
@@ -27,11 +28,11 @@ namespace BarberiaApi.Controllers
         [HttpGet]
         public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
+            PaginationHelper.Sanitize(ref page, ref pageSize);
             var baseQ = _context.RolesModulos
                 .Include(rm => rm.Rol)
                 .Include(rm => rm.Modulo)
+                .AsNoTracking()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -50,11 +51,11 @@ namespace BarberiaApi.Controllers
         [HttpGet("role/{rolId}")]
         public async Task<ActionResult<object>> GetByRole(int rolId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
-            if (page < 1) page = 1;
-            if (pageSize < 1) pageSize = 5;
+            PaginationHelper.Sanitize(ref page, ref pageSize);
             var baseQ = _context.RolesModulos
                 .Include(rm => rm.Modulo)
                 .Where(rm => rm.RolId == rolId)
+                .AsNoTracking()
                 .AsQueryable();
             if (!string.IsNullOrWhiteSpace(q))
             {
