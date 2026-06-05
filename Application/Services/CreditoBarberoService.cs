@@ -122,7 +122,7 @@ public class CreditoBarberoService : ICreditoBarberoService
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
-        PaginationHelper.Sanitize(ref page, ref pageSize, maxPageSize: 200);
+        PaginationHelper.Sanitize(ref page, ref pageSize);
 
         var baseQ = _context.CreditosBarbero
             .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
