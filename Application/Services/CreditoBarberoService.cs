@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -13,15 +14,18 @@ public class CreditoBarberoService : ICreditoBarberoService
     private readonly BarberiaContext _context;
     private readonly INotificacionCreditoService _notificaciones;
     private readonly ILogger<CreditoBarberoService> _logger;
+    private readonly IDateTimeProvider _dt;
 
     public CreditoBarberoService(
         BarberiaContext context,
         INotificacionCreditoService notificaciones,
-        ILogger<CreditoBarberoService> logger)
+        ILogger<CreditoBarberoService> logger,
+        IDateTimeProvider dt)
     {
         _context = context;
         _notificaciones = notificaciones;
         _logger = logger;
+        _dt = dt;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -32,9 +36,8 @@ public class CreditoBarberoService : ICreditoBarberoService
     /// Recalcula el estado del crédito según las reglas de negocio.
     /// Retorna true si el estado cambió.
     /// </summary>
-    private static bool RecalcularEstado(CreditoBarbero c)
+    private static bool RecalcularEstado(CreditoBarbero c, DateTime ahora)
     {
-        var ahora = DateTime.UtcNow.AddHours(-5);
         var plazoVencido   = ahora > c.FechaVencimiento && c.SaldoPendiente > 0;
         var superaMitad    = c.SaldoPendiente > c.LimiteCredito / 2;  // > $100.000
         var vencidoYBloqueable = plazoVencido && superaMitad;          // vencido Y debe más de la mitad
@@ -173,9 +176,9 @@ public class CreditoBarberoService : ICreditoBarberoService
                 CupoDisponible = 200000,
                 Estado = "Sin crédito",
                 PlazoDias = 7,
-                FechaCreacion = DateTime.UtcNow.AddHours(-5),
-                FechaInicio = DateTime.UtcNow.AddHours(-5),
-                FechaVencimiento = DateTime.UtcNow.AddHours(-5).AddDays(7)
+                FechaCreacion = _dt.NowColombia,
+                FechaInicio = _dt.NowColombia,
+                FechaVencimiento = _dt.NowColombia.AddDays(7)
             });
         }
 
@@ -306,7 +309,7 @@ public class CreditoBarberoService : ICreditoBarberoService
 
         if (credito == null)
         {
-            var ahora = DateTime.UtcNow.AddHours(-5);
+            var ahora = _dt.NowColombia;
             credito = new CreditoBarbero
             {
                 BarberoId = barberoId,
@@ -367,10 +370,10 @@ public class CreditoBarberoService : ICreditoBarberoService
         var montoAplicable = input.Monto;
         credito.SaldoPendiente -= montoAplicable;
 
-        RecalcularEstado(credito);
+        RecalcularEstado(credito, _dt.NowColombia);
 
         if (credito.Estado == "Pagado" && credito.FechaCierre == null)
-            credito.FechaCierre = DateTime.UtcNow.AddHours(-5);
+            credito.FechaCierre = _dt.NowColombia;
 
         var abono = new AbonoCreditoBarbero
         {
@@ -379,7 +382,7 @@ public class CreditoBarberoService : ICreditoBarberoService
             VentaId = input.VentaId,
             Monto = montoAplicable,
             MetodoPago = input.MetodoPago ?? "Efectivo",
-            Fecha = DateTime.UtcNow.AddHours(-5),
+            Fecha = _dt.NowColombia,
             Notas = input.Notas,
             Estado = "Completado"
         };
@@ -391,7 +394,7 @@ public class CreditoBarberoService : ICreditoBarberoService
                 CreditoBarberoId = credito.Id,
                 EstadoAnterior = estadoAnterior,
                 EstadoNuevo = credito.Estado,
-                FechaCambio = DateTime.UtcNow.AddHours(-5),
+                FechaCambio = _dt.NowColombia,
                 ResponsableId = input.UsuarioId,
                 Observacion = $"Abono de {montoAplicable:C} registrado"
             });
@@ -428,7 +431,7 @@ public class CreditoBarberoService : ICreditoBarberoService
         if (credito.Estado == "Pagado")
             return ServiceResult<object>.Fail("El crédito ya está pagado; no se puede extender");
 
-        var ahora = DateTime.UtcNow.AddHours(-5);
+        var ahora = _dt.NowColombia;
         if (ahora <= credito.FechaVencimiento)
             return ServiceResult<object>.Fail("El plazo del ciclo aún no ha vencido; no es necesario extender");
 
@@ -440,14 +443,14 @@ public class CreditoBarberoService : ICreditoBarberoService
         credito.FechaVencimiento = ahora.AddDays(7);
         credito.ExtensionUsada = true;
 
-        RecalcularEstado(credito);
+        RecalcularEstado(credito, _dt.NowColombia);
 
         _context.HistorialEstadoCredito.Add(new HistorialEstadoCredito
         {
             CreditoBarberoId = credito.Id,
             EstadoAnterior = estadoAnterior,
             EstadoNuevo = credito.Estado,
-            FechaCambio = DateTime.UtcNow.AddHours(-5),
+            FechaCambio = _dt.NowColombia,
             ResponsableId = input.UsuarioId,
             Observacion = $"Plazo extendido +7 días desde hoy. Nueva fecha vencimiento: {credito.FechaVencimiento:dd/MM/yyyy}"
         });
@@ -490,7 +493,7 @@ public class CreditoBarberoService : ICreditoBarberoService
         if (cicloVigente)
             return ServiceResult<object>.Fail("El barbero ya tiene un ciclo de crédito activo o bloqueado. Ciérrelo antes de abrir uno nuevo");
 
-        var ahora = DateTime.UtcNow.AddHours(-5);
+        var ahora = _dt.NowColombia;
         var limite = input.LimiteCredito ?? 200000m;
 
         var nuevoCiclo = new CreditoBarbero
@@ -539,7 +542,7 @@ public class CreditoBarberoService : ICreditoBarberoService
 
     public async Task RecalcularEstadosVencidosAsync(CancellationToken ct = default)
     {
-        var ahora = DateTime.UtcNow.AddHours(-5);
+        var ahora = _dt.NowColombia;
 
         // Traer todos los créditos que no están pagados y tienen saldo
         var creditos = await _context.CreditosBarbero
@@ -550,7 +553,7 @@ public class CreditoBarberoService : ICreditoBarberoService
         var cambiados = new List<CreditoBarbero>();
         foreach (var c in creditos)
         {
-            var cambio = RecalcularEstado(c);
+            var cambio = RecalcularEstado(c, ahora);
             if (cambio) cambiados.Add(c);
         }
 

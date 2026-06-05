@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -10,10 +11,12 @@ namespace BarberiaApi.Application.Services;
 public class DevolucionService : IDevolucionService
 {
     private readonly BarberiaContext _context;
+    private readonly IDateTimeProvider _dt;
 
-    public DevolucionService(BarberiaContext context)
+    public DevolucionService(BarberiaContext context, IDateTimeProvider dt)
     {
         _context = context;
+        _dt = dt;
     }
 
     private static bool IsErrorCompra(string? categoria, string? detalle)
@@ -93,9 +96,9 @@ public class DevolucionService : IDevolucionService
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return ServiceResult<object>.Fail($"Error al obtener devoluciones: {ex.Message} | {ex.InnerException?.Message}", 500);
+            return ServiceResult<object>.Fail("Error al obtener devoluciones.", 500);
         }
     }
 
@@ -146,9 +149,9 @@ public class DevolucionService : IDevolucionService
             if (venta == null)
                 return ServiceResult<object>.Fail("La venta no existe");
 
-            var fechaVenta = venta.Fecha ?? DateTime.Now;
+            var fechaVenta = venta.Fecha ?? _dt.NowColombia;
             var exp = fechaVenta.AddDays(15);
-            if (DateTime.Now > exp)
+            if (_dt.NowColombia > exp)
                 return ServiceResult<object>.Fail("Garantía expirada para esta venta");
 
             var vendido = await _context.DetalleVentas
@@ -180,7 +183,7 @@ public class DevolucionService : IDevolucionService
                 Observaciones = input.Observaciones,
                 MontoDevuelto = input.MontoDevuelto,
                 SaldoAFavor = input.SaldoAFavor,
-                Fecha = DateTime.Now,
+                Fecha = _dt.NowColombia,
                 Estado = "Activo"
             };
 
@@ -199,10 +202,10 @@ public class DevolucionService : IDevolucionService
 
             return ServiceResult<object>.Ok(devolucion);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync();
-            return ServiceResult<object>.Fail($"Error interno: {ex.Message}", 500);
+            return ServiceResult<object>.Fail("Error al procesar la devolución.", 500);
         }
     }
 
@@ -223,9 +226,9 @@ public class DevolucionService : IDevolucionService
             if (clienteId == null && barberoId == null)
                 return ServiceResult<object>.Fail("La venta debe estar asociada a un cliente o un barbero");
 
-            var fechaVenta = venta.Fecha ?? DateTime.Now;
+            var fechaVenta = venta.Fecha ?? _dt.NowColombia;
             var exp = fechaVenta.AddDays(15);
-            if (DateTime.Now > exp) return ServiceResult<object>.Fail("Garantía expirada para esta venta");
+            if (_dt.NowColombia > exp) return ServiceResult<object>.Fail("Garantía expirada para esta venta");
 
             bool esErrorCompraBatch = IsErrorCompra(input.MotivoCategoria, input.Observaciones);
 
@@ -284,7 +287,7 @@ public class DevolucionService : IDevolucionService
                     Observaciones = input.Observaciones,
                     MontoDevuelto = it.MontoDevuelto,
                     SaldoAFavor = esVentaBarberoCredito ? 0 : it.MontoDevuelto,
-                    Fecha = DateTime.Now,
+                    Fecha = _dt.NowColombia,
                     Estado = "Activo"
                 };
 
@@ -307,7 +310,7 @@ public class DevolucionService : IDevolucionService
                 {
                     credito.SaldoPendiente = Math.Max(0, credito.SaldoPendiente - totalMontoDevueltoCreditoBarbero);
                     if (credito.SaldoPendiente == 0)
-                        credito.FechaCierre = DateTime.UtcNow.AddHours(-5);
+                        credito.FechaCierre = _dt.NowColombia;
                 }
             }
 
@@ -315,10 +318,10 @@ public class DevolucionService : IDevolucionService
             await tx.CommitAsync();
             return ServiceResult<object>.Ok(new { exitoso = true });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await tx.RollbackAsync();
-            return ServiceResult<object>.Fail(ex.Message, 500);
+            return ServiceResult<object>.Fail("Error al procesar la devolución en lote.", 500);
         }
     }
 
@@ -383,9 +386,9 @@ public class DevolucionService : IDevolucionService
                 estadoAnterior = estadoAnterior
             });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return ServiceResult<object>.Fail($"Error interno al cambiar estado: {ex.Message}", 500);
+            return ServiceResult<object>.Fail("Error al cambiar el estado de la devolución.", 500);
         }
     }
 

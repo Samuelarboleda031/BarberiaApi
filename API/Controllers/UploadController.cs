@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +11,7 @@ namespace BarberiaApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-
+    [Authorize]
     // ============================================
     // CARGAR IMAGENES
     // ============================================
@@ -59,6 +60,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("health")]
+        [AllowAnonymous]
         public IActionResult Health()
         {
             bool configured = !string.IsNullOrWhiteSpace(_cloudinarySettings.CloudName)

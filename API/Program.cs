@@ -114,9 +114,13 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
         });
 }
 
-// Authorization Policies
+// Authorization Policies — FallbackPolicy exige auth en todo endpoint no marcado con [AllowAnonymous]
 builder.Services.AddAuthorization(options =>
 {
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+
     options.AddPolicy("ActivePasswordOnly", policy =>
     {
         policy.RequireAuthenticatedUser();
@@ -210,13 +214,13 @@ var httpsRedirect = builder.Configuration.GetValue<bool>("Https:Redirect", true)
 if (httpsRedirect)
     app.UseHttpsRedirection();
 
+app.UseMiddleware<ExceptionMiddleware>();
 app.UseCors("AllowFrontend");
 app.UseResponseCompression();
 app.UseOutputCache();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseMiddleware<ExceptionMiddleware>();
 app.MapControllers();
 
 app.MapMethods("/health", new[] { "GET", "HEAD" }, () => Results.Ok(new { status = "ok" }));

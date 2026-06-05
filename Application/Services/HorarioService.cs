@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -13,11 +14,13 @@ public class HorarioService : IHorarioService
 {
     private readonly BarberiaContext _context;
     private readonly INotificacionCitasService _notificacionCitasService;
+    private readonly IDateTimeProvider _dt;
 
-    public HorarioService(BarberiaContext context, INotificacionCitasService notificacionCitasService)
+    public HorarioService(BarberiaContext context, INotificacionCitasService notificacionCitasService, IDateTimeProvider dt)
     {
         _context = context;
         _notificacionCitasService = notificacionCitasService;
+        _dt = dt;
     }
 
     private static int DiaSemanaDominicalANumerico(DayOfWeek dayOfWeek)
@@ -127,7 +130,7 @@ public class HorarioService : IHorarioService
 
             while (inicioSlot <= limiteSlot && sugerencias.Count < cantidadSugerencias)
             {
-                if (inicioSlot > DateTime.Now)
+                if (inicioSlot > _dt.NowColombia)
                 {
                     var finSlot = inicioSlot.AddMinutes(duracionMinutos);
                     var hayTraslape = agendamientosDia.Any(a =>

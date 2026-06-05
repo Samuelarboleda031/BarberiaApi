@@ -62,7 +62,7 @@ public class PaqueteService : IPaqueteService
             var resultado = await _context.Paquetes.Include(p => p.DetallePaquetes).ThenInclude(d => d.Servicio).FirstOrDefaultAsync(p => p.Id == paquete.Id);
             return ServiceResult<object>.Ok(resultado!);
         }
-        catch (Exception ex) { await transaction.RollbackAsync(); return ServiceResult<object>.Fail($"Error interno: {ex.Message}", 500); }
+        catch (Exception) { await transaction.RollbackAsync(); return ServiceResult<object>.Fail("Error al crear el paquete.", 500); }
     }
 
     public async Task<ServiceResult<object>> UpdateAsync(int id, Paquete paquete)
@@ -94,7 +94,7 @@ public class PaqueteService : IPaqueteService
             var resultado = await _context.Paquetes.Include(p => p.DetallePaquetes).ThenInclude(d => d.Servicio).FirstOrDefaultAsync(p => p.Id == id);
             return ServiceResult<object>.Ok(resultado!);
         }
-        catch (Exception ex) { await tx.RollbackAsync(); return ServiceResult<object>.Fail($"Error interno: {ex.Message}", 500); }
+        catch (Exception) { await tx.RollbackAsync(); return ServiceResult<object>.Fail("Error al actualizar los detalles del paquete.", 500); }
     }
 
     public async Task<ServiceResult<object>> CambiarEstadoAsync(int id, CambioEstadoBooleanInput input)

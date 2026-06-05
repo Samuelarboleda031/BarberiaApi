@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Infrastructure.Data;
@@ -11,11 +12,13 @@ public class ImageService : IImageService
 {
     private readonly BarberiaContext _context;
     private readonly IPhotoService _photoService;
+    private readonly IDateTimeProvider _dt;
 
-    public ImageService(BarberiaContext context, IPhotoService photoService)
+    public ImageService(BarberiaContext context, IPhotoService photoService, IDateTimeProvider dt)
     {
         _context = context;
         _photoService = photoService;
+        _dt = dt;
     }
 
     public async Task<ServiceResult<object>> SubirImagenAsync(IFormFile imagen, int? productoId, int? usuarioId)
@@ -38,7 +41,7 @@ public class ImageService : IImageService
         {
             var usuario = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == usuarioId.Value);
             if (usuario == null) return ServiceResult<object>.NotFound($"Usuario {usuarioId.Value} no encontrado");
-            usuario.FotoPerfil = url; usuario.FechaModificacion = DateTime.Now; await _context.SaveChangesAsync();
+            usuario.FotoPerfil = url; usuario.FechaModificacion = _dt.NowColombia; await _context.SaveChangesAsync();
         }
         return ServiceResult<object>.Ok(new { url, publicId = result.PublicId, productoId, usuarioId });
     }
@@ -63,7 +66,7 @@ public class ImageService : IImageService
         if (string.IsNullOrWhiteSpace(url)) return ServiceResult<object>.Ok(new { eliminado = false, mensaje = "El usuario no tiene foto" });
         string? publicId = borrarCloud ? ExtraerPublicIdDesdeUrl(url) : null;
         if (borrarCloud && !string.IsNullOrWhiteSpace(publicId)) await _photoService.DeletePhotoAsync(publicId);
-        usuario.FotoPerfil = null; usuario.FechaModificacion = DateTime.Now; await _context.SaveChangesAsync();
+        usuario.FotoPerfil = null; usuario.FechaModificacion = _dt.NowColombia; await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(new { eliminado = true, publicId });
     }
 
@@ -129,7 +132,7 @@ public class ImageService : IImageService
         if (res.Error != null) return ServiceResult<object>.Fail(res.Error.Message);
         var url = res.SecureUrl?.ToString();
         if (string.IsNullOrWhiteSpace(url)) return ServiceResult<object>.Fail("Error al subir");
-        usuario.FotoPerfil = url; usuario.FechaModificacion = DateTime.Now; await _context.SaveChangesAsync();
+        usuario.FotoPerfil = url; usuario.FechaModificacion = _dt.NowColombia; await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(new { url, publicId = res.PublicId });
     }
 
@@ -141,7 +144,7 @@ public class ImageService : IImageService
         if (string.IsNullOrWhiteSpace(url)) return ServiceResult<object>.Ok(new { eliminado = false });
         string publicId = borrarCloud ? ExtraerPublicIdDesdeUrl(url) ?? "" : "";
         if (borrarCloud && !string.IsNullOrWhiteSpace(publicId)) await _photoService.DeletePhotoAsync(publicId);
-        usuario.FotoPerfil = null; usuario.FechaModificacion = DateTime.Now; await _context.SaveChangesAsync();
+        usuario.FotoPerfil = null; usuario.FechaModificacion = _dt.NowColombia; await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(new { eliminado = true, publicId });
     }
 

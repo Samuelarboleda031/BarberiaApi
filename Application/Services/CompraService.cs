@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -12,11 +13,13 @@ public class CompraService : ICompraService
 {
     private readonly BarberiaContext _context;
     private readonly IMapper _mapper;
+    private readonly IDateTimeProvider _dt;
 
-    public CompraService(BarberiaContext context, IMapper mapper)
+    public CompraService(BarberiaContext context, IMapper mapper, IDateTimeProvider dt)
     {
         _context = context;
         _mapper = mapper;
+        _dt = dt;
     }
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? searchTerm)
@@ -88,8 +91,8 @@ public class CompraService : ICompraService
                 UsuarioId = input.UsuarioId,
                 NumeroFactura = input.NumeroFactura,
                 NumeroRecibo = input.NumeroRecibo,
-                FechaFactura = input.FechaFactura.HasValue ? DateOnly.FromDateTime(input.FechaFactura.Value) : DateOnly.FromDateTime(DateTime.UtcNow.AddHours(-5)),
-                FechaRegistro = DateTime.UtcNow.AddHours(-5),
+                FechaFactura = input.FechaFactura.HasValue ? DateOnly.FromDateTime(input.FechaFactura.Value) : DateOnly.FromDateTime(_dt.NowColombia),
+                FechaRegistro = _dt.NowColombia,
                 MetodoPago = input.MetodoPago,
                 IVA = input.IVA ?? 0,
                 Descuento = input.Descuento ?? 0,
@@ -116,10 +119,10 @@ public class CompraService : ICompraService
                 {
                     ProductoId = detInput.ProductoId,
                     Cantidad = detInput.Cantidad,
-                    PrecioUnitario = detInput.PrecioUnitario,
-                    Subtotal = detInput.Cantidad * detInput.PrecioUnitario
+                    PrecioUnitario = detInput.PrecioUnitario
+                    // Subtotal es columna computada en BD: ([Cantidad]*[PrecioUnitario]) — no asignar
                 };
-                subtotal += detalle.Subtotal;
+                subtotal += detInput.Cantidad * detInput.PrecioUnitario;
 
                 producto.Stock += detInput.Cantidad;
                 producto.PrecioCompra = detInput.PrecioUnitario;
@@ -136,10 +139,10 @@ public class CompraService : ICompraService
 
             return ServiceResult<object>.Ok(compra);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync();
-            return ServiceResult<object>.Fail($"Error interno: {ex.InnerException?.Message ?? ex.Message}", 500);
+            return ServiceResult<object>.Fail("Error al crear la compra. Intenta de nuevo.", 500);
         }
     }
 
@@ -152,31 +155,41 @@ public class CompraService : ICompraService
         if (compra == null) return ServiceResult<object>.NotFound();
         if (compra.Estado == "Anulada") return ServiceResult<object>.Fail("La compra ya esta anulada");
 
-        using var transaction = await _context.Database.BeginTransactionAsync();
-
-        compra.Estado = "Anulada";
-
-        var anularProductIds = compra.DetalleCompras.Select(d => d.ProductoId).Distinct().ToList();
-        var anularProductos = await _context.Productos.Where(p => anularProductIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
-
-        foreach (var detalle in compra.DetalleCompras)
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
         {
-            if (!anularProductos.TryGetValue(detalle.ProductoId, out var productoVal)) continue;
-            if (productoVal.Stock < detalle.Cantidad)
+            // 1. Cargar productos antes de mutar cualquier estado
+            var anularProductIds = compra.DetalleCompras.Select(d => d.ProductoId).Distinct().ToList();
+            var anularProductos = await _context.Productos
+                .Where(p => anularProductIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id);
+
+            // 2. Validar ANTES de cambiar el estado
+            foreach (var detalle in compra.DetalleCompras)
             {
-                await transaction.RollbackAsync();
-                return ServiceResult<object>.Fail($"No se puede anular la compra: el producto '{productoVal.Nombre}' ya tiene stock consumido.");
+                if (!anularProductos.TryGetValue(detalle.ProductoId, out var productoVal)) continue;
+                if (productoVal.Stock < detalle.Cantidad)
+                    return ServiceResult<object>.Fail(
+                        $"No se puede anular la compra: el producto '{productoVal.Nombre}' ya tiene stock consumido.");
             }
-        }
 
-        foreach (var detalle in compra.DetalleCompras)
+            // 3. Mutar estado solo después de que todo es válido
+            compra.Estado = "Anulada";
+
+            foreach (var detalle in compra.DetalleCompras)
+            {
+                if (!anularProductos.TryGetValue(detalle.ProductoId, out var producto)) continue;
+                producto.Stock -= detalle.Cantidad;
+            }
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return ServiceResult<object>.Ok(new { message = "Compra anulada exitosamente" });
+        }
+        catch (Exception)
         {
-            if (!anularProductos.TryGetValue(detalle.ProductoId, out var producto)) continue;
-            producto.Stock -= detalle.Cantidad;
+            await transaction.RollbackAsync();
+            return ServiceResult<object>.Fail($"Error al anular la compra. Intenta de nuevo.", 500);
         }
-
-        await _context.SaveChangesAsync();
-        await transaction.CommitAsync();
-        return ServiceResult<object>.Ok(new { message = "Compra anulada exitosamente" });
     }
 }

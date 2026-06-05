@@ -1,12 +1,14 @@
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BarberiaApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class ServiciosController : ControllerBase
     {
         private readonly IServicioService _servicioService;
@@ -46,6 +48,7 @@ namespace BarberiaApi.Controllers
         { var r = await _servicioService.CambiarEstadoAsync(id, input); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error); }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin,admin,super_admin")]
         public async Task<IActionResult> Delete(int id)
         { var r = await _servicioService.DeleteAsync(id); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }
     }

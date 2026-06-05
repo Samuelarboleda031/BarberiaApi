@@ -1,10 +1,12 @@
 using BarberiaApi.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BarberiaApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class ImagesController : ControllerBase
     {
         private readonly IImageService _imageService;

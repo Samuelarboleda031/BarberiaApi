@@ -1,11 +1,13 @@
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BarberiaApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "Admin,admin,super_admin")]
     public class ModulosController : ControllerBase
     {
         private readonly IModuloService _moduloService;

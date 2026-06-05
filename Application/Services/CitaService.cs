@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -9,10 +10,12 @@ namespace BarberiaApi.Application.Services;
 public class CitaService : ICitaService
 {
     private readonly BarberiaContext _context;
+    private readonly IDateTimeProvider _dt;
 
-    public CitaService(BarberiaContext context)
+    public CitaService(BarberiaContext context, IDateTimeProvider dt)
     {
         _context = context;
+        _dt = dt;
     }
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
@@ -122,7 +125,7 @@ public class CitaService : ICitaService
                     Contrasena = "temp123",
                     RolId = 3,
                     Estado = true,
-                    FechaCreacion = DateTime.Now
+                    FechaCreacion = _dt.NowColombia
                 };
                 _context.Usuarios.Add(nuevoUsuario);
                 await _context.SaveChangesAsync();
@@ -132,7 +135,7 @@ public class CitaService : ICitaService
                     UsuarioId = nuevoUsuario.Id,
                     Telefono = input.telefono,
                     Estado = true,
-                    FechaRegistro = DateTime.Now
+                    FechaRegistro = _dt.NowColombia
                 };
                 _context.Clientes.Add(cliente);
                 await _context.SaveChangesAsync();

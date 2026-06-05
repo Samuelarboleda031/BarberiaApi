@@ -1,11 +1,13 @@
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BarberiaApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class SolicitudesCambioHorarioController : ControllerBase
     {
         private readonly ISolicitudCambioHorarioService _service;

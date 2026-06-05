@@ -1,5 +1,6 @@
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 
@@ -7,6 +8,7 @@ namespace BarberiaApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class ComprasController : ControllerBase
     {
         private readonly ICompraService _compraService;
@@ -42,6 +44,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpPost("{id}/anular")]
+        [Authorize(Roles = "Admin,admin,super_admin")]
         public async Task<ActionResult> Anular(int id)
         {
             var result = await _compraService.AnularAsync(id);

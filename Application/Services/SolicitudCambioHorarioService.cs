@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -9,10 +10,12 @@ namespace BarberiaApi.Application.Services;
 public class SolicitudCambioHorarioService : ISolicitudCambioHorarioService
 {
     private readonly BarberiaContext _context;
+    private readonly IDateTimeProvider _dt;
 
-    public SolicitudCambioHorarioService(BarberiaContext context)
+    public SolicitudCambioHorarioService(BarberiaContext context, IDateTimeProvider dt)
     {
         _context = context;
+        _dt = dt;
     }
 
     public async Task<ServiceResult<object>> GetAllAsync(string? estado, int? barberoId, int page, int pageSize)
@@ -125,7 +128,7 @@ public class SolicitudCambioHorarioService : ISolicitudCambioHorarioService
             MotivoDetalle = input.MotivoDetalle,
             FechaReferencia = input.FechaReferencia,
             Estado = "Pendiente",
-            FechaCreacion = DateTime.Now,
+            FechaCreacion = _dt.NowColombia,
             Sugerencias = input.Sugerencias.Select(s => new SugerenciaCambioHorario
             {
                 DiaSugerido = s.DiaSugerido,
@@ -150,7 +153,7 @@ public class SolicitudCambioHorarioService : ISolicitudCambioHorarioService
             return ServiceResult<object>.Fail($"No se puede aprobar una solicitud en estado '{solicitud.Estado}'", 409);
 
         solicitud.Estado = "Aprobada";
-        solicitud.FechaResolucion = DateTime.Now;
+        solicitud.FechaResolucion = _dt.NowColombia;
         solicitud.UsuarioResolucionId = usuarioId;
 
         // Aplicar las sugerencias al horario del barbero
@@ -242,7 +245,7 @@ public class SolicitudCambioHorarioService : ISolicitudCambioHorarioService
         else
         {
             solicitud.Estado = "Rechazada";
-            solicitud.FechaResolucion = DateTime.Now;
+            solicitud.FechaResolucion = _dt.NowColombia;
         }
 
         await _context.SaveChangesAsync();
@@ -261,7 +264,7 @@ public class SolicitudCambioHorarioService : ISolicitudCambioHorarioService
         if (input.Acepta)
         {
             solicitud.Estado = "Aprobada";
-            solicitud.FechaResolucion = DateTime.Now;
+            solicitud.FechaResolucion = _dt.NowColombia;
 
             // Aplicar sugerencias del admin al horario
             var sugerenciasAdmin = solicitud.Sugerencias.Where(s => s.Origen == "Admin").ToList();
@@ -314,7 +317,7 @@ public class SolicitudCambioHorarioService : ISolicitudCambioHorarioService
         else
         {
             solicitud.Estado = "Rechazada";
-            solicitud.FechaResolucion = DateTime.Now;
+            solicitud.FechaResolucion = _dt.NowColombia;
             if (!string.IsNullOrWhiteSpace(input.Observacion))
                 solicitud.ObservacionAdmin = (solicitud.ObservacionAdmin ?? "") + " | Barbero rechazó: " + input.Observacion;
         }

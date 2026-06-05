@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -12,11 +13,13 @@ public class BarberoService : IBarberoService
 {
     private readonly BarberiaContext _context;
     private readonly IMapper _mapper;
+    private readonly IDateTimeProvider _dt;
 
-    public BarberoService(BarberiaContext context, IMapper mapper)
+    public BarberoService(BarberiaContext context, IMapper mapper, IDateTimeProvider dt)
     {
         _context = context;
         _mapper = mapper;
+        _dt = dt;
     }
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
@@ -94,7 +97,7 @@ public class BarberoService : IBarberoService
         {
             UsuarioId = input.UsuarioId, Telefono = input.Telefono, Direccion = input.Direccion,
             Barrio = input.Barrio, FechaNacimiento = input.FechaNacimiento,
-            Especialidad = input.Especialidad ?? "General", Estado = input.Estado, FechaContratacion = DateTime.Now
+            Especialidad = input.Especialidad ?? "General", Estado = input.Estado, FechaContratacion = _dt.NowColombia
         };
         _context.Barberos.Add(barbero);
         await _context.SaveChangesAsync();

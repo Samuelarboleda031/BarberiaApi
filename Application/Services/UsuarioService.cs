@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -15,12 +16,14 @@ public class UsuarioService : IUsuarioService
     private readonly BarberiaContext _context;
     private readonly IPhotoService _photoService;
     private readonly IMapper _mapper;
+    private readonly IDateTimeProvider _dt;
 
-    public UsuarioService(BarberiaContext context, IPhotoService photoService, IMapper mapper)
+    public UsuarioService(BarberiaContext context, IPhotoService photoService, IMapper mapper, IDateTimeProvider dt)
     {
         _context = context;
         _photoService = photoService;
         _mapper = mapper;
+        _dt = dt;
     }
 
     public async Task<ServiceResult<object>> AnalisisAsync(int page, int pageSize)
@@ -179,7 +182,7 @@ public class UsuarioService : IUsuarioService
                 Documento = input.Documento,
                 FotoPerfil = input.FotoPerfil,
                 Estado = input.Estado,
-                FechaCreacion = DateTime.Now
+                FechaCreacion = _dt.NowColombia
             };
 
             _context.Usuarios.Add(usuario);
@@ -195,7 +198,7 @@ public class UsuarioService : IUsuarioService
                     Barrio = input.Barrio,
                     FechaNacimiento = input.FechaNacimiento,
                     Estado = true,
-                    FechaRegistro = DateTime.Now
+                    FechaRegistro = _dt.NowColombia
                 };
                 _context.Clientes.Add(cliente);
             }
@@ -210,7 +213,7 @@ public class UsuarioService : IUsuarioService
                     FechaNacimiento = input.FechaNacimiento,
                     Especialidad = "General",
                     Estado = true,
-                    FechaContratacion = DateTime.Now
+                    FechaContratacion = _dt.NowColombia
                 };
                 _context.Barberos.Add(barbero);
             }
@@ -220,10 +223,10 @@ public class UsuarioService : IUsuarioService
 
             return ServiceResult<object>.Ok(await MapToDto(usuario.Id));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync();
-            return ServiceResult<object>.Fail($"Error interno: {ex.Message}", 500);
+            return ServiceResult<object>.Fail("Error al crear el usuario.", 500);
         }
     }
 
@@ -258,7 +261,7 @@ public class UsuarioService : IUsuarioService
             usuarioExistente.Documento = input.Documento;
             usuarioExistente.FotoPerfil = input.FotoPerfil;
             usuarioExistente.Estado = input.Estado;
-            usuarioExistente.FechaModificacion = DateTime.Now;
+            usuarioExistente.FechaModificacion = _dt.NowColombia;
 
             if (input.RolId == 3) // Cliente
             {
@@ -285,10 +288,10 @@ public class UsuarioService : IUsuarioService
             await transaction.CommitAsync();
             return ServiceResult<object>.Ok(new { success = true });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync();
-            return ServiceResult<object>.Fail($"Error al actualizar: {ex.Message}", 500);
+            return ServiceResult<object>.Fail("Error al actualizar el usuario.", 500);
         }
     }
 
@@ -336,7 +339,7 @@ public class UsuarioService : IUsuarioService
             usuario.TipoDocumento = null;
             usuario.FotoPerfil = null;
             usuario.Estado = false;
-            usuario.FechaModificacion = DateTime.Now;
+            usuario.FechaModificacion = _dt.NowColombia;
 
             if (usuario.Cliente != null)
             {

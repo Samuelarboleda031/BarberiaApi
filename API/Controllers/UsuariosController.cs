@@ -11,6 +11,7 @@ namespace BarberiaApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class UsuariosController : ControllerBase
     {
         private readonly IUsuarioService _usuarioService;
@@ -49,6 +50,7 @@ namespace BarberiaApi.Controllers
         { var r = await _imageService.EliminarFotoUsuarioAsync(id, borrarCloud); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error); }
 
         [HttpPost]
+        [AllowAnonymous] // Registro público
         public async Task<ActionResult> Create([FromBody] UsuarioInput input)
         { var r = await _usuarioService.CreateAsync(input); if (!r.Success) return StatusCode(r.StatusCode, r.Error); return CreatedAtAction(nameof(GetById), new { id = ((dynamic)r.Data!).Id }, r.Data); }
 
@@ -61,6 +63,7 @@ namespace BarberiaApi.Controllers
         { var r = await _usuarioService.CambiarEstadoAsync(id, input); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin,admin,super_admin")]
         public async Task<IActionResult> Delete(int id)
         { var r = await _usuarioService.DeleteAsync(id); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }
 

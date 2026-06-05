@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -13,12 +14,14 @@ public class AgendamientoService : IAgendamientoService
     private readonly BarberiaContext _context;
     private readonly INotificacionCitasService _notificacionService;
     private readonly IMapper _mapper;
+    private readonly IDateTimeProvider _dt;
 
-    public AgendamientoService(BarberiaContext context, INotificacionCitasService notificacionService, IMapper mapper)
+    public AgendamientoService(BarberiaContext context, INotificacionCitasService notificacionService, IMapper mapper, IDateTimeProvider dt)
     {
         _context = context;
         _notificacionService = notificacionService;
         _mapper = mapper;
+        _dt = dt;
     }
 
     private List<int> BuildServicioIds(AgendamientoInput input)
@@ -257,7 +260,7 @@ public class AgendamientoService : IAgendamientoService
 
         if (estaSemana == true)
         {
-            var now = DateTime.Now;
+            var now = _dt.NowColombia;
             int diff = (7 + (now.DayOfWeek - DayOfWeek.Monday)) % 7;
             var startOfWeek = now.AddDays(-1 * diff).Date;
             var endOfWeek = startOfWeek.AddDays(7);
@@ -363,7 +366,7 @@ public class AgendamientoService : IAgendamientoService
 
         if (estaSemana == true)
         {
-            var now = DateTime.Now;
+            var now = _dt.NowColombia;
             int diff = (7 + (now.DayOfWeek - DayOfWeek.Monday)) % 7;
             var startOfWeek = now.AddDays(-1 * diff).Date;
             var endOfWeek = startOfWeek.AddDays(7);
@@ -463,13 +466,28 @@ public class AgendamientoService : IAgendamientoService
         if (horaCita < horario.HoraInicio || horaFinCita > horario.HoraFin)
             return ServiceResult<object>.Fail($"La cita está fuera del horario de trabajo del barbero ({horario.HoraInicio:hh\\:mm} - {horario.HoraFin:hh\\:mm}).");
 
-        var horaFin = input.FechaHora.AddMinutes(duracionMinutos);
+        var horaFinNueva = input.FechaHora.AddMinutes(duracionMinutos);
 
-        var existeTraslape = await _context.Agendamientos.AnyAsync(a =>
-            a.BarberoId == input.BarberoId &&
-            a.FechaHora < horaFin &&
-            a.FechaHora.AddMinutes(duracionMinutos) > input.FechaHora &&
-            a.Estado != "Cancelada");
+        // Cargamos las citas existentes del barbero en ese día con su propia duración
+        // para verificar traslape usando el fin real de CADA cita existente.
+        var fechaDia = input.FechaHora.Date;
+        var citasDelDia = await _context.Agendamientos
+            .AsNoTracking()
+            .Where(a =>
+                a.BarberoId == input.BarberoId &&
+                a.FechaHora.Date == fechaDia &&
+                a.Estado != "Cancelada")
+            .Include(a => a.Servicio)
+            .ToListAsync();
+
+        var existeTraslape = citasDelDia.Any(a =>
+        {
+            // Duración real de la cita existente: la de su servicio o 30 min por defecto
+            var durExistente = a.Servicio?.DuracionMinutos ?? 30;
+            var finExistente = a.FechaHora.AddMinutes(durExistente);
+            // Dos intervalos [A,B) y [C,D) se solapan si A < D && C < B
+            return input.FechaHora < finExistente && a.FechaHora < horaFinNueva;
+        });
 
         if (existeTraslape)
             return ServiceResult<object>.Fail("El barbero ya tiene una cita programada en ese horario.");
@@ -659,7 +677,7 @@ public class AgendamientoService : IAgendamientoService
         // No permitir completar citas futuras
         if (string.Equals(input.estado, "Completada", StringComparison.OrdinalIgnoreCase))
         {
-            if (agendamiento.FechaHora > DateTime.Now)
+            if (agendamiento.FechaHora > _dt.NowColombia)
             {
                 return ServiceResult<object>.Fail("No se puede completar una cita que aún no ha ocurrido.");
             }
@@ -939,10 +957,10 @@ public class AgendamientoService : IAgendamientoService
 
             await tx.CommitAsync();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await tx.RollbackAsync();
-            return ServiceResult<object>.Fail($"Error al actualizar estado y generar venta: {ex.Message}", 500);
+            return ServiceResult<object>.Fail("Error al actualizar el estado del agendamiento.", 500);
         }
 
         return ServiceResult<object>.Ok(new
@@ -972,7 +990,7 @@ public class AgendamientoService : IAgendamientoService
             return ServiceResult<object>.Fail("La cita ya está completada.");
 
         // No permitir completar parcialmente citas futuras
-        if (cita.FechaHora > DateTime.Now)
+        if (cita.FechaHora > _dt.NowColombia)
         {
             return ServiceResult<object>.Fail("No se puede completar parcialmente una cita que aún no ha ocurrido.");
         }
@@ -1035,7 +1053,7 @@ public class AgendamientoService : IAgendamientoService
                 ClienteId = cita.ClienteId,
                 BarberoId = cita.BarberoId,
                 UsuarioId = usuarioId,
-                Fecha = DateTime.UtcNow.AddHours(-5),
+                Fecha = _dt.NowColombia,
                 Subtotal = subtotal,
                 IVA = iva,
                 Descuento = 0,
@@ -1116,17 +1134,17 @@ public class AgendamientoService : IAgendamientoService
                 Iva = iva
             });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await tx.RollbackAsync();
-            return ServiceResult<object>.Fail($"Error al completar parcialmente: {ex.Message}", 500);
+            return ServiceResult<object>.Fail("Error al completar parcialmente el agendamiento.", 500);
         }
     }
 
     public async Task<ServiceResult<object>> GetPorTerminarAsync()
     {
         // Ajuste de zona horaria: las citas se guardan en hora local (UTC-5)
-        var now = DateTime.UtcNow.AddHours(-5);
+        var now = _dt.NowColombia;
         int diff = (7 + (now.DayOfWeek - DayOfWeek.Monday)) % 7;
         var startOfWeek = now.AddDays(-diff).Date;
 

@@ -6,6 +6,7 @@ using BarberiaApi.Infrastructure.Jobs;
 using BarberiaApi.Jobs;
 using BarberiaApi.Domain.Interfaces;
 using BarberiaApi.Infrastructure.Repositories;
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Application.Services;
 
@@ -42,6 +43,9 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
+        // Proveedor de fecha/hora centralizado — elimina la mezcla de DateTime.Now y UtcNow.AddHours(-5)
+        services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+
         services.AddScoped<IVentaService, VentaService>();
         services.AddScoped<ICompraService, CompraService>();
         services.AddScoped<IAgendamientoService, AgendamientoService>();

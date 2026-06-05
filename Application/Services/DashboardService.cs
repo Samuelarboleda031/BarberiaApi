@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Infrastructure.Data;
@@ -8,13 +9,19 @@ namespace BarberiaApi.Application.Services;
 public class DashboardService : IDashboardService
 {
     private readonly BarberiaContext _context;
-    public DashboardService(BarberiaContext context) => _context = context;
+    private readonly IDateTimeProvider _dt;
+
+    public DashboardService(BarberiaContext context, IDateTimeProvider dt)
+    {
+        _context = context;
+        _dt = dt;
+    }
 
     public async Task<ServiceResult<object>> GetDashboardAsync()
     {
         var hoy = DateTime.Today;
         var desdeVentas = hoy.AddDays(-365);
-        var limiteAgendas = DateTime.Now.AddDays(-7);
+        var limiteAgendas = _dt.NowColombia.AddDays(-7);
 
         // Obtener solo las ventas de los últimos 30 días activas
         var ventasRecientes = await _context.Ventas.AsNoTracking().AsSplitQuery()
@@ -80,7 +87,7 @@ public class DashboardService : IDashboardService
 
     public async Task<ServiceResult<object>> GetGananciasAsync(string periodo, string barbero)
     {
-        var hoy = DateTime.Now.Date;
+        var hoy = _dt.NowColombia.Date;
         
         int dias = periodo.ToLower() switch
         {

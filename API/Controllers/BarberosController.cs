@@ -1,5 +1,6 @@
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 
@@ -7,6 +8,7 @@ namespace BarberiaApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class BarberosController : ControllerBase
     {
         private readonly IBarberoService _barberoService;
@@ -33,6 +35,7 @@ namespace BarberiaApi.Controllers
         { var r = await _barberoService.CambiarEstadoAsync(id, input); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error); }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin,admin,super_admin")]
         public async Task<IActionResult> Delete(int id)
         { var r = await _barberoService.DeleteAsync(id); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }
     }

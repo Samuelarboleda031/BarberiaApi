@@ -56,15 +56,13 @@ public class MappingProfile : Profile
 
         CreateMap<DetalleCompra, DetalleCompraInput>().ReverseMap();
 
-        CreateMap<DetalleCompra, DetalleCompraInput>().ReverseMap();
-
         // ==========================
         // PRODUCTOS
         // ==========================
         CreateMap<Producto, ProductoDto>()
-            .ForMember(dest => dest.CategoriaNombre, opt => opt.MapFrom(src => src.Categoria != null ? src.Categoria.Nombre : null));
-
-        CreateMap<Producto, ProductoDto>().ReverseMap();
+            .ForMember(dest => dest.CategoriaNombre, opt => opt.MapFrom(src => src.Categoria != null ? src.Categoria.Nombre : null))
+            .ReverseMap()
+            .ForMember(dest => dest.Categoria, opt => opt.Ignore());
 
         // ==========================
         // CLIENTES

@@ -1,5 +1,6 @@
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 
@@ -7,6 +8,7 @@ namespace BarberiaApi.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class AgendamientosController : ControllerBase
     {
         private readonly IAgendamientoService _agendamientoService;
@@ -82,6 +84,7 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin,admin,super_admin")]
         public async Task<IActionResult> Delete(int id)
         {
             var result = await _agendamientoService.DeleteAsync(id);

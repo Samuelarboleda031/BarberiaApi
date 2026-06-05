@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
@@ -17,22 +18,24 @@ public class VentaService : IVentaService
     private readonly IMapper _mapper;
     private readonly INotificacionCreditoService _notificaciones;
     private readonly ILogger<VentaService> _logger;
+    private readonly IDateTimeProvider _dt;
 
     public VentaService(
         BarberiaContext context,
         IMapper mapper,
         INotificacionCreditoService notificaciones,
-        ILogger<VentaService> logger)
+        ILogger<VentaService> logger,
+        IDateTimeProvider dt)
     {
         _context = context;
         _mapper = mapper;
         _notificaciones = notificaciones;
         _logger = logger;
+        _dt = dt;
     }
 
-    private static bool RecalcularEstadoCredito(CreditoBarbero c)
+    private static bool RecalcularEstadoCredito(CreditoBarbero c, DateTime ahora)
     {
-        var ahora = DateTime.UtcNow.AddHours(-5);
         var plazoVencido       = ahora > c.FechaVencimiento && c.SaldoPendiente > 0;
         var superaMitad        = c.SaldoPendiente > c.LimiteCredito / 2;
         var vencidoYBloqueable = plazoVencido && superaMitad;
@@ -98,9 +101,9 @@ public class VentaService : IVentaService
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return ServiceResult<object>.Fail($"Error al obtener ventas [Optimized]: {ex.Message} | {ex.InnerException?.Message}", 500);
+            return ServiceResult<object>.Fail("Error al obtener ventas.", 500);
         }
     }
 
@@ -116,9 +119,9 @@ public class VentaService : IVentaService
             if (venta == null) return ServiceResult<object>.NotFound();
             return ServiceResult<object>.Ok(venta);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return ServiceResult<object>.Fail($"Error al obtener detalle de venta: {ex.Message}", 500);
+            return ServiceResult<object>.Fail("Error al obtener el detalle de la venta.", 500);
         }
     }
 
@@ -144,9 +147,9 @@ public class VentaService : IVentaService
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return ServiceResult<object>.Fail($"Error al obtener ventas por cliente: {ex.Message}", 500);
+            return ServiceResult<object>.Fail("Error al obtener ventas del cliente.", 500);
         }
     }
 
@@ -254,7 +257,7 @@ public class VentaService : IVentaService
                 ClienteId = input.ClienteId,
                 BarberoId = input.BarberoId,
                 BarberoPrestadorId = input.BarberoPrestadorId,
-                Fecha = DateTime.UtcNow.AddHours(-5),
+                Fecha = _dt.NowColombia,
                 MetodoPago = input.MetodoPago ?? "Efectivo",
                 TipoVenta = input.TipoVenta ?? (input.ClienteId.HasValue ? "Venta Cliente" : "Venta Invitado"),
                 ClienteNombre = input.ClienteNombre,
@@ -280,9 +283,10 @@ public class VentaService : IVentaService
                     PaqueteId = detInput.PaqueteId,
                     Cantidad = detInput.Cantidad,
                     PrecioUnitario = detInput.PrecioUnitario
+                    // Subtotal es columna computada en BD: ([Cantidad]*[PrecioUnitario]) — no asignar
                 };
-                detalle.Subtotal = detalle.Cantidad * detalle.PrecioUnitario;
-                subtotal += detalle.Subtotal;
+                // Calcular localmente solo para el total de la venta; BD usará su propio cómputo
+                subtotal += detInput.Cantidad * detInput.PrecioUnitario;
 
                 if (detInput.ProductoId.HasValue)
                 {
@@ -333,11 +337,11 @@ public class VentaService : IVentaService
                             LimiteCredito = 200000,
                             SaldoPendiente = 0,
                             PlazoDias = plazo,
-                            FechaInicio = DateTime.UtcNow.AddHours(-5),
-                            FechaVencimiento = DateTime.UtcNow.AddHours(-5).AddDays(plazo),
+                            FechaInicio = _dt.NowColombia,
+                            FechaVencimiento = _dt.NowColombia.AddDays(plazo),
                             Estado = "Activo",
                             CreadoPor = input.UsuarioId,
-                            FechaCreacion = DateTime.UtcNow.AddHours(-5)
+                            FechaCreacion = _dt.NowColombia
                         };
                         _context.CreditosBarbero.Add(credito);
                         await _context.SaveChangesAsync();
@@ -355,7 +359,7 @@ public class VentaService : IVentaService
 
                     credito.SaldoPendiente = nuevaDeuda;
                     var estadoAnteriorVenta = credito.Estado;
-                    RecalcularEstadoCredito(credito);
+                    RecalcularEstadoCredito(credito, _dt.NowColombia);
                     if (credito.Estado != estadoAnteriorVenta && credito.Estado.StartsWith("Bloqueado"))
                         creditoBloquedoPorVenta = true;
 
@@ -390,32 +394,36 @@ public class VentaService : IVentaService
 
             _context.Ventas.Add(venta);
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
 
-            if (creditoBloquedoPorVenta)
+            // Capturar datos de notificación ANTES del commit, mientras el scope sigue vivo
+            (int BarberoId, string Nombre, string Correo, decimal Saldo, decimal Limite, string? Telefono)? notifData = null;
+            if (creditoBloquedoPorVenta && input.BarberoId.HasValue)
             {
                 var credConBarbero = await _context.CreditosBarbero
                     .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.BarberoId == input.BarberoId!.Value);
+                    .FirstOrDefaultAsync(c => c.BarberoId == input.BarberoId.Value);
 
                 if (credConBarbero?.Barbero?.Usuario is { } u)
+                    notifData = (credConBarbero.BarberoId, $"{u.Nombre} {u.Apellido}".Trim(),
+                        u.Correo ?? string.Empty, credConBarbero.SaldoPendiente,
+                        credConBarbero.LimiteCredito, credConBarbero.Barbero?.Telefono);
+            }
+
+            await transaction.CommitAsync();
+
+            // Enviar notificación después del commit, pero sin Task.Run — el scope sigue activo aquí
+            if (notifData.HasValue)
+            {
+                try
                 {
-                    var nombre = $"{u.Nombre} {u.Apellido}".Trim();
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await _notificaciones.NotificarCreditoBloqueadoAsync(
-                                credConBarbero.BarberoId, nombre, u.Correo,
-                                credConBarbero.SaldoPendiente, credConBarbero.LimiteCredito,
-                                telefono: credConBarbero.Barbero?.Telefono);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Error enviando notificación de crédito bloqueado (venta).");
-                        }
-                    });
+                    var n = notifData.Value;
+                    await _notificaciones.NotificarCreditoBloqueadoAsync(
+                        n.BarberoId, n.Nombre, n.Correo, n.Saldo, n.Limite, telefono: n.Telefono);
+                }
+                catch (Exception notifEx)
+                {
+                    _logger.LogWarning(notifEx, "Error enviando notificación de crédito bloqueado (venta).");
                 }
             }
 
@@ -430,16 +438,16 @@ public class VentaService : IVentaService
 
             return ServiceResult<object>.Ok(ventaCompleta!);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync();
-            return ServiceResult<object>.Fail($"Error interno: {ex.Message}", 500);
+            return ServiceResult<object>.Fail("Error interno al procesar la venta.", 500);
         }
     }
 
     private async Task<string> GenerarNumeroReciboAsync()
     {
-        var year = DateTime.UtcNow.AddHours(-5).Year;
+        var year = _dt.NowColombia.Year;
         var prefijo = $"REC-{year}-";
 
         var ultimo = await _context.Ventas
@@ -490,9 +498,9 @@ public class VentaService : IVentaService
                 if (credito != null)
                 {
                     credito.SaldoPendiente = Math.Max(0, credito.SaldoPendiente - venta.CreditoBarberoUsado!.Value);
-                    RecalcularEstadoCredito(credito);
+                    RecalcularEstadoCredito(credito, _dt.NowColombia);
                     if (credito.Estado == "Pagado" && credito.FechaCierre == null)
-                        credito.FechaCierre = DateTime.UtcNow.AddHours(-5);
+                        credito.FechaCierre = _dt.NowColombia;
                 }
                 venta.CreditoBarberoUsado = 0;
             }
@@ -519,10 +527,10 @@ public class VentaService : IVentaService
                 exitoso = true
             });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             await transaction.RollbackAsync();
-            return ServiceResult<object>.Fail($"Error interno: {ex.Message}", 500);
+            return ServiceResult<object>.Fail("Error interno al procesar la venta.", 500);
         }
     }
 }
