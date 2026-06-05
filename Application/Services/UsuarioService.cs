@@ -153,7 +153,12 @@ public class UsuarioService : IUsuarioService
 
     public async Task<ServiceResult<object>> CreateAsync(UsuarioInput input)
     {
-        // NOTA: Validación estructural básica manejada por FluentValidation.
+        // Validación de solo letras y espacios para Nombre y Apellido
+        if (!ValidationHelper.ValidarSoloLetras(input.Nombre, out string? errorNombre))
+            return ServiceResult<object>.Fail($"Nombre: {errorNombre}");
+        
+        if (!ValidationHelper.ValidarSoloLetras(input.Apellido, out string? errorApellido))
+            return ServiceResult<object>.Fail($"Apellido: {errorApellido}");
 
         using var transaction = await _context.Database.BeginTransactionAsync();
         try
@@ -244,7 +249,12 @@ public class UsuarioService : IUsuarioService
 
         if (usuarioExistente == null) return ServiceResult<object>.NotFound();
 
-        // NOTA: Datos estructurales validados por FluentValidation.
+        // Validación de solo letras y espacios para Nombre y Apellido
+        if (!ValidationHelper.ValidarSoloLetras(input.Nombre, out string? errorNombre))
+            return ServiceResult<object>.Fail($"Nombre: {errorNombre}");
+        
+        if (!ValidationHelper.ValidarSoloLetras(input.Apellido, out string? errorApellido))
+            return ServiceResult<object>.Fail($"Apellido: {errorApellido}");
 
         if (input.Correo != usuarioExistente.Correo)
         {
