@@ -23,10 +23,14 @@ public class RolService : IRolService
         }
         var totalCount = await baseQ.CountAsync();
         var items = await baseQ.OrderBy(r => r.Nombre).Skip((page - 1) * pageSize).Take(pageSize)
-            .Include(r => r.RolesModulos)
-            .Include(r => r.Usuarios)
-            .Select(r => new RoleDto { Id = r.Id, Nombre = r.Nombre, Descripcion = r.Descripcion, Estado = r.Estado ?? false,
-                UsuariosAsignados = r.Usuarios.Count, Modulos = r.RolesModulos.Select(rm => rm.ModuloId).ToList() }).ToListAsync();
+            .Select(r => new RoleDto {
+                Id = r.Id,
+                Nombre = r.Nombre,
+                Descripcion = r.Descripcion,
+                Estado = r.Estado ?? false,
+                UsuariosAsignados = r.Usuarios.Count(),
+                Modulos = r.RolesModulos.Select(rm => rm.ModuloId).ToList()
+            }).ToListAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
         return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
     }
