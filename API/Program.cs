@@ -134,6 +134,14 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
                         var email = identity.FindFirst("email")?.Value
                                     ?? identity.FindFirst(ClaimTypes.Email)?.Value;
 
+                        // Log de diagnóstico — remover en producción
+                        var logger = context.HttpContext.RequestServices
+                            .GetRequiredService<ILoggerFactory>()
+                            .CreateLogger("TokenValidated");
+                        logger.LogInformation("OnTokenValidated — email: {Email}, claims: {Claims}",
+                            email ?? "(null)",
+                            string.Join(", ", identity.Claims.Select(c => $"{c.Type}={c.Value}")));
+
                         if (!string.IsNullOrWhiteSpace(email))
                         {
                             var roleAssigned = false;
@@ -146,6 +154,10 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
                                     .AsNoTracking()
                                     .Include(u => u.Rol)
                                     .FirstOrDefaultAsync(u => u.Correo == email);
+
+                                logger.LogInformation("BD lookup — usuario: {Usuario}, rol: {Rol}",
+                                    usuario?.Correo ?? "(no encontrado)",
+                                    usuario?.Rol?.Nombre ?? "(sin rol)");
 
                                 if (usuario?.Rol != null)
                                 {
