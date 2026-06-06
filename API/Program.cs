@@ -131,6 +131,7 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
 
                         if (!string.IsNullOrWhiteSpace(email))
                         {
+                            var roleAssigned = false;
                             try
                             {
                                 var db = context.HttpContext.RequestServices
@@ -158,14 +159,28 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
                                         identity.AddClaim(new Claim(ClaimTypes.Role, "cliente"));
                                     }
 
-                                    // Guardar el rolId como claim para uso posterior
                                     if (usuario.RolId.HasValue)
                                         identity.AddClaim(new Claim("rolId", usuario.RolId.Value.ToString()));
+
+                                    roleAssigned = true;
                                 }
                             }
                             catch
                             {
-                                // Si la BD no está disponible, no bloqueamos el request
+                                // BD no disponible — continuar con fallback
+                            }
+
+                            // Fallback: si la BD no está disponible, usar el email del admin configurado
+                            if (!roleAssigned)
+                            {
+                                var adminEmail = builder.Configuration["AdminEmail"]
+                                    ?? Environment.GetEnvironmentVariable("ADMIN_EMAIL");
+                                if (!string.IsNullOrWhiteSpace(adminEmail)
+                                    && string.Equals(email, adminEmail, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                                    identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
+                                }
                             }
                         }
                     }
