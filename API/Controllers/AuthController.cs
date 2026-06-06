@@ -80,6 +80,52 @@ namespace BarberiaApi.Controllers
         // usando la secret key (Turnstile:SecretKey en User Secrets / variables de entorno).
         // Mientras no haya secret configurada, el endpoint responde success=true con
         // configured=false (andamiaje) para no bloquear el login en desarrollo.
+        /// <summary>
+        /// Asigna custom claims de rol a un usuario de Firebase.
+        /// Solo puede ser llamado con una clave de admin configurada en appsettings.
+        /// </summary>
+        [HttpPost("api/auth/set-role-claims")]
+        [AllowAnonymous]
+        public async Task<IActionResult> SetRoleClaims(
+            [FromBody] SetRoleClaimsDto req,
+            [FromServices] IConfiguration config)
+        {
+            // Clave secreta para proteger este endpoint (configurar en User Secrets: AdminSetupKey)
+            var adminKey = config["AdminSetupKey"];
+            if (string.IsNullOrWhiteSpace(adminKey) || req.AdminKey != adminKey)
+                return Unauthorized(new { error = "Clave de administración inválida." });
+
+            if (string.IsNullOrWhiteSpace(req.Uid))
+                return BadRequest(new { error = "UID requerido." });
+
+            var userRecord = await FirebaseAuth.DefaultInstance.GetUserAsync(req.Uid);
+            var claims = userRecord.CustomClaims?.ToDictionary(k => k.Key, v => v.Value)
+                         ?? new Dictionary<string, object>();
+
+            // Limpiar claims de rol anteriores
+            claims.Remove("admin");
+            claims.Remove("super_admin");
+            claims.Remove("barbero");
+
+            switch (req.Rol?.ToLower())
+            {
+                case "super_admin":
+                    claims["super_admin"] = true;
+                    claims["admin"] = true;
+                    break;
+                case "admin":
+                    claims["admin"] = true;
+                    break;
+                case "barbero":
+                    claims["barbero"] = true;
+                    break;
+                // cliente: sin claims especiales
+            }
+
+            await FirebaseAuth.DefaultInstance.SetCustomUserClaimsAsync(req.Uid, claims);
+            return Ok(new { message = $"Claims actualizados para {userRecord.Email}", uid = req.Uid, claims });
+        }
+
         [HttpPost("api/auth/verify-captcha")]
         [AllowAnonymous]
         public async Task<IActionResult> VerifyCaptcha(

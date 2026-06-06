@@ -25,6 +25,14 @@ public class CaptchaVerifyDto
     public string? Token { get; set; }
 }
 
+// Endpoint de setup: asigna custom claims de rol a un usuario de Firebase.
+public class SetRoleClaimsDto
+{
+    public string? Uid { get; set; }
+    public string? Rol { get; set; }       // "admin", "super_admin", "barbero", "cliente"
+    public string? AdminKey { get; set; }  // Clave secreta configurada en User Secrets
+}
+
 public class CambioEstadoResponse<T>
 {
     public T entidad { get; set; } = default!;

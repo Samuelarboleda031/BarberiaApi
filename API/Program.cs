@@ -18,8 +18,19 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// =======================
+// Serilog — logging estructurado con traceId correlacionable.
+// Lee de la sección "Serilog" en appsettings si existe; si no, usa Console por defecto.
+// =======================
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .WriteTo.Console());
 
 // =======================
 // Firebase Admin SDK
@@ -92,24 +103,72 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
                 NameClaimType = "name",
                 RoleClaimType = ClaimTypes.Role
             };
-            options.Events = new JwtBearerEvents
+    options.Events = new JwtBearerEvents
             {
-                OnTokenValidated = context =>
+                OnTokenValidated = async context =>
                 {
-                    if (context.Principal?.Identity is ClaimsIdentity identity)
+                    if (context.Principal?.Identity is not ClaimsIdentity identity) return;
+
+                    // 1. Intentar rol desde custom claims de Firebase
+                    var adminClaim = identity.FindFirst("admin")?.Value;
+                    var superAdminClaim = identity.FindFirst("super_admin")?.Value;
+                    if (string.Equals(adminClaim, "true", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(superAdminClaim, "true", StringComparison.OrdinalIgnoreCase))
                     {
-                        var adminClaim = identity.FindFirst("admin")?.Value;
-                        var superAdminClaim = identity.FindFirst("super_admin")?.Value;
-                        if (string.Equals(adminClaim, "true", StringComparison.OrdinalIgnoreCase)
-                            || string.Equals(superAdminClaim, "true", StringComparison.OrdinalIgnoreCase))
-                        {
-                            identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
-                        }
-                        var explicitRole = identity.FindFirst("role")?.Value ?? identity.FindFirst("rol")?.Value;
-                        if (!string.IsNullOrWhiteSpace(explicitRole))
-                            identity.AddClaim(new Claim(ClaimTypes.Role, explicitRole));
+                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                        identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
                     }
-                    return Task.CompletedTask;
+
+                    var explicitRole = identity.FindFirst("role")?.Value ?? identity.FindFirst("rol")?.Value;
+                    if (!string.IsNullOrWhiteSpace(explicitRole))
+                        identity.AddClaim(new Claim(ClaimTypes.Role, explicitRole));
+
+                    // 2. Si aún no tiene rol, buscar en la BD por email
+                    if (!identity.HasClaim(c => c.Type == ClaimTypes.Role))
+                    {
+                        var email = identity.FindFirst("email")?.Value
+                                    ?? identity.FindFirst(ClaimTypes.Email)?.Value;
+
+                        if (!string.IsNullOrWhiteSpace(email))
+                        {
+                            try
+                            {
+                                var db = context.HttpContext.RequestServices
+                                    .GetRequiredService<BarberiaApi.Infrastructure.Data.BarberiaContext>();
+
+                                var usuario = await db.Usuarios
+                                    .AsNoTracking()
+                                    .Include(u => u.Rol)
+                                    .FirstOrDefaultAsync(u => u.Correo == email);
+
+                                if (usuario?.Rol != null)
+                                {
+                                    var nombreRol = usuario.Rol.Nombre?.ToLower().Trim();
+                                    if (nombreRol is "super_admin" or "admin" or "administrador" or "gerente")
+                                    {
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
+                                    }
+                                    else if (nombreRol is "barbero")
+                                    {
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "barbero"));
+                                    }
+                                    else
+                                    {
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "cliente"));
+                                    }
+
+                                    // Guardar el rolId como claim para uso posterior
+                                    if (usuario.RolId.HasValue)
+                                        identity.AddClaim(new Claim("rolId", usuario.RolId.Value.ToString()));
+                                }
+                            }
+                            catch
+                            {
+                                // Si la BD no está disponible, no bloqueamos el request
+                            }
+                        }
+                    }
                 }
             };
         });
@@ -220,6 +279,9 @@ var app = builder.Build();
 // =======================
 // MIDDLEWARE PIPELINE
 // =======================
+
+// Logging estructurado de cada request (método, ruta, status, duración, traceId).
+app.UseSerilogRequestLogging();
 
 if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:Enable"))
 {
