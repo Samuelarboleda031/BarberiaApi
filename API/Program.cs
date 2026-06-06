@@ -112,8 +112,13 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
                     // 1. Intentar rol desde custom claims de Firebase
                     var adminClaim = identity.FindFirst("admin")?.Value;
                     var superAdminClaim = identity.FindFirst("super_admin")?.Value;
-                    if (string.Equals(adminClaim, "true", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(superAdminClaim, "true", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(superAdminClaim, "true", StringComparison.OrdinalIgnoreCase))
+                    {
+                        identity.AddClaim(new Claim(ClaimTypes.Role, "super_admin"));
+                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                        identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
+                    }
+                    else if (string.Equals(adminClaim, "true", StringComparison.OrdinalIgnoreCase))
                     {
                         identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
                         identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
@@ -145,7 +150,14 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
                                 if (usuario?.Rol != null)
                                 {
                                     var nombreRol = usuario.Rol.Nombre?.ToLower().Trim();
-                                    if (nombreRol is "super_admin" or "admin" or "administrador" or "gerente")
+                                    if (nombreRol is "super_admin")
+                                    {
+                                        // super_admin hereda todos los roles
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "super_admin"));
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
+                                    }
+                                    else if (nombreRol is "admin" or "administrador" or "gerente")
                                     {
                                         identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
                                         identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
