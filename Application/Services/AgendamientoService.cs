@@ -665,11 +665,11 @@ public class AgendamientoService : IAgendamientoService
             .FirstOrDefaultAsync(a => a.Id == id);
         if (agendamiento == null) return ServiceResult<object>.NotFound();
 
-        var estadosValidos = new[] { "Pendiente", "Confirmada", "En Proceso", "Completada", EstadosAgendamiento.Cancelada };
+        var estadosValidos = new[] { EstadosAgendamiento.Pendiente, "Confirmada", EstadosAgendamiento.EnProceso, EstadosAgendamiento.Completada, EstadosAgendamiento.Cancelada };
         if (!estadosValidos.Contains(input.estado))
             return ServiceResult<object>.Fail("Estado inválido.");
 
-        var estadoAnterior = agendamiento.Estado ?? "Pendiente";
+        var estadoAnterior = agendamiento.Estado ?? EstadosAgendamiento.Pendiente;
         
         // No permitir completar citas futuras
         if (string.Equals(input.estado, "Completada", StringComparison.OrdinalIgnoreCase))
@@ -721,9 +721,9 @@ public class AgendamientoService : IAgendamientoService
                     .FirstOrDefaultAsync();
                 if (ventaExistente != null)
                 {
-                    if (string.Equals(ventaExistente.Estado, "Anulada", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(ventaExistente.Estado, EstadosVenta.Anulada, StringComparison.OrdinalIgnoreCase))
                     {
-                        ventaExistente.Estado = "Completada";
+                        ventaExistente.Estado = EstadosAgendamiento.Completada;
                         if (!ventaExistente.BarberoId.HasValue || ventaExistente.BarberoId.Value <= 0)
                         {
                             ventaExistente.BarberoId = agendamiento.BarberoId;
@@ -832,7 +832,7 @@ public class AgendamientoService : IAgendamientoService
                     Descuento = 0m,
                     Total = precio,
                     MetodoPago = "Efectivo",
-                    Estado = "Completada",
+                    Estado = EstadosAgendamiento.Completada,
                     SaldoAFavorUsado = 0m
                 };
 
@@ -899,7 +899,7 @@ public class AgendamientoService : IAgendamientoService
                     .Include(v => v.DetalleVenta)
                     .Where(v => v.ClienteId == agendamiento.ClienteId
                                 && v.UsuarioId == usuarioId
-                                && v.Estado != "Anulada")
+                                && v.Estado != EstadosVenta.Anulada)
                     .Where(v => v.DetalleVenta.Any(d =>
                         (servicioIdsCitaCancel.Count > 0 && d.ServicioId.HasValue && servicioIdsCitaCancel.Contains(d.ServicioId.Value)) ||
                         (productoIdsCitaCancel.Count > 0 && d.ProductoId.HasValue && productoIdsCitaCancel.Contains(d.ProductoId.Value)) ||
@@ -908,7 +908,7 @@ public class AgendamientoService : IAgendamientoService
                     .FirstOrDefaultAsync();
                 if (ventaRelacionada != null)
                 {
-                    ventaRelacionada.Estado = "Anulada";
+                    ventaRelacionada.Estado = EstadosVenta.Anulada;
                     await _context.SaveChangesAsync();
                     await tx.CommitAsync();
                     return ServiceResult<object>.Ok(new
@@ -1055,7 +1055,7 @@ public class AgendamientoService : IAgendamientoService
                 IVA = iva,
                 Descuento = 0,
                 Total = total,
-                Estado = "Completada",
+                Estado = EstadosAgendamiento.Completada,
                 MetodoPago = "Efectivo",
                 TipoVenta = "Servicios y Productos",
                 SaldoAFavorUsado = 0m
@@ -1104,7 +1104,7 @@ public class AgendamientoService : IAgendamientoService
                 .Select(p => p.ProductoId)
                 .ToList();
 
-            cita.Estado = "Completada";
+            cita.Estado = EstadosAgendamiento.Completada;
             cita.ServiciosRealizados = System.Text.Json.JsonSerializer.Serialize(request.ServiciosCompletados);
             cita.ServiciosPendientes = System.Text.Json.JsonSerializer.Serialize(serviciosPendientes);
             cita.ProductosRealizados = System.Text.Json.JsonSerializer.Serialize(request.ProductosCompletados);

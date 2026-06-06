@@ -1,3 +1,4 @@
+using BarberiaApi.Domain.Constants;
 using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
@@ -329,7 +330,7 @@ public class DevolucionService : IDevolucionService
         if (input == null || string.IsNullOrWhiteSpace(input.estado))
             return ServiceResult<object>.Fail("El estado es requerido");
 
-        var estadosValidos = new[] { "Activo", "Anulado", "Pendiente", "Procesado" };
+        var estadosValidos = new[] { "Activo", "Anulado", EstadosAgendamiento.Pendiente, "Procesado" };
         if (!estadosValidos.Contains(input.estado, StringComparer.OrdinalIgnoreCase))
             return ServiceResult<object>.Fail($"Estado '{input.estado}' no es válido. Estados permitidos: {string.Join(", ", estadosValidos)}");
 
@@ -341,7 +342,7 @@ public class DevolucionService : IDevolucionService
             if (devolucion == null)
                 return ServiceResult<object>.NotFound();
 
-            var estadoAnterior = devolucion.Estado ?? "Pendiente";
+            var estadoAnterior = devolucion.Estado ?? EstadosAgendamiento.Pendiente;
             devolucion.Estado = input.estado;
 
             if (devolucion.ProductoId.HasValue && devolucion.ProductoId.Value > 0 && devolucion.Producto != null)

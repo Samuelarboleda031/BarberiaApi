@@ -1,11 +1,12 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<DefaultItemExcludes>$(DefaultItemExcludes);BarberiaApi.Domain\**;BarberiaApi.Application\**;BarberiaApi.Infrastructure\**</DefaultItemExcludes>
-	</PropertyGroup>
+	  <UserSecretsId>29243d1b-bb9d-4557-af44-9ed5fe06b88f</UserSecretsId>
+  </PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />

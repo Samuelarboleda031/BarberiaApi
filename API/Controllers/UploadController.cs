@@ -45,6 +45,13 @@ namespace BarberiaApi.Controllers
                 return BadRequest("Formato de archivo no válido. Solo se permiten imágenes (jpg, jpeg, png, gif, webp).");
             }
 
+            // BE-B5: validar la firma binaria (magic bytes), no solo la extensión/ContentType
+            // (ambos son falsificables). Evita subir un ejecutable renombrado a .jpg.
+            if (!await TieneFirmaDeImagenValida(file))
+            {
+                return BadRequest("El contenido del archivo no corresponde a una imagen válida.");
+            }
+
             // Subir usando PhotoService (Cloudinary)
             var result = await _photoService.AddPhotoAsync(file);
 
@@ -52,8 +59,8 @@ namespace BarberiaApi.Controllers
                 return BadRequest(result.Error.Message);
 
             // Retornar objeto JSON con la url y el publicId
-            return Ok(new 
-            { 
+            return Ok(new
+            {
                 url = result.SecureUrl.AbsoluteUri,
                 publicId = result.PublicId
             });
@@ -91,11 +98,44 @@ namespace BarberiaApi.Controllers
 
         private bool IsImageExtension(string extension)
         {
-            return extension == ".jpg" || 
-                   extension == ".jpeg" || 
-                   extension == ".png" || 
-                   extension == ".gif" || 
+            return extension == ".jpg" ||
+                   extension == ".jpeg" ||
+                   extension == ".png" ||
+                   extension == ".gif" ||
                    extension == ".webp";
+        }
+
+        // BE-B5: verifica los primeros bytes del archivo contra las firmas conocidas
+        // de imagen (JPEG, PNG, GIF, WEBP). No confía en la extensión ni en el Content-Type.
+        private static async Task<bool> TieneFirmaDeImagenValida(IFormFile file)
+        {
+            try
+            {
+                await using var stream = file.OpenReadStream();
+                var header = new byte[12];
+                var read = await stream.ReadAsync(header.AsMemory(0, header.Length));
+                if (read < 12) return false;
+
+                // JPEG: FF D8 FF
+                if (header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF)
+                    return true;
+                // PNG: 89 50 4E 47
+                if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47)
+                    return true;
+                // GIF: 47 49 46 38 ("GIF8")
+                if (header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x38)
+                    return true;
+                // WEBP: "RIFF"...."WEBP"
+                if (header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 &&
+                    header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50)
+                    return true;
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

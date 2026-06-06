@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Configuration;
+using System.Net.Http;
 using FirebaseAdmin.Auth;
 using System;
 using System.Collections.Generic;
@@ -12,6 +15,7 @@ using BarberiaApi.Application.DTOs;
 namespace BarberiaApi.Controllers
 {
     [ApiController]
+    [EnableRateLimiting("auth")] // FE-A2 / Fase 4 — límite de 10 req/min por IP en endpoints de auth
     public class AuthController : ControllerBase
     {
         [HttpPost("api/users")]
@@ -69,6 +73,38 @@ namespace BarberiaApi.Controllers
             await FirebaseAuth.DefaultInstance.SetCustomUserClaimsAsync(uid, claims);
 
             return Ok(new { Message = "Políticas de contraseña actualizadas." });
+        }
+
+        // FE-A3: verificación server-side del captcha (Cloudflare Turnstile).
+        // El token generado por el widget del cliente se valida aquí contra Cloudflare
+        // usando la secret key (Turnstile:SecretKey en User Secrets / variables de entorno).
+        // Mientras no haya secret configurada, el endpoint responde success=true con
+        // configured=false (andamiaje) para no bloquear el login en desarrollo.
+        [HttpPost("api/auth/verify-captcha")]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyCaptcha(
+            [FromBody] CaptchaVerifyDto req,
+            [FromServices] IHttpClientFactory httpFactory,
+            [FromServices] IConfiguration config)
+        {
+            var secret = config["Turnstile:SecretKey"];
+            if (string.IsNullOrWhiteSpace(secret))
+                return Ok(new { success = true, configured = false });
+
+            if (string.IsNullOrWhiteSpace(req?.Token))
+                return BadRequest(new { success = false, error = "Token de captcha requerido" });
+
+            var client = httpFactory.CreateClient();
+            var form = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["secret"] = secret,
+                ["response"] = req.Token
+            });
+            var resp = await client.PostAsync("https://challenges.cloudflare.com/turnstile/v0/siteverify", form);
+            var json = await resp.Content.ReadAsStringAsync();
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var ok = doc.RootElement.TryGetProperty("success", out var s) && s.GetBoolean();
+            return ok ? Ok(new { success = true }) : BadRequest(new { success = false });
         }
     }
 }

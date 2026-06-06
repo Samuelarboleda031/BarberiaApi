@@ -53,6 +53,11 @@ namespace BarberiaApi.Controllers
         public async Task<ActionResult> CambiarEstado(int id, [FromBody] CambioEstadoBooleanInput input)
         { var r = await _productoService.CambiarEstadoAsync(id, input); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }
 
+        // FE-M2: ajuste de stock atómico (Stock = Stock + delta en una sola operación SQL)
+        [HttpPost("{id}/ajustar-stock")]
+        public async Task<ActionResult> AjustarStock(int id, [FromBody] AjusteStockInput input)
+        { var r = await _productoService.AjustarStockAsync(id, input.Delta); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }
+
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin,admin,super_admin")]
         public async Task<IActionResult> Delete(int id)

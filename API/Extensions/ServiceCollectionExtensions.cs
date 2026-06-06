@@ -1,14 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using BarberiaApi.Application.Common;
+using BarberiaApi.Application.Interfaces;
+using BarberiaApi.Application.Services;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Helpers;
 using BarberiaApi.Infrastructure.Services;
 using BarberiaApi.Infrastructure.Jobs;
 using BarberiaApi.Jobs;
-using BarberiaApi.Domain.Interfaces;
-using BarberiaApi.Infrastructure.Repositories;
-using BarberiaApi.Application.Common;
-using BarberiaApi.Application.Interfaces;
-using BarberiaApi.Application.Services;
 
 namespace BarberiaApi.Extensions;
 
@@ -22,9 +20,6 @@ public static class ServiceCollectionExtensions
                 configuration.GetConnectionString("DefaultConnection"),
                 b => b.MigrationsAssembly("BarberiaApi"))
         );
-
-        // Unit of Work & Repositories
-        services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // Cloudinary
         services.Configure<CloudinarySettings>(configuration.GetSection("CloudinarySettings"));

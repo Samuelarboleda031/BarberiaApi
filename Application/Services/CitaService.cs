@@ -1,3 +1,4 @@
+using BarberiaApi.Domain.Constants;
 using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
@@ -62,7 +63,7 @@ public class CitaService : ICitaService
             hora = a.FechaHora.ToString("HH:mm"),
             duracion = a.Servicio?.DuracionMinutos ?? a.Paquete?.DuracionMinutos ?? 30,
             precio = a.Servicio?.Precio ?? a.Paquete?.Precio ?? 0,
-            estado = a.Estado ?? "Pendiente",
+            estado = a.Estado ?? EstadosAgendamiento.Pendiente,
             notas = a.Notas ?? ""
         }).ToList();
         return ServiceResult<object>.Ok(items);
@@ -92,7 +93,7 @@ public class CitaService : ICitaService
             hora = agendamiento.FechaHora.ToString("HH:mm"),
             duracion = agendamiento.Servicio?.DuracionMinutos ?? agendamiento.Paquete?.DuracionMinutos ?? 30,
             precio = agendamiento.Servicio?.Precio ?? agendamiento.Paquete?.Precio ?? 0,
-            estado = agendamiento.Estado ?? "Pendiente",
+            estado = agendamiento.Estado ?? EstadosAgendamiento.Pendiente,
             notas = agendamiento.Notas ?? ""
         };
 
@@ -180,7 +181,7 @@ public class CitaService : ICitaService
                 a.ClienteId == cliente.Id &&
                 a.FechaHora >= inicioSemana &&
                 a.FechaHora < finSemana &&
-                (a.Estado == "Pendiente" || a.Estado == "Completada"));
+                (a.Estado == EstadosAgendamiento.Pendiente || a.Estado == EstadosAgendamiento.Completada));
             if (citasSemana >= 3)
                 return ServiceResult<object>.Fail("Has alcanzado el límite de 3 citas por semana.");
         }
@@ -225,7 +226,7 @@ public class CitaService : ICitaService
             PaqueteId = paquete?.Id,
             FechaHora = fechaHora,
             Notas = input.notas,
-            Estado = input.estado ?? "Pendiente"
+            Estado = input.estado ?? EstadosAgendamiento.Pendiente
         };
 
         _context.Agendamientos.Add(agendamiento);
@@ -242,7 +243,7 @@ public class CitaService : ICitaService
             hora = agendamiento.FechaHora.ToString("HH:mm"),
             duracion = duracion,
             precio = precio,
-            estado = agendamiento.Estado ?? "Pendiente",
+            estado = agendamiento.Estado ?? EstadosAgendamiento.Pendiente,
             notas = agendamiento.Notas ?? ""
         };
 
@@ -335,7 +336,7 @@ public class CitaService : ICitaService
             hora = agendamiento.FechaHora.ToString("HH:mm"),
             duracion = duracion,
             precio = precio,
-            estado = agendamiento.Estado ?? "Pendiente",
+            estado = agendamiento.Estado ?? EstadosAgendamiento.Pendiente,
             notas = agendamiento.Notas ?? ""
         };
 
@@ -370,7 +371,7 @@ public class CitaService : ICitaService
             hora = agendamiento.FechaHora.ToString("HH:mm"),
             duracion = agendamiento.Servicio?.DuracionMinutos ?? agendamiento.Paquete?.DuracionMinutos ?? 30,
             precio = agendamiento.Servicio?.Precio ?? agendamiento.Paquete?.Precio ?? 0,
-            estado = agendamiento.Estado ?? "Pendiente",
+            estado = agendamiento.Estado ?? EstadosAgendamiento.Pendiente,
             notas = agendamiento.Notas ?? ""
         };
 

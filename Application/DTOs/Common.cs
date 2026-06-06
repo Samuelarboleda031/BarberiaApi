@@ -13,6 +13,18 @@ public class CambioEstadoBooleanInput
     public bool estado { get; set; }
 }
 
+// FE-M2: entrada para el ajuste de stock atómico. Delta positivo suma, negativo resta.
+public class AjusteStockInput
+{
+    public int Delta { get; set; }
+}
+
+// FE-A3: token del widget de captcha (Cloudflare Turnstile) a verificar en el servidor.
+public class CaptchaVerifyDto
+{
+    public string? Token { get; set; }
+}
+
 public class CambioEstadoResponse<T>
 {
     public T entidad { get; set; } = default!;

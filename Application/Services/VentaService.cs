@@ -297,7 +297,9 @@ public class VentaService : IVentaService
                     if (esVentaBarbero)
                     {
                         detalle.PrecioUnitario = producto.PrecioCompra;
-                        detalle.Subtotal = detalle.Cantidad * detalle.PrecioUnitario;
+                        // BE-A1: NO asignar detalle.Subtotal — es columna computada en SQL
+                        // (HasComputedColumnSql en BarberiaContext). El valor lo calcula la BD
+                        // a partir de Cantidad * PrecioUnitario.
                     }
 
                     producto.Stock -= detInput.Cantidad;
@@ -307,7 +309,7 @@ public class VentaService : IVentaService
             }
 
             if (esVentaBarbero)
-                subtotal = venta.DetalleVenta.Sum(d => d.Subtotal);
+                subtotal = venta.DetalleVenta.Sum(d => d.Cantidad * d.PrecioUnitario);
 
             venta.Subtotal = subtotal;
             venta.Total = (subtotal + venta.IVA.Value) - venta.Descuento.Value;
@@ -370,7 +372,7 @@ public class VentaService : IVentaService
             {
                 var clienteId = input.ClienteId.Value;
                 var totalDevoluciones = await _context.Devoluciones
-                    .Where(d => d.ClienteId == clienteId && (d.Estado == "Activo" || d.Estado == "Completada" || d.Estado == "Procesado"))
+                    .Where(d => d.ClienteId == clienteId && (d.Estado == "Activo" || d.Estado == EstadosAgendamiento.Completada || d.Estado == "Procesado"))
                     .SumAsync(d => d.SaldoAFavor ?? 0);
                 var totalUsado = await _context.Ventas
                     .Where(v => v.ClienteId == clienteId && v.Estado != EstadosVenta.Anulada)
@@ -426,16 +428,21 @@ public class VentaService : IVentaService
                 }
             }
 
-            var ventaCompleta = await _context.Ventas
-                .Include(v => v.Cliente).Include(v => v.Usuario)
+            // BE-A9: Retornar DTO, no la entidad EF completa
+            var ventaDto = await _context.Ventas
+                .AsNoTracking()
+                .Include(v => v.Cliente).ThenInclude(c => c!.Usuario)
+                .Include(v => v.Usuario)
                 .Include(v => v.Barbero).ThenInclude(b => b!.Usuario)
                 .Include(v => v.BarberoPrestador).ThenInclude(b => b!.Usuario)
                 .Include(v => v.DetalleVenta).ThenInclude(d => d.Producto)
                 .Include(v => v.DetalleVenta).ThenInclude(d => d.Servicio)
                 .Include(v => v.DetalleVenta).ThenInclude(d => d.Paquete)
-                .FirstOrDefaultAsync(v => v.Id == venta.Id);
+                .Where(v => v.Id == venta.Id)
+                .ProjectTo<VentaDto>(_mapper.ConfigurationProvider)
+                .FirstOrDefaultAsync();
 
-            return ServiceResult<object>.Ok(ventaCompleta!);
+            return ServiceResult<object>.Ok(ventaDto!);
         }
         catch (Exception)
         {

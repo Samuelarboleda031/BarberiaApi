@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using System.IO.Compression;
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Features;
@@ -128,6 +129,26 @@ builder.Services.AddAuthorization(options =>
     });
 });
 
+// FE-A3 — HttpClient para verificar el token de captcha contra Cloudflare Turnstile.
+builder.Services.AddHttpClient();
+
+// FE-A2 / Fase 4 — Rate limiting. La política "auth" protege los endpoints sensibles
+// de autenticación/gestión de usuarios contra abuso y fuerza bruta. El particionado
+// es por IP del cliente. Devuelve 429 al superar el límite.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
 // Controllers + JSON config
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -221,6 +242,7 @@ app.UseOutputCache();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 
 app.MapMethods("/health", new[] { "GET", "HEAD" }, () => Results.Ok(new { status = "ok" }));

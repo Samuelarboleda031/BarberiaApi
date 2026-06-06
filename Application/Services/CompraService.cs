@@ -96,7 +96,7 @@ public class CompraService : ICompraService
                 MetodoPago = input.MetodoPago,
                 IVA = input.IVA ?? 0,
                 Descuento = input.Descuento ?? 0,
-                Estado = "Completada"
+                Estado = EstadosAgendamiento.Completada
             };
 
             // NOTA: Cantidad <= 0 y PrecioUnitario < 0 ya validados por FluentValidation.

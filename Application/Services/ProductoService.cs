@@ -282,4 +282,31 @@ public class ProductoService : IProductoService
             ultimasCompras
         });
     }
+
+    public async Task<ServiceResult<object>> AjustarStockAsync(int id, int delta)
+    {
+        if (delta == 0) return ServiceResult<object>.Fail("El ajuste de stock no puede ser cero");
+
+        // FE-M2: ajuste atómico en una sola sentencia SQL (UPDATE ... SET Stock = Stock + delta).
+        // Evita el patrón read-modify-write que pierde actualizaciones concurrentes.
+        // El filtro (Stock + delta >= 0) impide dejar stock negativo de forma atómica.
+        var filasAfectadas = await _context.Productos
+            .Where(p => p.Id == id && p.Stock + delta >= 0)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.Stock, p => p.Stock + delta));
+
+        if (filasAfectadas == 0)
+        {
+            if (!await _context.Productos.AnyAsync(p => p.Id == id))
+                return ServiceResult<object>.NotFound();
+            return ServiceResult<object>.Fail("Stock insuficiente para aplicar el ajuste");
+        }
+
+        var nuevoStock = await _context.Productos
+            .AsNoTracking()
+            .Where(p => p.Id == id)
+            .Select(p => p.Stock)
+            .FirstAsync();
+
+        return ServiceResult<object>.Ok(new { id, stock = nuevoStock });
+    }
 }
