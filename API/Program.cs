@@ -162,7 +162,7 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
                                 if (usuario?.Rol != null)
                                 {
                                     var nombreRol = usuario.Rol.Nombre?.ToLower().Trim();
-                                    if (nombreRol is "super_admin")
+                                    if (nombreRol is "super_admin" or "super administrador" or "superadmin" or "super_administrador")
                                     {
                                         // super_admin hereda todos los roles
                                         identity.AddClaim(new Claim(ClaimTypes.Role, "super_admin"));
