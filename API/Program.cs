@@ -161,20 +161,20 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
 
                                 if (usuario?.Rol != null)
                                 {
-                                    var nombreRol = usuario.Rol.Nombre?.ToLower().Trim();
-                                    if (nombreRol is "super_admin" or "super administrador" or "superadmin" or "super_administrador")
+                                    var nombreRol = usuario.Rol.Nombre?.ToLower().Trim() ?? "";
+                                    // Usar Contains para cubrir variantes: "Super Administrador", "super_admin", etc.
+                                    if (nombreRol.Contains("super") && (nombreRol.Contains("admin") || nombreRol.Contains("administrador")))
                                     {
-                                        // super_admin hereda todos los roles
                                         identity.AddClaim(new Claim(ClaimTypes.Role, "super_admin"));
                                         identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
                                         identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
                                     }
-                                    else if (nombreRol is "admin" or "administrador" or "gerente")
+                                    else if (nombreRol.Contains("admin") || nombreRol.Contains("administrador") || nombreRol.Contains("gerente"))
                                     {
                                         identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
                                         identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
                                     }
-                                    else if (nombreRol is "barbero")
+                                    else if (nombreRol.Contains("barbero"))
                                     {
                                         identity.AddClaim(new Claim(ClaimTypes.Role, "barbero"));
                                     }
