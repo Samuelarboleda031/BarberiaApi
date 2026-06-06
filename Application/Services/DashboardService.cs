@@ -78,11 +78,49 @@ public class DashboardService : IDashboardService
             .Select(p => new { nombre = p.Nombre, stock = p.Stock, minimo = 50,
                 categoria = p.Categoria != null ? p.Categoria.Nombre : (string?)null }).ToListAsync();
 
-        return ServiceResult<object>.Ok(new { 
-            ventas = ventasRecientes, 
+        // Estadísticas de compras (90 días): gasto total, por proveedor y productos más comprados.
+        var limiteCompras = _dt.NowColombia.AddDays(-90);
+        var comprasStats = await _context.Compras.AsNoTracking()
+            .Where(c => c.FechaRegistro != null && c.FechaRegistro >= limiteCompras
+                        && c.Estado != "Anulada" && c.Estado != "Cancelada")
+            .Include(c => c.Proveedor)
+            .Include(c => c.DetalleCompras).ThenInclude(d => d.Producto)
+            .Select(c => new {
+                fechaRegistro = c.FechaRegistro,
+                total = c.Total,
+                proveedor = c.Proveedor != null ? c.Proveedor.Nombre : (string?)null,
+                estado = c.Estado,
+                detalles = c.DetalleCompras.Select(d => new {
+                    productoNombre = d.Producto != null ? d.Producto.Nombre : (string?)null,
+                    cantidad = d.Cantidad,
+                    precioUnitario = d.PrecioUnitario,
+                    subtotal = d.Subtotal
+                })
+            }).ToListAsync();
+
+        // Estadísticas livianas de agendamientos (90 días) para análisis de operación:
+        // estados de citas, horas pico, rendimiento de barberos y recurrencia de clientes.
+        // Solo proyecta los campos necesarios para no cargar las relaciones completas.
+        var limiteStats = _dt.NowColombia.AddDays(-90);
+        var agendamientosStats = await _context.Agendamientos.AsNoTracking()
+            .Where(a => a.FechaHora >= limiteStats)
+            .Select(a => new {
+                fechaHora = a.FechaHora,
+                estado = a.Estado,
+                clienteId = a.ClienteId,
+                cliente = a.Cliente != null && a.Cliente.Usuario != null
+                    ? (a.Cliente.Usuario.Nombre + " " + a.Cliente.Usuario.Apellido) : (string?)null,
+                barbero = a.Barbero != null && a.Barbero.Usuario != null
+                    ? (a.Barbero.Usuario.Nombre + " " + a.Barbero.Usuario.Apellido) : (string?)null
+            }).ToListAsync();
+
+        return ServiceResult<object>.Ok(new {
+            ventas = ventasRecientes,
             ventasHistoricas,
-            agendamientos, 
-            inventarioBajo 
+            agendamientos,
+            inventarioBajo,
+            agendamientosStats,
+            comprasStats
         });
     }
 
