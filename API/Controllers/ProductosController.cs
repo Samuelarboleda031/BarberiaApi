@@ -27,6 +27,7 @@ namespace BarberiaApi.Controllers
         { var r = await _productoService.GetAllAsync(page, pageSize, q); return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error); }
 
         [HttpPost("{id}/imagen")] [RequestSizeLimit(15728640)]
+        [Consumes("multipart/form-data")]
         public async Task<ActionResult> SubirImagen(int id, IFormFile imagen)
         { var r = await _imageService.SubirImagenProductoAsync(id, imagen); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error); }
 

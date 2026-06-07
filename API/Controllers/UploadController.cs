@@ -30,6 +30,7 @@ namespace BarberiaApi.Controllers
 
         [RequestSizeLimit(15728640)]
         [HttpPost]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> Upload(IFormFile file)
         {
             if (file == null || file.Length == 0)

@@ -14,6 +14,7 @@ namespace BarberiaApi.Controllers
 
         [RequestSizeLimit(15728640)]
         [HttpPost("subir")]
+        [Consumes("multipart/form-data")]
         public async Task<ActionResult> SubirImagen(IFormFile imagen, [FromForm] int? productoId, [FromForm] int? usuarioId)
         { var r = await _imageService.SubirImagenAsync(imagen, productoId, usuarioId); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound(r.Error) : BadRequest(r.Error); }
 
