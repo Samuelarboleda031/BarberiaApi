@@ -42,6 +42,36 @@ public class ClienteService : IClienteService
         var totalCount = await baseQ.CountAsync();
         var items = await baseQ.OrderBy(c => c.Usuario.Nombre).Skip((page - 1) * pageSize).Take(pageSize)
             .ProjectTo<ClienteDto>(_mapper.ConfigurationProvider).ToListAsync();
+
+        // Calcular saldos disponibles en batch para los clientes de esta página
+        if (items.Count > 0)
+        {
+            var clienteIds = items.Select(i => i.Id).ToList();
+
+            var saldosDevoluciones = await _context.Devoluciones
+                .Where(d => d.ClienteId.HasValue && clienteIds.Contains(d.ClienteId.Value) &&
+                            (d.Estado == "Activo" || d.Estado == "Completada" || d.Estado == "Procesado"))
+                .GroupBy(d => d.ClienteId!.Value)
+                .Select(g => new { ClienteId = g.Key, Total = g.Sum(d => d.SaldoAFavor ?? 0) })
+                .ToListAsync();
+
+            var saldosUsados = await _context.Ventas
+                .Where(v => v.ClienteId.HasValue && clienteIds.Contains(v.ClienteId.Value) && v.Estado != "Anulada")
+                .GroupBy(v => v.ClienteId!.Value)
+                .Select(g => new { ClienteId = g.Key, Total = g.Sum(v => v.SaldoAFavorUsado ?? 0) })
+                .ToListAsync();
+
+            var devMap = saldosDevoluciones.ToDictionary(x => x.ClienteId, x => x.Total);
+            var usadoMap = saldosUsados.ToDictionary(x => x.ClienteId, x => x.Total);
+
+            foreach (var item in items)
+            {
+                var devTotal = devMap.TryGetValue(item.Id, out var d) ? d : 0m;
+                var usadoTotal = usadoMap.TryGetValue(item.Id, out var u) ? u : 0m;
+                item.SaldoAFavor = Math.Max(0, devTotal - usadoTotal);
+            }
+        }
+
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
         return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
     }
@@ -52,6 +82,16 @@ public class ClienteService : IClienteService
             .ProjectTo<ClienteDto>(_mapper.ConfigurationProvider)
             .FirstOrDefaultAsync(c => c.Id == id);
         if (cliente == null) return ServiceResult<object>.NotFound();
+
+        // Calcular saldo disponible
+        var devTotal = await _context.Devoluciones
+            .Where(d => d.ClienteId == id && (d.Estado == "Activo" || d.Estado == "Completada" || d.Estado == "Procesado"))
+            .SumAsync(d => d.SaldoAFavor ?? 0);
+        var usadoTotal = await _context.Ventas
+            .Where(v => v.ClienteId == id && v.Estado != "Anulada")
+            .SumAsync(v => v.SaldoAFavorUsado ?? 0);
+        cliente.SaldoAFavor = Math.Max(0, devTotal - usadoTotal);
+
         return ServiceResult<object>.Ok(cliente);
     }
 

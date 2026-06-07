@@ -32,5 +32,6 @@ public class ClienteDto
     public string? FotoPerfil { get; set; }
     public bool Estado { get; set; }
     public DateTime FechaRegistro { get; set; }
+    public decimal SaldoAFavor { get; set; }
     public UsuarioDto? Usuario { get; set; }
 }

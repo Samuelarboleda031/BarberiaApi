@@ -72,7 +72,8 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Apellido, opt => opt.MapFrom(src => src.Usuario.Apellido))
             .ForMember(dest => dest.Documento, opt => opt.MapFrom(src => src.Usuario.Documento))
             .ForMember(dest => dest.FotoPerfil, opt => opt.MapFrom(src => src.Usuario.FotoPerfil))
-            .ForMember(dest => dest.Correo, opt => opt.MapFrom(src => src.Usuario.Correo));
+            .ForMember(dest => dest.Correo, opt => opt.MapFrom(src => src.Usuario.Correo))
+            .ForMember(dest => dest.SaldoAFavor, opt => opt.Ignore());
 
         CreateMap<ClienteInput, Cliente>();
 
