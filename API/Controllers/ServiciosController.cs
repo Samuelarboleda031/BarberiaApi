@@ -16,10 +16,12 @@ namespace BarberiaApi.Controllers
         public ServiciosController(IServicioService servicioService, IImageService imageService) { _servicioService = servicioService; _imageService = imageService; }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         { var r = await _servicioService.GetAllAsync(page, pageSize, q); return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error); }
 
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<ActionResult> GetById(int id)
         { var r = await _servicioService.GetByIdAsync(id); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error); }
 

@@ -3,6 +3,10 @@ obj/
 .vs/
 .vscode/
 *.user
+
+# Firebase service account keys — nunca deben entrar a Git
+*adminsdk*.json
+firebase-service-account.json
 *.lock.json
 appsettings.Development.json
 *.log
