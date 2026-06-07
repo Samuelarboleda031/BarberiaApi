@@ -63,7 +63,6 @@ public class BarberoService : IBarberoService
                 FechaContratacion = b.FechaContratacion,
                 SaldoDisponible = b.CreditosBarbero != null && b.CreditosBarbero.Any()
                     ? b.CreditosBarbero
-                        .Where(c => c.Estado == "Activo" || c.Estado == "BloqueadoLimite" || c.Estado == "BloqueadoVencimiento" || c.Estado == "BloqueadoLimiteYVencimiento")
                         .OrderByDescending(c => c.FechaInicio)
                         .Select(c => c.LimiteCredito - c.SaldoPendiente)
                         .FirstOrDefault()
