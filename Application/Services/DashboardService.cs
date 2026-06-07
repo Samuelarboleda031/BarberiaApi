@@ -21,7 +21,7 @@ public class DashboardService : IDashboardService
     public async Task<ServiceResult<object>> GetDashboardAsync()
     {
         var hoy = DateTime.Today;
-        var desdeVentas = hoy.AddDays(-365);
+        var desdeVentas = new DateTime(2025, 1, 1);
         var limiteAgendas = _dt.NowColombia.AddDays(-7);
 
         // Obtener solo las ventas de los últimos 30 días activas

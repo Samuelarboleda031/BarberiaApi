@@ -25,6 +25,9 @@ public static class ServiceCollectionExtensions
         services.Configure<CloudinarySettings>(configuration.GetSection("CloudinarySettings"));
         services.AddScoped<IPhotoService, PhotoService>();
 
+        // Firebase Authentication (borrado de usuarios al eliminarlos del sistema)
+        services.AddScoped<IFirebaseAuthService, FirebaseAuthService>();
+
         // Notificaciones
         services.AddScoped<INotificacionCitasService, NotificacionCitasService>();
         services.AddScoped<IEmailProxyService, EmailProxyService>();

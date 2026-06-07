@@ -19,13 +19,15 @@ public class UsuarioService : IUsuarioService
     private readonly IPhotoService _photoService;
     private readonly IMapper _mapper;
     private readonly IDateTimeProvider _dt;
+    private readonly IFirebaseAuthService _firebaseAuth;
 
-    public UsuarioService(BarberiaContext context, IPhotoService photoService, IMapper mapper, IDateTimeProvider dt)
+    public UsuarioService(BarberiaContext context, IPhotoService photoService, IMapper mapper, IDateTimeProvider dt, IFirebaseAuthService firebaseAuth)
     {
         _context = context;
         _photoService = photoService;
         _mapper = mapper;
         _dt = dt;
+        _firebaseAuth = firebaseAuth;
     }
 
     public async Task<ServiceResult<object>> AnalisisAsync(int page, int pageSize)
@@ -335,12 +337,19 @@ public class UsuarioService : IUsuarioService
             .FirstOrDefaultAsync(u => u.Id == id);
         if (usuario == null) return ServiceResult<object>.NotFound();
 
+        // Capturamos el correo ANTES de anonimizar, para liberarlo también en Firebase.
+        var correoFirebase = usuario.Correo;
+
         using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
             _context.Usuarios.Remove(usuario);
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // Liberamos el correo en Firebase Authentication (idempotente: no falla si no existe).
+            await _firebaseAuth.DeleteUserByEmailAsync(correoFirebase);
+
             return ServiceResult<object>.Ok(new { message = "Usuario eliminado permanentemente", anonimizado = false });
         }
         catch (DbUpdateException)
@@ -383,6 +392,11 @@ public class UsuarioService : IUsuarioService
             }
 
             await _context.SaveChangesAsync();
+
+            // Aunque en SQL solo anonimizamos (hay historial con FK), el correo original
+            // ya quedó liberado, así que también lo borramos de Firebase para poder reutilizarlo.
+            await _firebaseAuth.DeleteUserByEmailAsync(correoFirebase);
+
             return ServiceResult<object>.Ok(new { message = "Datos personales eliminados, historial conservado", anonimizado = true });
         }
     }
