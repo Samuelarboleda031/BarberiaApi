@@ -7,7 +7,7 @@ public class UsuarioInput
     public string Apellido { get; set; } = string.Empty;
     public string Correo { get; set; } = string.Empty;
     public string? Contrasena { get; set; }
-    public int RolId { get; set; }
+    public int? RolId { get; set; }
     public string? TipoDocumento { get; set; }
     public string? Documento { get; set; }
     public string? Telefono { get; set; }
@@ -15,7 +15,7 @@ public class UsuarioInput
     public string? Barrio { get; set; }
     public DateTime? FechaNacimiento { get; set; }
     public string? FotoPerfil { get; set; }
-    public bool Estado { get; set; } = true;
+    public bool? Estado { get; set; }
 }
 
 public class UsuarioDto

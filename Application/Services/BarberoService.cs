@@ -26,7 +26,14 @@ public class BarberoService : IBarberoService
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
         PaginationHelper.Sanitize(ref page, ref pageSize);
-        var baseQ = _context.Barberos.AsNoTracking().AsQueryable();
+        // Solo incluir barberos cuyo usuario tiene el rol "barbero" (previene perfiles huérfanos por cambio de rol)
+        var barberoRoleId = await _context.Roles
+            .Where(r => r.Nombre.ToLower() == RolesNombres.Barbero.ToLower())
+            .Select(r => (int?)r.Id)
+            .FirstOrDefaultAsync();
+        var baseQ = _context.Barberos.AsNoTracking()
+            .Where(b => b.Usuario != null && b.Usuario.RolId == barberoRoleId)
+            .AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim().ToLower();
@@ -79,6 +86,15 @@ public class BarberoService : IBarberoService
             .ProjectTo<BarberoDto>(_mapper.ConfigurationProvider)
             .FirstOrDefaultAsync(b => b.Id == id);
         if (barbero == null) return ServiceResult<object>.NotFound();
+
+        // SaldoDisponible no lo calcula AutoMapper (Ignore) — calcularlo igual que GetAll
+        var saldo = await _context.CreditosBarbero
+            .Where(c => c.BarberoId == id)
+            .OrderByDescending(c => c.FechaInicio)
+            .Select(c => (decimal?)(c.LimiteCredito - c.SaldoPendiente))
+            .FirstOrDefaultAsync();
+        barbero.SaldoDisponible = saldo ?? 200000m;
+
         return ServiceResult<object>.Ok(barbero);
     }
 
@@ -122,11 +138,13 @@ public class BarberoService : IBarberoService
         barberoExistente.Barrio = input.Barrio; barberoExistente.FechaNacimiento = input.FechaNacimiento;
         barberoExistente.Especialidad = input.Especialidad ?? "General"; barberoExistente.Estado = input.Estado;
 
-        var usuario = await _context.Usuarios.FindAsync(barberoExistente.UsuarioId);
+        var usuario = barberoExistente.Usuario;
         if (usuario != null)
         {
             usuario.Nombre = input.Nombre; usuario.Apellido = input.Apellido;
-            usuario.Documento = input.Documento; usuario.Correo = input.Correo; usuario.FotoPerfil = input.FotoPerfil;
+            usuario.Documento = input.Documento; usuario.Correo = input.Correo;
+            if (input.FotoPerfil != null)
+                usuario.FotoPerfil = input.FotoPerfil;
         }
         await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(new { message = "Barbero actualizado" });
@@ -159,9 +177,10 @@ public class BarberoService : IBarberoService
         var usuario = barbero.Usuario;
         bool tieneAgendamientosActivos = barbero.Agendamientos.Any(a => a.Estado != "Cancelada");
         bool tieneVentasComoBarbero = await _context.Ventas.AnyAsync(v => v.BarberoId == barbero.Id);
-        bool tieneRegistroUsuario = await _context.Compras.AnyAsync(c => c.UsuarioId == usuario.Id)
+        bool tieneRegistroUsuario = usuario != null && (
+            await _context.Compras.AnyAsync(c => c.UsuarioId == usuario.Id)
             || await _context.Devoluciones.AnyAsync(d => d.UsuarioId == usuario.Id)
-            || await _context.Ventas.AnyAsync(v => v.UsuarioId == usuario.Id);
+            || await _context.Ventas.AnyAsync(v => v.UsuarioId == usuario.Id));
 
         if (tieneAgendamientosActivos || tieneVentasComoBarbero || tieneRegistroUsuario)
         {

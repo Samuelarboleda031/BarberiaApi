@@ -159,7 +159,7 @@ public class UsuarioService : IUsuarioService
         // Validación de solo letras y espacios para Nombre y Apellido
         if (!ValidationHelper.ValidarSoloLetras(input.Nombre, out string? errorNombre))
             return ServiceResult<object>.Fail($"Nombre: {errorNombre}");
-        
+
         if (!ValidationHelper.ValidarSoloLetras(input.Apellido, out string? errorApellido))
             return ServiceResult<object>.Fail($"Apellido: {errorApellido}");
 
@@ -189,7 +189,7 @@ public class UsuarioService : IUsuarioService
                 TipoDocumento = input.TipoDocumento,
                 Documento = input.Documento,
                 FotoPerfil = input.FotoPerfil,
-                Estado = input.Estado,
+                Estado = input.Estado ?? true,
                 FechaCreacion = _dt.NowColombia
             };
 
@@ -197,7 +197,7 @@ public class UsuarioService : IUsuarioService
             await _context.SaveChangesAsync();
 
             // Resolver el nombre del rol para evitar comparaciones por ID numérico
-            var nombreRol = input.RolId > 0
+            var nombreRol = input.RolId.HasValue && input.RolId > 0
                 ? (await _context.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Id == input.RolId))?.Nombre ?? string.Empty
                 : string.Empty;
 
@@ -255,7 +255,7 @@ public class UsuarioService : IUsuarioService
         // Validación de solo letras y espacios para Nombre y Apellido
         if (!ValidationHelper.ValidarSoloLetras(input.Nombre, out string? errorNombre))
             return ServiceResult<object>.Fail($"Nombre: {errorNombre}");
-        
+
         if (!ValidationHelper.ValidarSoloLetras(input.Apellido, out string? errorApellido))
             return ServiceResult<object>.Fail($"Apellido: {errorApellido}");
 
@@ -273,21 +273,34 @@ public class UsuarioService : IUsuarioService
             usuarioExistente.Correo = input.Correo;
             if (!string.IsNullOrWhiteSpace(input.Contrasena))
                 usuarioExistente.Contrasena = BCrypt.Net.BCrypt.HashPassword(input.Contrasena);
-            
-            usuarioExistente.RolId = input.RolId;
+
+            // Solo actualizar RolId si viene explícitamente (evita perder el rol si no se envía)
+            if (input.RolId.HasValue)
+                usuarioExistente.RolId = input.RolId.Value > 0 ? input.RolId.Value : usuarioExistente.RolId;
+
             usuarioExistente.TipoDocumento = input.TipoDocumento;
             usuarioExistente.Documento = input.Documento;
-            usuarioExistente.FotoPerfil = input.FotoPerfil;
-            usuarioExistente.Estado = input.Estado;
+            if (input.FotoPerfil != null)
+                usuarioExistente.FotoPerfil = input.FotoPerfil;
+
+            // Solo actualizar Estado si viene explícitamente (evita reactivar usuarios desactivados)
+            if (input.Estado.HasValue)
+                usuarioExistente.Estado = input.Estado.Value;
+
             usuarioExistente.FechaModificacion = _dt.NowColombia;
 
-            // Resolver el nombre del rol para evitar comparaciones por ID numérico
-            var nombreRolUpdate = input.RolId > 0
-                ? (await _context.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Id == input.RolId))?.Nombre ?? string.Empty
+            // Resolver el nombre del rol actual del usuario (tras la posible actualización)
+            var rolIdEfectivo = usuarioExistente.RolId;
+            var nombreRolUpdate = rolIdEfectivo.HasValue && rolIdEfectivo > 0
+                ? (await _context.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Id == rolIdEfectivo))?.Nombre ?? string.Empty
                 : string.Empty;
 
             if (string.Equals(nombreRolUpdate, RolesNombres.Cliente, StringComparison.OrdinalIgnoreCase))
             {
+                // Si tenía perfil de Barbero, desactivarlo para que no aparezca en /Barberos
+                if (usuarioExistente.Barbero != null)
+                    usuarioExistente.Barbero.Estado = false;
+
                 if (usuarioExistente.Cliente != null)
                 {
                     usuarioExistente.Cliente.Telefono = input.Telefono;
@@ -295,15 +308,47 @@ public class UsuarioService : IUsuarioService
                     usuarioExistente.Cliente.Barrio = input.Barrio;
                     usuarioExistente.Cliente.FechaNacimiento = input.FechaNacimiento;
                 }
+                else
+                {
+                    // Crear el registro Cliente si faltaba (ej: usuario creado via Google sin sync completo)
+                    _context.Clientes.Add(new Cliente
+                    {
+                        UsuarioId = id,
+                        Telefono = input.Telefono,
+                        Direccion = input.Direccion,
+                        Barrio = input.Barrio,
+                        FechaNacimiento = input.FechaNacimiento,
+                        Estado = true,
+                        FechaRegistro = _dt.NowColombia
+                    });
+                }
             }
             else if (string.Equals(nombreRolUpdate, RolesNombres.Barbero, StringComparison.OrdinalIgnoreCase))
             {
+                // Si tenía perfil de Cliente, desactivarlo para que no aparezca en /Clientes
+                if (usuarioExistente.Cliente != null)
+                    usuarioExistente.Cliente.Estado = false;
+
                 if (usuarioExistente.Barbero != null)
                 {
                     usuarioExistente.Barbero.Telefono = input.Telefono;
                     usuarioExistente.Barbero.Direccion = input.Direccion;
                     usuarioExistente.Barbero.Barrio = input.Barrio;
                     usuarioExistente.Barbero.FechaNacimiento = input.FechaNacimiento;
+                }
+                else
+                {
+                    _context.Barberos.Add(new Barbero
+                    {
+                        UsuarioId = id,
+                        Telefono = input.Telefono,
+                        Direccion = input.Direccion,
+                        Barrio = input.Barrio,
+                        FechaNacimiento = input.FechaNacimiento,
+                        Especialidad = "General",
+                        Estado = true,
+                        FechaContratacion = _dt.NowColombia
+                    });
                 }
             }
 
@@ -320,13 +365,18 @@ public class UsuarioService : IUsuarioService
 
     public async Task<ServiceResult<object>> CambiarEstadoAsync(int id, CambioEstadoBooleanInput input)
     {
-        var usuario = await _context.Usuarios.FindAsync(id);
+        var usuario = await _context.Usuarios
+            .Include(u => u.Cliente)
+            .Include(u => u.Barbero)
+            .FirstOrDefaultAsync(u => u.Id == id);
         if (usuario == null) return ServiceResult<object>.NotFound();
 
         usuario.Estado = input.estado;
+        if (usuario.Cliente != null) usuario.Cliente.Estado = input.estado;
+        if (usuario.Barbero != null) usuario.Barbero.Estado = input.estado;
         await _context.SaveChangesAsync();
 
-        return ServiceResult<object>.Ok(new { success = true, mensaje = "Estado actualizado" });
+        return ServiceResult<object>.Ok(new { success = true, mensaje = input.estado ? "Usuario activado" : "Usuario desactivado" });
     }
 
     public async Task<ServiceResult<object>> DeleteAsync(int id)

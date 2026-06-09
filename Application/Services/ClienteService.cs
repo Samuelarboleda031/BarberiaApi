@@ -26,7 +26,14 @@ public class ClienteService : IClienteService
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
     {
         PaginationHelper.Sanitize(ref page, ref pageSize);
-        var baseQ = _context.Clientes.AsNoTracking().AsQueryable();
+        // Solo incluir clientes cuyo usuario tiene el rol "cliente" (previene perfiles huérfanos por cambio de rol)
+        var clienteRoleId = await _context.Roles
+            .Where(r => r.Nombre.ToLower() == RolesNombres.Cliente.ToLower())
+            .Select(r => (int?)r.Id)
+            .FirstOrDefaultAsync();
+        var baseQ = _context.Clientes.AsNoTracking()
+            .Where(c => c.Usuario != null && c.Usuario.RolId == clienteRoleId)
+            .AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))
         {
             var term = q.Trim().ToLower();
@@ -151,12 +158,13 @@ public class ClienteService : IClienteService
         clienteExistente.FechaNacimiento = input.FechaNacimiento;
         clienteExistente.Estado = input.Estado;
 
-        var usuario = await _context.Usuarios.FindAsync(clienteExistente.UsuarioId);
+        var usuario = clienteExistente.Usuario;
         if (usuario != null)
         {
             usuario.Nombre = input.Nombre; usuario.Apellido = input.Apellido;
             usuario.Documento = input.Documento; usuario.Correo = input.Correo;
-            usuario.FotoPerfil = input.FotoPerfil;
+            if (input.FotoPerfil != null)
+                usuario.FotoPerfil = input.FotoPerfil;
         }
         await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(new { message = "Cliente actualizado" });
@@ -188,7 +196,7 @@ public class ClienteService : IClienteService
         var usuario = cliente.Usuario;
         bool tieneAgendamientosActivos = cliente.Agendamientos.Any(a => a.Estado != "Cancelada");
         bool tieneVentasCompletadas = cliente.Venta.Any(v => v.Estado == "Completada");
-        bool tieneComprasUsuario = await _context.Compras.AnyAsync(c => c.UsuarioId == usuario.Id);
+        bool tieneComprasUsuario = usuario != null && await _context.Compras.AnyAsync(c => c.UsuarioId == usuario.Id);
 
         if (tieneAgendamientosActivos || tieneVentasCompletadas || tieneComprasUsuario)
         {
