@@ -42,22 +42,95 @@ public class RolService : IRolService
         return ServiceResult<object>.Ok(rol);
     }
 
-    public async Task<ServiceResult<object>> CreateAsync(Role rol)
+    public async Task<ServiceResult<object>> CreateAsync(CreateRoleInput input)
     {
-        if (rol == null) return ServiceResult<object>.Fail("El rol es requerido");
-        rol.Id = 0; rol.Estado = true;
-        _context.Roles.Add(rol); await _context.SaveChangesAsync();
-        return ServiceResult<object>.Ok(rol);
+        if (input == null) return ServiceResult<object>.Fail("El rol es requerido");
+        var rol = new Role { Nombre = input.Nombre, Descripcion = input.Descripcion, Estado = true };
+        _context.Roles.Add(rol);
+        await _context.SaveChangesAsync();
+
+        foreach (var moduloId in input.Modulos)
+        {
+            input.Permisos.TryGetValue(moduloId.ToString(), out var p);
+            _context.RolesModulos.Add(new RolesModulos
+            {
+                RolId = rol.Id,
+                ModuloId = moduloId,
+                PuedeVer = p?.PuedeVer ?? true,
+                PuedeCrear = p?.PuedeCrear ?? true,
+                PuedeEditar = p?.PuedeEditar ?? true,
+                PuedeEliminar = p?.PuedeEliminar ?? true
+            });
+        }
+        await _context.SaveChangesAsync();
+
+        return ServiceResult<object>.Ok(new RoleDto
+        {
+            Id = rol.Id,
+            Nombre = rol.Nombre,
+            Descripcion = rol.Descripcion,
+            Estado = rol.Estado ?? false,
+            UsuariosAsignados = 0,
+            Modulos = input.Modulos
+        });
     }
 
     public async Task<ServiceResult<object>> UpdateAsync(int id, RoleInput input)
     {
         if (id != input.Id) return ServiceResult<object>.Fail("Id no coincide");
-        var rol = await _context.Roles.FindAsync(id);
+        var rol = await _context.Roles
+            .Include(r => r.RolesModulos)
+            .Include(r => r.Usuarios)
+            .FirstOrDefaultAsync(r => r.Id == id);
         if (rol == null) return ServiceResult<object>.NotFound();
-        rol.Nombre = input.Nombre; rol.Descripcion = input.Descripcion; rol.Estado = input.Estado;
+
+        rol.Nombre = input.Nombre;
+        rol.Descripcion = input.Descripcion;
+        rol.Estado = input.Estado;
+
+        // Sincronizar módulos
+        var existentes = rol.RolesModulos.ToList();
+        var aEliminar = existentes.Where(rm => !input.Modulos.Contains(rm.ModuloId)).ToList();
+        _context.RolesModulos.RemoveRange(aEliminar);
+
+        foreach (var moduloId in input.Modulos)
+        {
+            input.Permisos.TryGetValue(moduloId.ToString(), out var p);
+            var existente = existentes.FirstOrDefault(rm => rm.ModuloId == moduloId);
+            if (existente != null)
+            {
+                if (p != null)
+                {
+                    existente.PuedeVer = p.PuedeVer;
+                    existente.PuedeCrear = p.PuedeCrear;
+                    existente.PuedeEditar = p.PuedeEditar;
+                    existente.PuedeEliminar = p.PuedeEliminar;
+                }
+            }
+            else
+            {
+                _context.RolesModulos.Add(new RolesModulos
+                {
+                    RolId = id,
+                    ModuloId = moduloId,
+                    PuedeVer = p?.PuedeVer ?? true,
+                    PuedeCrear = p?.PuedeCrear ?? true,
+                    PuedeEditar = p?.PuedeEditar ?? true,
+                    PuedeEliminar = p?.PuedeEliminar ?? true
+                });
+            }
+        }
+
         await _context.SaveChangesAsync();
-        return ServiceResult<object>.Ok(new { message = "Rol actualizado" });
+        return ServiceResult<object>.Ok(new RoleDto
+        {
+            Id = rol.Id,
+            Nombre = rol.Nombre,
+            Descripcion = rol.Descripcion,
+            Estado = rol.Estado ?? false,
+            UsuariosAsignados = rol.Usuarios.Count(),
+            Modulos = input.Modulos
+        });
     }
 
     public async Task<ServiceResult<object>> CambiarEstadoAsync(int id, CambioEstadoBooleanInput input)
