@@ -346,6 +346,17 @@ app.UseAuthorization();
 app.UseRateLimiter();
 app.MapControllers();
 
-app.MapMethods("/health", new[] { "GET", "HEAD" }, () => Results.Ok(new { status = "ok" }));
+app.MapMethods("/health", new[] { "GET", "HEAD" }, async (BarberiaApi.Infrastructure.Data.BarberiaContext db) =>
+{
+    try
+    {
+        await db.Database.CanConnectAsync();
+        return Results.Ok(new { status = "ok", database = "connected", timestamp = DateTime.UtcNow });
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new { status = "warning", database = "disconnected", error = ex.Message, timestamp = DateTime.UtcNow });
+    }
+}).AllowAnonymous();
 
 app.Run();
