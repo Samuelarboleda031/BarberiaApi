@@ -222,13 +222,15 @@ public class ProductoService : IProductoService
             .Include(p => p.DetalleVenta)
             .Include(p => p.DetalleCompras)
             .Include(p => p.Devoluciones)
+            .Include(p => p.AgendamientoProductos)
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (producto == null) return ServiceResult<object>.NotFound();
 
         if (producto.DetalleVenta.Any() ||
             producto.DetalleCompras.Any() ||
-            producto.Devoluciones.Any())
+            producto.Devoluciones.Any() ||
+            producto.AgendamientoProductos.Any())
         {
             producto.Estado = false;
             await _context.SaveChangesAsync();

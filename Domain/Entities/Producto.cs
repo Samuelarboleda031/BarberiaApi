@@ -33,4 +33,6 @@ public partial class Producto
     public virtual ICollection<Devolucion> Devoluciones { get; set; } = new List<Devolucion>();
 
     public virtual ICollection<DetallePaquete> DetallePaquetes { get; set; } = new List<DetallePaquete>();
+
+    public virtual ICollection<AgendamientoProducto> AgendamientoProductos { get; set; } = new List<AgendamientoProducto>();
 }

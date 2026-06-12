@@ -75,7 +75,7 @@ public partial class BarberiaContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(d => d.Producto)
-                .WithMany()
+                .WithMany(p => p.AgendamientoProductos)
                 .HasForeignKey(d => d.ProductoId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
