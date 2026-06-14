@@ -6,6 +6,7 @@ namespace BarberiaApi.Application.DTOs;
 public class CambioEstadoInput
 {
     public string estado { get; set; } = string.Empty;
+    public decimal? porcentajeDescuento { get; set; }
 }
 
 public class CambioEstadoBooleanInput

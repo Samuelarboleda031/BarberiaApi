@@ -87,6 +87,7 @@ public class CompletarParcialmenteRequest
     public List<int> ServiciosCompletados { get; set; } = new();
     public List<int> ProductosCompletados { get; set; } = new();
     public string Estado { get; set; } = "Completada";
+    public decimal PorcentajeDescuento { get; set; } = 0m;
 }
 
 public class CompletarParcialmenteResponse

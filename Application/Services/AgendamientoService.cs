@@ -705,9 +705,10 @@ public class AgendamientoService : IAgendamientoService
                 var serviciosPrecioMap = serviciosCita.ToDictionary(s => s.Id, s => s.Precio);
                 var productosPrecioMap = productosCita.ToDictionary(p => p.Id, p => p.PrecioVenta);
 
-                decimal precio = agendamiento.Precio.HasValue
-                    ? agendamiento.Precio.Value
-                    : (serviciosCita.Sum(s => s.Precio) + productosCita.Sum(p => p.PrecioVenta));
+                decimal subtotalCompletarNormal = serviciosCita.Sum(s => s.Precio) + productosCita.Sum(p => p.PrecioVenta);
+                if (subtotalCompletarNormal == 0 && agendamiento.Precio.HasValue)
+                    subtotalCompletarNormal = agendamiento.Precio.Value;
+                decimal precio = subtotalCompletarNormal;
 
                 var ventaExistente = await _context.Ventas
                     .Include(v => v.DetalleVenta)
@@ -821,6 +822,9 @@ public class AgendamientoService : IAgendamientoService
                     }
                 }
 
+                decimal descuentoMontoCN = precio * ((input.porcentajeDescuento ?? 0m) / 100m);
+                decimal totalConDescuentoCN = precio - descuentoMontoCN;
+
                 var venta = new Venta
                 {
                     UsuarioId = usuarioId,
@@ -829,8 +833,8 @@ public class AgendamientoService : IAgendamientoService
                     Fecha = agendamiento.FechaHora,
                     Subtotal = precio,
                     IVA = 0m,
-                    Descuento = 0m,
-                    Total = precio,
+                    Descuento = descuentoMontoCN,
+                    Total = totalConDescuentoCN,
                     MetodoPago = "Efectivo",
                     Estado = EstadosAgendamiento.Completada,
                     SaldoAFavorUsado = 0m
@@ -857,17 +861,21 @@ public class AgendamientoService : IAgendamientoService
                     });
                     _context.DetalleVentas.AddRange(detalles);
                 }
-                if (productoIdsCita.Count > 0)
+                if (agendamiento.AgendamientoProductos.Count > 0)
                 {
-                    var detallesProds = productoIdsCita.Select(prodId => new DetalleVenta
+                    var productosAgrupadosCN = agendamiento.AgendamientoProductos
+                        .GroupBy(ap => ap.ProductoId)
+                        .Select(g => new { ProductoId = g.Key, Cantidad = g.Sum(x => x.Cantidad) })
+                        .ToList();
+                    var detallesProds = productosAgrupadosCN.Select(p => new DetalleVenta
                     {
                         VentaId = venta.Id,
                         ServicioId = null,
                         PaqueteId = null,
-                        ProductoId = prodId,
-                        Cantidad = 1,
-                        PrecioUnitario = productosPrecioMap.TryGetValue(prodId, out var pV) ? pV : 0m,
-                        Subtotal = productosPrecioMap.TryGetValue(prodId, out var pSub) ? pSub : 0m
+                        ProductoId = p.ProductoId,
+                        Cantidad = p.Cantidad,
+                        PrecioUnitario = productosPrecioMap.TryGetValue(p.ProductoId, out var pV) ? pV : 0m,
+                        Subtotal = productosPrecioMap.TryGetValue(p.ProductoId, out var pSub) ? pSub * p.Cantidad : 0m
                     });
                     _context.DetalleVentas.AddRange(detallesProds);
                 }
@@ -1036,7 +1044,8 @@ public class AgendamientoService : IAgendamientoService
                                .Sum(sid => serviciosMap[sid].Precio)
                          + productosRealizados.Sum(p => p.Producto.PrecioVenta * p.Cantidad);
         decimal iva = subtotal * 0.19m;
-        decimal total = subtotal + iva;
+        decimal descuentoMonto = subtotal * (request.PorcentajeDescuento / 100m);
+        decimal total = subtotal + iva - descuentoMonto;
 
         var usuarioId = cita.Barbero?.UsuarioId ?? 0;
         if (usuarioId == 0)
@@ -1053,7 +1062,7 @@ public class AgendamientoService : IAgendamientoService
                 Fecha = _dt.NowColombia,
                 Subtotal = subtotal,
                 IVA = iva,
-                Descuento = 0,
+                Descuento = descuentoMonto,
                 Total = total,
                 Estado = EstadosAgendamiento.Completada,
                 MetodoPago = "Efectivo",
@@ -1081,7 +1090,14 @@ public class AgendamientoService : IAgendamientoService
                 });
             }
 
-            foreach (var p in productosRealizados)
+            // Agrupar por ProductoId para que citas creadas con el formato legacy
+            // (múltiples filas con Cantidad=1) generen un solo DetalleVenta con la cantidad total.
+            var productosAgrupados = productosRealizados
+                .GroupBy(p => p.ProductoId)
+                .Select(g => new { ProductoId = g.Key, Cantidad = g.Sum(x => x.Cantidad), Producto = g.First().Producto })
+                .ToList();
+
+            foreach (var p in productosAgrupados)
             {
                 _context.DetalleVentas.Add(new DetalleVenta
                 {
