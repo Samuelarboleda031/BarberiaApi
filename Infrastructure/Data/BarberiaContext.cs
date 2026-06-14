@@ -43,6 +43,7 @@ public partial class BarberiaContext : DbContext
     public virtual DbSet<CreditoBarbero> CreditosBarbero { get; set; }
     public virtual DbSet<AbonoCreditoBarbero> AbonosCreditoBarbero { get; set; }
     public virtual DbSet<HistorialEstadoCredito> HistorialEstadoCredito { get; set; }
+    public virtual DbSet<DescuentoDia> DescuentosDia { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -469,6 +470,16 @@ public partial class BarberiaContext : DbContext
 
             entity.HasOne(d => d.CreditoBarbero).WithMany(p => p.Historial).HasForeignKey(d => d.CreditoBarberoId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(d => d.Responsable).WithMany().HasForeignKey(d => d.ResponsableId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DescuentoDia>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("DescuentosDia");
+
+            entity.Property(e => e.Fecha).HasColumnType("date");
+            entity.Property(e => e.Porcentaje).HasPrecision(5, 2);
+            entity.HasIndex(e => e.Fecha).IsUnique();
         });
 
         OnModelCreatingPartial(modelBuilder);
