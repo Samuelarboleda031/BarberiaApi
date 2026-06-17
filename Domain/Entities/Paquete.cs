@@ -13,6 +13,8 @@ public partial class Paquete
 
     public decimal Precio { get; set; }
 
+    public decimal? PorcentajeDescuento { get; set; }
+
     public int DuracionMinutos { get; set; }
 
     public bool? Estado { get; set; }

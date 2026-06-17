@@ -38,7 +38,7 @@ public class PaqueteService : IPaqueteService
     {
         if (input == null) return ServiceResult<object>.Fail("El objeto paquete es requerido");
         if (string.IsNullOrWhiteSpace(input.Nombre)) return ServiceResult<object>.Fail("El nombre es requerido");
-        var paquete = new Paquete { Nombre = input.Nombre, Descripcion = input.Descripcion, Precio = input.Precio, DuracionMinutos = input.DuracionMinutos, Estado = true };
+        var paquete = new Paquete { Nombre = input.Nombre, Descripcion = input.Descripcion, Precio = input.Precio, PorcentajeDescuento = input.PorcentajeDescuento, DuracionMinutos = input.DuracionMinutos, Estado = true };
         _context.Paquetes.Add(paquete); await _context.SaveChangesAsync();
         return ServiceResult<object>.Ok(paquete);
     }
@@ -52,7 +52,7 @@ public class PaqueteService : IPaqueteService
         using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
-            var paquete = new Paquete { Nombre = input.Nombre, Descripcion = input.Descripcion, Precio = input.Precio, DuracionMinutos = input.DuracionMinutos, Estado = true };
+            var paquete = new Paquete { Nombre = input.Nombre, Descripcion = input.Descripcion, Precio = input.Precio, PorcentajeDescuento = input.PorcentajeDescuento, DuracionMinutos = input.DuracionMinutos, Estado = true };
             foreach (var det in input.Detalles)
             {
                 if (det.ServicioId <= 0 || det.Cantidad <= 0) return ServiceResult<object>.Fail("ServicioId y Cantidad son obligatorios y mayores a cero");
