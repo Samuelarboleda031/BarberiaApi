@@ -1,4 +1,4 @@
-/* using BarberiaApi.Application.DTOs;
+using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
@@ -40,4 +40,3 @@ namespace BarberiaApi.Controllers
         { var r = await _categoriaService.DeleteAsync(id); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : StatusCode(r.StatusCode, r.Error); }
     }
 }
- */
