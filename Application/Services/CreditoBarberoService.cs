@@ -121,7 +121,7 @@ public class CreditoBarberoService : ICreditoBarberoService
         return 3;
     }
 
-    public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
+    public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q, string? estado = null)
     {
         PaginationHelper.Sanitize(ref page, ref pageSize);
 
@@ -148,6 +148,17 @@ public class CreditoBarberoService : ICreditoBarberoService
             .OrderBy(c => EstadoPrioridad(c.Estado))
             .ThenByDescending(c => c.FechaInicio)
             .ToList();
+
+        // Filtro por estado
+        if (!string.IsNullOrWhiteSpace(estado) && !estado.Equals("todos", StringComparison.OrdinalIgnoreCase))
+        {
+            porBarbero = estado.ToLower() switch
+            {
+                "sin-pagar" => porBarbero.Where(c => !string.Equals(c.Estado, EstadosCredito.Pagado, StringComparison.OrdinalIgnoreCase)).ToList(),
+                "bloqueado" => porBarbero.Where(c => c.Estado.StartsWith("Bloqueado", StringComparison.OrdinalIgnoreCase)).ToList(),
+                _ => porBarbero.Where(c => string.Equals(c.Estado, estado, StringComparison.OrdinalIgnoreCase)).ToList()
+            };
+        }
 
         var totalCount = porBarbero.Count;
         var paginated = porBarbero.Skip((page - 1) * pageSize).Take(pageSize).ToList();

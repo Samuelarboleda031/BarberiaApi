@@ -18,9 +18,9 @@ public class CreditoBarberoController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? q = null)
+    public async Task<ActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? q = null, [FromQuery] string? estado = null)
     {
-        var r = await _service.GetAllAsync(page, pageSize, q);
+        var r = await _service.GetAllAsync(page, pageSize, q, estado);
         return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error);
     }
 

@@ -4,7 +4,7 @@ namespace BarberiaApi.Application.Interfaces;
 
 public interface ICreditoBarberoService
 {
-    Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q);
+    Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q, string? estado = null);
     Task<ServiceResult<object>> GetByBarberoAsync(int barberoId);
     Task<ServiceResult<object>> GetAbonosAsync(int barberoId, int page, int pageSize);
     Task<ServiceResult<object>> GetAbonosByCicloAsync(int cicloId, int page, int pageSize);
