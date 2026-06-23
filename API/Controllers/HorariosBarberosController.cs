@@ -3,8 +3,6 @@ using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.OutputCaching;
-
 namespace BarberiaApi.Controllers
 {
     [ApiController]
@@ -20,7 +18,6 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             var result = await _horarioService.GetAllAsync(page, pageSize, q);
@@ -28,7 +25,6 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("{id}")]
-        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetById(int id)
         {
             var result = await _horarioService.GetByIdAsync(id);
@@ -37,7 +33,6 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet("barbero/{barberoId}")]
-        [OutputCache(PolicyName = "short")]
         public async Task<ActionResult<object>> GetByBarbero(int barberoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
             var result = await _horarioService.GetByBarberoAsync(barberoId, page, pageSize, q);

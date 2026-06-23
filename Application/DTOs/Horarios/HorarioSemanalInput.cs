@@ -33,7 +33,7 @@ public class CambioEstadoHorarioInput
     public int UsuarioSolicitanteId { get; set; }
     [JsonPropertyName("fechaHora")]
     public DateTime? FechaHora { get; set; }
-    public DateTime? FechaReferencia { get; set; }
+    public string? FechaReferencia { get; set; }
     public string? Motivo { get; set; }
     public int CantidadSugerencias { get; set; } = 3;
 }

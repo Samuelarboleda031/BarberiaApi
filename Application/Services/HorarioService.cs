@@ -394,7 +394,10 @@ public class HorarioService : IHorarioService
 
             horarioSemanal.Estado = "Finalizado";
 
-            var fechaReferencia = (input.FechaReferencia ?? input.FechaHora ?? DateTime.Today).Date;
+            DateTime? fechaRefParsed = null;
+            if (!string.IsNullOrWhiteSpace(input.FechaReferencia) && DateTime.TryParse(input.FechaReferencia, out var fr1))
+                fechaRefParsed = fr1;
+            var fechaReferencia = (fechaRefParsed ?? input.FechaHora ?? DateTime.Today).Date;
             var inicioDia = fechaReferencia;
             var finDia = inicioDia.AddDays(1);
             var motivo = string.IsNullOrWhiteSpace(input.Motivo)
@@ -516,13 +519,34 @@ public class HorarioService : IHorarioService
         if (!PuedeGestionarDesactivacion(usuarioSolicitante, barberoId))
             return ServiceResult<object>.Fail("No tiene permisos para esta acción.", 403);
 
-        var fechaReferencia = (input.FechaReferencia ?? input.FechaHora ?? DateTime.Today).Date;
+        DateTime? fechaRefParsed2 = null;
+        if (!string.IsNullOrWhiteSpace(input.FechaReferencia) && DateTime.TryParse(input.FechaReferencia, out var fr2))
+            fechaRefParsed2 = fr2;
+        var fechaReferencia = (fechaRefParsed2 ?? input.FechaHora ?? DateTime.Today).Date;
         var inicioDia = fechaReferencia;
         var finDia = inicioDia.AddDays(1);
 
         var motivo = string.IsNullOrWhiteSpace(input.Motivo)
             ? "Día desactivado por administración."
             : input.Motivo!.Trim();
+
+        // Eliminar el DetalleHorarioDia del horario semanal activo para que el día no aparezca como disponible
+        var diaSemana = DiaSemanaDominicalANumerico(fechaReferencia.DayOfWeek);
+
+        // Buscar en TODOS los horarios activos del barbero que cubran la fecha (no solo por rango exacto)
+        var horariosActivos = await _context.HorariosSemanales
+            .Include(h => h.Detalles)
+            .Where(h => h.BarberoId == barberoId && h.Estado == "Activo")
+            .ToListAsync();
+
+        foreach (var horario in horariosActivos)
+        {
+            var detallesDia = horario.Detalles.Where(d => d.DiaSemana == diaSemana).ToList();
+            if (detallesDia.Count > 0)
+            {
+                _context.DetalleHorarioDias.RemoveRange(detallesDia);
+            }
+        }
 
         var agendamientosAfectados = await _context.Agendamientos
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
