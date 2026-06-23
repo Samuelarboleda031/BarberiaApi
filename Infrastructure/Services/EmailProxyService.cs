@@ -289,11 +289,7 @@ public sealed class EmailProxyService : IEmailProxyService
       <div style=""background-color: #0a0a0a; padding: 15px; border-radius: 8px; border: 1px dashed #d8b081; display: inline-block; min-width: 200px;"">
         <p style=""margin: 0; color: #d8b081; font-weight: 800; font-size: 16px;"">{safeSugerencias}</p>
       </div>
-      <div style=""margin-top: 30px;"">
-        <a href=""{safeBookingUrl}"" style=""display: inline-block; background-color: #d8b081; color: #000; text-decoration: none; padding: 16px 35px; border-radius: 10px; font-weight: 900; text-transform: uppercase; font-size: 13px; letter-spacing: 1px;"">
-          RESERVAR NUEVO TURNO
-        </a>
-      </div>
+      <p style=""margin-top: 25px; color: #ccc; font-size: 15px;"">Por favor vuelve y reserva una nueva cita, ¡te esperamos!</p>
     </div>
     <p style=""margin-top: 40px; color: #666; font-size: 13px; text-align: center; line-height: 1.6;"">
       Si tienes alguna duda o prefieres asistencia personalizada, no dudes en contactarnos directamente.
