@@ -10,4 +10,5 @@ public interface IVentaService
     Task<ServiceResult<object>> GetByClienteAsync(int clienteId, int page, int pageSize);
     Task<ServiceResult<object>> CreateAsync(VentaInput input);
     Task<ServiceResult<object>> AnularAsync(int id);
+    Task<ServiceResult<object>> GetVentasCreditoByBarberoAsync(int barberoId, int page, int pageSize);
 }

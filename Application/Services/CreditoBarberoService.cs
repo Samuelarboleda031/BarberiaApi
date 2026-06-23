@@ -7,6 +7,7 @@ using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Data;
 
 namespace BarberiaApi.Application.Services;
 
@@ -149,11 +150,59 @@ public class CreditoBarberoService : ICreditoBarberoService
             .ToList();
 
         var totalCount = porBarbero.Count;
-        var items = porBarbero
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(ToDto)
-            .ToList();
+        var paginated = porBarbero.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var barberoIds = paginated.Select(c => c.BarberoId).ToList();
+
+        // Batch 1: último abono por barbero en TODOS sus ciclos (2 queries, no N)
+        var todosCiclosIds = await _context.CreditosBarbero
+            .Where(c => barberoIds.Contains(c.BarberoId))
+            .Select(c => new { c.Id, c.BarberoId })
+            .ToListAsync();
+
+        var cicloToBarberoId = todosCiclosIds.ToDictionary(x => x.Id, x => x.BarberoId);
+        var allCicloIds = cicloToBarberoId.Keys.ToList();
+
+        var ultimosAbonosRaw = await _context.AbonosCreditoBarbero
+            .Where(a => allCicloIds.Contains(a.CreditoBarberoId))
+            .GroupBy(a => a.CreditoBarberoId)
+            .Select(g => new { CicloId = g.Key, Fecha = g.Max(a => a.Fecha) })
+            .ToListAsync();
+
+        var ultimoAbonoPorBarbero = new Dictionary<int, DateTime?>();
+        foreach (var x in ultimosAbonosRaw)
+        {
+            if (!cicloToBarberoId.TryGetValue(x.CicloId, out var bid)) continue;
+            if (!ultimoAbonoPorBarbero.ContainsKey(bid) || x.Fecha > ultimoAbonoPorBarbero[bid])
+                ultimoAbonoPorBarbero[bid] = x.Fecha;
+        }
+
+        // Batch 2: conteo de ventas a crédito en el ciclo actual por barbero (1 query)
+        var ventasCredito = await _context.Ventas
+            .Where(v => barberoIds.Contains(v.BarberoId!.Value)
+                        && v.MetodoPago == "CreditoBarbero"
+                        && v.Estado != "Anulada")
+            .Select(v => new { v.BarberoId, v.Fecha })
+            .ToListAsync();
+
+        var ventasCountPorBarbero = new Dictionary<int, int>();
+        foreach (var c in paginated)
+        {
+            if (c.Estado == EstadosCredito.Pagado) { ventasCountPorBarbero[c.BarberoId] = 0; continue; }
+            var inicio = c.FechaInicio.Date;
+            var cierre = c.FechaCierre;
+            ventasCountPorBarbero[c.BarberoId] = ventasCredito.Count(v =>
+                v.BarberoId == c.BarberoId
+                && v.Fecha >= inicio
+                && (cierre == null || v.Fecha <= cierre));
+        }
+
+        var items = paginated.Select(c =>
+        {
+            var dto = ToDto(c);
+            dto.UltimoAbono = ultimoAbonoPorBarbero.TryGetValue(c.BarberoId, out var ua) ? ua : null;
+            dto.VentasCicloCount = ventasCountPorBarbero.TryGetValue(c.BarberoId, out var vc) ? vc : 0;
+            return dto;
+        }).ToList();
 
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
         return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
@@ -335,6 +384,13 @@ public class CreditoBarberoService : ICreditoBarberoService
         if (input.Monto <= 0)
             return ServiceResult<object>.Fail("El monto del abono debe ser mayor a 0");
 
+        if (input.Monto < 5000)
+            return ServiceResult<object>.Fail("El monto mínimo de abono es $5.000");
+
+        if (input.Monto % 50 != 0)
+            return ServiceResult<object>.Fail("El monto del abono debe ser múltiplo de $50 (denominaciones reales del peso colombiano: $50, $100, $200, $500, $1.000...)");
+
+
         var metodosValidos = new[] { "Efectivo", "Transferencia", "Tarjeta", "Nequi", "Daviplata", "Otro" };
         if (!string.IsNullOrWhiteSpace(input.MetodoPago) &&
             !metodosValidos.Contains(input.MetodoPago, StringComparer.OrdinalIgnoreCase))
@@ -363,54 +419,83 @@ public class CreditoBarberoService : ICreditoBarberoService
             return ServiceResult<object>.Fail(
                 $"El monto del abono ({input.Monto:C}) supera el saldo pendiente ({credito.SaldoPendiente:C}). No se permiten abonos que excedan la deuda.");
 
-        var estadoAnterior = credito.Estado;
-        var montoAplicable = input.Monto;
-        credito.SaldoPendiente -= montoAplicable;
-
-        RecalcularEstado(credito, _dt.NowColombia);
-
-        if (credito.Estado == EstadosCredito.Pagado && credito.FechaCierre == null)
-            credito.FechaCierre = _dt.NowColombia;
-
-        var abono = new AbonoCreditoBarbero
+        using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        try
         {
-            CreditoBarberoId = credito.Id,
-            UsuarioId = input.UsuarioId,
-            VentaId = input.VentaId,
-            Monto = montoAplicable,
-            MetodoPago = input.MetodoPago ?? "Efectivo",
-            Fecha = _dt.NowColombia,
-            Notas = input.Notas,
-            Estado = "Completado"
-        };
+            // Re-leer el crédito dentro de la transacción para evitar doble descuento concurrente
+            credito = await ObtenerCreditoVigenteAsync(barberoId);
+            if (credito == null)
+            {
+                await transaction.RollbackAsync();
+                return ServiceResult<object>.Fail("El barbero no tiene un crédito registrado");
+            }
+            if (credito.SaldoPendiente <= 0)
+            {
+                await transaction.RollbackAsync();
+                return ServiceResult<object>.Fail("El barbero no tiene deuda pendiente");
+            }
+            if (input.Monto > credito.SaldoPendiente)
+            {
+                await transaction.RollbackAsync();
+                return ServiceResult<object>.Fail(
+                    $"El monto del abono ({input.Monto:C}) supera el saldo pendiente ({credito.SaldoPendiente:C}). No se permiten abonos que excedan la deuda.");
+            }
 
-        if (estadoAnterior != credito.Estado)
-        {
-            _context.HistorialEstadoCredito.Add(new HistorialEstadoCredito
+            var estadoAnterior = credito.Estado;
+            var montoAplicable = input.Monto;
+            credito.SaldoPendiente -= montoAplicable;
+
+            RecalcularEstado(credito, _dt.NowColombia);
+
+            if (credito.Estado == EstadosCredito.Pagado && credito.FechaCierre == null)
+                credito.FechaCierre = _dt.NowColombia;
+
+            var abono = new AbonoCreditoBarbero
             {
                 CreditoBarberoId = credito.Id,
-                EstadoAnterior = estadoAnterior,
-                EstadoNuevo = credito.Estado,
-                FechaCambio = _dt.NowColombia,
-                ResponsableId = input.UsuarioId,
-                Observacion = $"Abono de {montoAplicable:C} registrado"
+                UsuarioId = input.UsuarioId,
+                VentaId = input.VentaId,
+                Monto = montoAplicable,
+                MetodoPago = input.MetodoPago ?? "Efectivo",
+                Fecha = _dt.NowColombia,
+                Notas = input.Notas,
+                Estado = "Completado"
+            };
+
+            if (estadoAnterior != credito.Estado)
+            {
+                _context.HistorialEstadoCredito.Add(new HistorialEstadoCredito
+                {
+                    CreditoBarberoId = credito.Id,
+                    EstadoAnterior = estadoAnterior,
+                    EstadoNuevo = credito.Estado,
+                    FechaCambio = _dt.NowColombia,
+                    ResponsableId = input.UsuarioId,
+                    Observacion = $"Abono de {montoAplicable:C} registrado"
+                });
+            }
+
+            _context.AbonosCreditoBarbero.Add(abono);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return ServiceResult<object>.Ok(new
+            {
+                mensaje = $"Abono de {montoAplicable:C} registrado exitosamente",
+                abonoId = abono.Id,
+                creditoBarberoId = credito.Id,
+                saldoDeudaAnterior = credito.SaldoPendiente + montoAplicable,
+                montoAbonado = montoAplicable,
+                saldoDeudaActual = credito.SaldoPendiente,
+                cupoDisponible = Math.Max(0, credito.LimiteCredito - credito.SaldoPendiente),
+                estadoCredito = credito.Estado
             });
         }
-
-        _context.AbonosCreditoBarbero.Add(abono);
-        await _context.SaveChangesAsync();
-
-        return ServiceResult<object>.Ok(new
+        catch (Exception)
         {
-            mensaje = $"Abono de {montoAplicable:C} registrado exitosamente",
-            abonoId = abono.Id,
-            creditoBarberoId = credito.Id,
-            saldoDeudaAnterior = credito.SaldoPendiente + montoAplicable,
-            montoAbonado = montoAplicable,
-            saldoDeudaActual = credito.SaldoPendiente,
-            cupoDisponible = Math.Max(0, credito.LimiteCredito - credito.SaldoPendiente),
-            estadoCredito = credito.Estado
-        });
+            await transaction.RollbackAsync();
+            return ServiceResult<object>.Fail("Error interno al registrar el abono.", 500);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -531,6 +616,63 @@ public class CreditoBarberoService : ICreditoBarberoService
             fechaVencimiento = nuevoCiclo.FechaVencimiento,
             estado = nuevoCiclo.Estado
         });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // SUBIR LÍMITE DE CRÉDITO
+    // ─────────────────────────────────────────────────────────────
+
+    public async Task<ServiceResult<object>> SubirLimiteAsync(int barberoId, SubirLimiteInput input)
+    {
+        if (input.Incremento <= 0 || input.Incremento % 10000 != 0)
+            return ServiceResult<object>.Fail("El incremento debe ser un valor positivo múltiplo de $10.000");
+
+        var usuario = await _context.Usuarios.FindAsync(input.UsuarioId);
+        if (usuario == null) return ServiceResult<object>.Fail("El usuario no existe");
+
+        var credito = await ObtenerCreditoVigenteAsync(barberoId);
+        if (credito == null) return ServiceResult<object>.NotFound();
+
+        if (credito.Estado == EstadosCredito.Pagado)
+            return ServiceResult<object>.Fail("No se puede modificar un crédito que ya está pagado o cerrado");
+
+        using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        try
+        {
+            var estadoAnterior = credito.Estado;
+            credito.LimiteCredito += input.Incremento;
+
+            // Subir el límite SOLO levanta el bloqueo por límite. El bloqueo por
+            // vencimiento (mora) no se toca: subir el cupo no perdona la deuda vencida.
+            // No usamos RecalcularEstado aquí porque su regla `superaMitad` está acoplada
+            // al límite y desbloquearía la mora por accidente al crecer el cupo.
+            if (credito.Estado == EstadosCredito.BloqueadoLimite)
+                credito.Estado = EstadosCredito.Activo;
+            else if (credito.Estado == EstadosCredito.BloqueadoLimiteYVencimiento)
+                credito.Estado = EstadosCredito.BloqueadoVencimiento;
+
+            if (estadoAnterior != credito.Estado)
+            {
+                _context.HistorialEstadoCredito.Add(new HistorialEstadoCredito
+                {
+                    CreditoBarberoId = credito.Id,
+                    EstadoAnterior = estadoAnterior,
+                    EstadoNuevo = credito.Estado,
+                    FechaCambio = _dt.NowColombia,
+                    ResponsableId = input.UsuarioId,
+                    Observacion = $"Límite aumentado +{input.Incremento:C}. Nuevo límite: {credito.LimiteCredito:C}"
+                });
+            }
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return ServiceResult<object>.Ok(ToDto(credito));
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            return ServiceResult<object>.Fail("Error interno al subir el límite.", 500);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────

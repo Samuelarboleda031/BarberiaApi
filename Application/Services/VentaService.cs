@@ -472,6 +472,26 @@ public class VentaService : IVentaService
         return $"{prefijo}{siguiente:D6}";
     }
 
+    public async Task<ServiceResult<object>> GetVentasCreditoByBarberoAsync(int barberoId, int page, int pageSize)
+    {
+        PaginationHelper.Sanitize(ref page, ref pageSize);
+
+        var baseQ = _context.Ventas
+            .Where(v => v.BarberoId == barberoId && v.MetodoPago == "CreditoBarbero")
+            .AsNoTracking();
+
+        var totalCount = await baseQ.CountAsync();
+        var items = await baseQ
+            .OrderByDescending(v => v.Fecha)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ProjectTo<VentaDto>(_mapper.ConfigurationProvider)
+            .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+        return ServiceResult<object>.Ok(new { items, totalCount, page, pageSize, totalPages });
+    }
+
     public async Task<ServiceResult<object>> AnularAsync(int id)
     {
         var venta = await _context.Ventas
@@ -484,11 +504,13 @@ public class VentaService : IVentaService
 
         if (venta.CreditoBarberoId.HasValue)
         {
-            var tieneAbonoCompletado = await _context.AbonosCreditoBarbero
-                .AnyAsync(a => a.CreditoBarberoId == venta.CreditoBarberoId.Value
-                            && a.Estado == "Completado");
-            if (tieneAbonoCompletado)
-                return ServiceResult<object>.Fail($"La venta #{venta.Id} no puede anularse porque el crédito tiene abonos registrados. Los abonos no se pueden anular.");
+            // Solo bloquear si hay un abono vinculado directamente a esta venta por VentaId.
+            // Abonos generales (VentaId = null) reducen el saldo del ciclo pero no impiden
+            // anular una venta puntual; la anulación devuelve el monto al saldo del ciclo.
+            var tieneAbonoVinculado = await _context.AbonosCreditoBarbero
+                .AnyAsync(a => a.VentaId == venta.Id && a.Estado == "Completado");
+            if (tieneAbonoVinculado)
+                return ServiceResult<object>.Fail($"La venta #{venta.Id} no puede anularse porque tiene un abono registrado directamente asociado a ella.");
         }
 
         using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);

@@ -52,6 +52,14 @@ namespace BarberiaApi.Controllers
             return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
         }
 
+        [HttpGet("credito-barbero/{barberoId}")]
+        [OutputCache(PolicyName = "short")]
+        public async Task<ActionResult> GetVentasCreditoByBarbero(int barberoId, [FromQuery] int page = 1, [FromQuery] int pageSize = 500)
+        {
+            var result = await _ventaService.GetVentasCreditoByBarberoAsync(barberoId, page, pageSize);
+            return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
+        }
+
         [HttpPost]
         public async Task<ActionResult> Create([FromBody] VentaInput input)
         {

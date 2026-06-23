@@ -13,5 +13,6 @@ public interface ICreditoBarberoService
 Task<ServiceResult<object>> GetOrCreateAsync(int barberoId);
     Task<ServiceResult<object>> ExtenderPlazoAsync(int barberoId, ExtenderPlazoInput input);
     Task<ServiceResult<object>> NuevoCicloAsync(int barberoId, NuevoCicloInput input);
+    Task<ServiceResult<object>> SubirLimiteAsync(int barberoId, SubirLimiteInput input);
     Task RecalcularEstadosVencidosAsync(CancellationToken ct = default);
 }

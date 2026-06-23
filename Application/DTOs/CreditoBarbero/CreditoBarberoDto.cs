@@ -21,6 +21,10 @@ public class CreditoBarberoDto
 
     // Null siempre (columna eliminada — solo para compatibilidad JSON)
     public DateTime? FechaActualizacion { get; set; }
+
+    // Calculados en GetAllAsync — eliminan N+1 calls en el frontend
+    public DateTime? UltimoAbono { get; set; }
+    public int VentasCicloCount { get; set; }
 }
 
 public class AbonoCreditoBarberoDto

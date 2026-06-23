@@ -79,4 +79,11 @@ public class CreditoBarberoController : ControllerBase
         var r = await _service.NuevoCicloAsync(barberoId, input);
         return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound(r.Error) : BadRequest(r.Error);
     }
+
+    [HttpPut("barbero/{barberoId}/subir-limite")]
+    public async Task<ActionResult> SubirLimite(int barberoId, [FromBody] SubirLimiteInput input)
+    {
+        var r = await _service.SubirLimiteAsync(barberoId, input);
+        return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound(r.Error) : BadRequest(r.Error);
+    }
 }
