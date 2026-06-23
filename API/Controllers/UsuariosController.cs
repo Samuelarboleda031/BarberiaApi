@@ -50,6 +50,16 @@ namespace BarberiaApi.Controllers
         public async Task<ActionResult> EliminarFoto(int id, [FromQuery] bool borrarCloud = true)
         { var r = await _imageService.EliminarFotoUsuarioAsync(id, borrarCloud); return r.Success ? Ok(r.Data) : r.StatusCode == 404 ? NotFound() : BadRequest(r.Error); }
 
+        [HttpGet("existe-email")]
+        [AllowAnonymous]
+        public async Task<ActionResult> ExisteEmail([FromQuery] string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return Ok(new { existe = false });
+            var existe = await _context.Usuarios.AnyAsync(u => u.Correo == email.Trim().ToLower());
+            return Ok(new { existe });
+        }
+
         [HttpPost]
         [AllowAnonymous] // Registro público
         public async Task<ActionResult> Create([FromBody] UsuarioInput input)
