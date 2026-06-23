@@ -624,8 +624,10 @@ public class CreditoBarberoService : ICreditoBarberoService
 
     public async Task<ServiceResult<object>> SubirLimiteAsync(int barberoId, SubirLimiteInput input)
     {
-        if (input.Incremento <= 0 || input.Incremento % 10000 != 0)
-            return ServiceResult<object>.Fail("El incremento debe ser un valor positivo múltiplo de $10.000");
+        if (input.Incremento <= 0)
+            return ServiceResult<object>.Fail("El incremento debe ser mayor a $0");
+        if (input.Incremento > 200000)
+            return ServiceResult<object>.Fail("El incremento máximo permitido es $200.000");
 
         var usuario = await _context.Usuarios.FindAsync(input.UsuarioId);
         if (usuario == null) return ServiceResult<object>.Fail("El usuario no existe");
