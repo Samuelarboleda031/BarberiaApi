@@ -163,6 +163,27 @@ public class UsuarioService : IUsuarioService
         if (!ValidationHelper.ValidarSoloLetras(input.Apellido, out string? errorApellido))
             return ServiceResult<object>.Fail($"Apellido: {errorApellido}");
 
+        if (!string.IsNullOrWhiteSpace(input.Documento))
+        {
+            var doc = input.Documento.Trim();
+            if (doc.Length < 4 || doc.Length > 18)
+                return ServiceResult<object>.Fail("El número de documento debe tener entre 4 y 18 dígitos");
+            if (!System.Text.RegularExpressions.Regex.IsMatch(doc, @"^[0-9]+$"))
+                return ServiceResult<object>.Fail("El número de documento solo puede contener dígitos");
+        }
+
+        if (input.FechaNacimiento.HasValue)
+        {
+            var hoy = _dt.NowColombia.Date;
+            var fechaNac = input.FechaNacimiento.Value.Date;
+            if (fechaNac >= hoy)
+                return ServiceResult<object>.Fail("La fecha de nacimiento debe ser anterior a la fecha actual");
+            if ((hoy - fechaNac).TotalDays < 8 * 365)
+                return ServiceResult<object>.Fail("El usuario debe tener al menos 8 años de edad");
+            if ((hoy - fechaNac).TotalDays > 70 * 365)
+                return ServiceResult<object>.Fail("La fecha de nacimiento ingresada no es válida");
+        }
+
         using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
@@ -258,6 +279,27 @@ public class UsuarioService : IUsuarioService
 
         if (!ValidationHelper.ValidarSoloLetras(input.Apellido, out string? errorApellido))
             return ServiceResult<object>.Fail($"Apellido: {errorApellido}");
+
+        if (!string.IsNullOrWhiteSpace(input.Documento))
+        {
+            var doc = input.Documento.Trim();
+            if (doc.Length < 4 || doc.Length > 18)
+                return ServiceResult<object>.Fail("El número de documento debe tener entre 4 y 18 dígitos");
+            if (!System.Text.RegularExpressions.Regex.IsMatch(doc, @"^[0-9]+$"))
+                return ServiceResult<object>.Fail("El número de documento solo puede contener dígitos");
+        }
+
+        if (input.FechaNacimiento.HasValue)
+        {
+            var hoy = _dt.NowColombia.Date;
+            var fechaNac = input.FechaNacimiento.Value.Date;
+            if (fechaNac >= hoy)
+                return ServiceResult<object>.Fail("La fecha de nacimiento debe ser anterior a la fecha actual");
+            if ((hoy - fechaNac).TotalDays < 8 * 365)
+                return ServiceResult<object>.Fail("El usuario debe tener al menos 8 años de edad");
+            if ((hoy - fechaNac).TotalDays > 70 * 365)
+                return ServiceResult<object>.Fail("La fecha de nacimiento ingresada no es válida");
+        }
 
         if (input.Correo != usuarioExistente.Correo)
         {
