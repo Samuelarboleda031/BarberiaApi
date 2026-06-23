@@ -61,3 +61,9 @@ public class NuevoCicloInput
     public decimal? LimiteCredito { get; set; }
     public int PlazoDias { get; set; } = 7;
 }
+
+public class SubirLimiteInput
+{
+    public int UsuarioId { get; set; }
+    public decimal Incremento { get; set; }
+}
