@@ -89,6 +89,11 @@ public class DevolucionService : IDevolucionService
                         UsuarioNombre = (d.UsuarioNombre != null || d.UsuarioApellido != null) 
                             ? $"{d.UsuarioNombre} {d.UsuarioApellido}".Trim() 
                             : (d.Usuario != null ? d.Usuario.Nombre + " " + d.Usuario.Apellido : "Sistema"),
+                        d.UsuarioNombre,
+                        d.UsuarioApellido,
+                        d.UsuarioCorreo,
+                        d.UsuarioDocumento,
+                        d.UsuarioTipoDocumento,
                         ClienteNombre = d.Cliente != null && d.Cliente.Usuario != null ? d.Cliente.Usuario.Nombre + " " + d.Cliente.Usuario.Apellido : null,
                         BarberoId = d.Venta != null ? d.Venta.BarberoId : null,
                         BarberoNombre = d.Venta != null && d.Venta.Barbero != null && d.Venta.Barbero.Usuario != null ? d.Venta.Barbero.Usuario.Nombre + " " + d.Venta.Barbero.Usuario.Apellido : null
@@ -126,6 +131,11 @@ public class DevolucionService : IDevolucionService
                 UsuarioNombre = (d.UsuarioNombre != null || d.UsuarioApellido != null) 
                     ? $"{d.UsuarioNombre} {d.UsuarioApellido}".Trim() 
                     : (d.Usuario != null ? d.Usuario.Nombre + " " + d.Usuario.Apellido : "Sistema"),
+                d.UsuarioNombre,
+                d.UsuarioApellido,
+                d.UsuarioCorreo,
+                d.UsuarioDocumento,
+                d.UsuarioTipoDocumento,
                 Producto = d.ProductoId.HasValue ? new { d.Producto.Id, d.Producto.Nombre } : null,
                 Usuario = new { d.Usuario.Id, Nombre = (d.UsuarioNombre != null || d.UsuarioApellido != null) 
                     ? $"{d.UsuarioNombre} {d.UsuarioApellido}".Trim() 

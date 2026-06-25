@@ -21,6 +21,13 @@ public class VentaDto
     public decimal? CreditoBarberoUsado { get; set; }
     public int? CreditoBarberoId { get; set; }
 
+    // Stored user info for historical records
+    public string? UsuarioNombre { get; set; }
+    public string? UsuarioApellido { get; set; }
+    public string? UsuarioCorreo { get; set; }
+    public string? UsuarioDocumento { get; set; }
+    public string? UsuarioTipoDocumento { get; set; }
+
     // Proyecciones
     public string? ClienteNombreCompleto { get; set; }
     public string? BarberoNombreCompleto { get; set; }

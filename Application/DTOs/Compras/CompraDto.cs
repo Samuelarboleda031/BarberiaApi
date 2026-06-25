@@ -15,12 +15,19 @@ public class CompraDto
     public decimal? Descuento { get; set; }
     public decimal Total { get; set; }
     public string? Estado { get; set; }
-    
+
+    // Stored user info for historical records
+    public string? UsuarioNombre { get; set; }
+    public string? UsuarioApellido { get; set; }
+    public string? UsuarioCorreo { get; set; }
+    public string? UsuarioDocumento { get; set; }
+    public string? UsuarioTipoDocumento { get; set; }
+
     // Proyecciones
     public string? ProveedorNombre { get; set; }
     public string? ProveedorNIT { get; set; }
     public string? UsuarioNombreCompleto { get; set; }
-    
+
     public List<DetalleCompraDto> DetalleCompras { get; set; } = new();
 }
 
