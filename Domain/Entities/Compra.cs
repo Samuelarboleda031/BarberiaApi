@@ -34,6 +34,8 @@ public partial class Compra
     public string? UsuarioNombre { get; set; }
     public string? UsuarioApellido { get; set; }
     public string? UsuarioCorreo { get; set; }
+    public string? UsuarioDocumento { get; set; }
+    public string? UsuarioTipoDocumento { get; set; }
 
     public virtual ICollection<DetalleCompra> DetalleCompras { get; set; } = new List<DetalleCompra>();
 

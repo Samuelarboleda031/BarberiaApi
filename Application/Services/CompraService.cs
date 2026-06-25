@@ -99,6 +99,8 @@ public class CompraService : ICompraService
                 UsuarioNombre = usuarioVal.Nombre,
                 UsuarioApellido = usuarioVal.Apellido,
                 UsuarioCorreo = usuarioVal.Correo,
+                UsuarioDocumento = usuarioVal.Documento,
+                UsuarioTipoDocumento = usuarioVal.TipoDocumento,
                 Estado = EstadosAgendamiento.Completada
             };
 

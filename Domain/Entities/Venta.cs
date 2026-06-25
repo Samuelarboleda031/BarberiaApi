@@ -38,6 +38,8 @@ public partial class Venta
     public string? UsuarioNombre { get; set; }
     public string? UsuarioApellido { get; set; }
     public string? UsuarioCorreo { get; set; }
+    public string? UsuarioDocumento { get; set; }
+    public string? UsuarioTipoDocumento { get; set; }
 
     public decimal? SaldoAFavorUsado { get; set; }
 

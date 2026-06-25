@@ -266,6 +266,8 @@ public class VentaService : IVentaService
                 UsuarioNombre = usuario?.Nombre,
                 UsuarioApellido = usuario?.Apellido,
                 UsuarioCorreo = usuario?.Correo,
+                UsuarioDocumento = usuario?.Documento,
+                UsuarioTipoDocumento = usuario?.TipoDocumento,
                 Descuento = input.Descuento ?? 0,
                 IVA = 0,
                 Estado = EstadosVenta.Completada
