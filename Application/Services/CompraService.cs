@@ -96,6 +96,9 @@ public class CompraService : ICompraService
                 MetodoPago = input.MetodoPago,
                 IVA = input.IVA ?? 0,
                 Descuento = input.Descuento ?? 0,
+                UsuarioNombre = usuarioVal.Nombre,
+                UsuarioApellido = usuarioVal.Apellido,
+                UsuarioCorreo = usuarioVal.Correo,
                 Estado = EstadosAgendamiento.Completada
             };
 

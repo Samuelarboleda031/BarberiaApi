@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace BarberiaApi.Domain.Entities;
@@ -30,6 +30,10 @@ public partial class Compra
     public string? MetodoPago { get; set; }
 
     public string? Estado { get; set; }
+    
+    public string? UsuarioNombre { get; set; }
+    public string? UsuarioApellido { get; set; }
+    public string? UsuarioCorreo { get; set; }
 
     public virtual ICollection<DetalleCompra> DetalleCompras { get; set; } = new List<DetalleCompra>();
 

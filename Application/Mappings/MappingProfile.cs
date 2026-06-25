@@ -29,9 +29,11 @@ public class MappingProfile : Profile
                     ? $"{src.BarberoPrestador.Usuario.Nombre} {src.BarberoPrestador.Usuario.Apellido}"
                     : null))
             .ForMember(dest => dest.UsuarioNombreCompleto, opt => opt.MapFrom(src =>
-                src.Usuario != null 
-                    ? $"{src.Usuario.Nombre} {src.Usuario.Apellido}" 
-                    : null))
+                !string.IsNullOrEmpty(src.UsuarioNombre) || !string.IsNullOrEmpty(src.UsuarioApellido)
+                    ? $"{src.UsuarioNombre} {src.UsuarioApellido}".Trim()
+                    : (src.Usuario != null 
+                        ? $"{src.Usuario.Nombre} {src.Usuario.Apellido}" 
+                        : null)))
             .ForMember(dest => dest.Detalles, opt => opt.MapFrom(src => src.DetalleVenta));
 
         CreateMap<DetalleVenta, DetalleVentaDto>()
@@ -49,7 +51,9 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.ProveedorNombre, opt => opt.MapFrom(src => src.Proveedor != null ? src.Proveedor.Nombre : null))
             .ForMember(dest => dest.ProveedorNIT, opt => opt.MapFrom(src => src.Proveedor != null ? src.Proveedor.Identificacion : null))
             .ForMember(dest => dest.UsuarioNombreCompleto, opt => opt.MapFrom(src => 
-                src.Usuario != null ? $"{src.Usuario.Nombre} {src.Usuario.Apellido}" : null));
+                !string.IsNullOrEmpty(src.UsuarioNombre) || !string.IsNullOrEmpty(src.UsuarioApellido)
+                    ? $"{src.UsuarioNombre} {src.UsuarioApellido}".Trim()
+                    : (src.Usuario != null ? $"{src.Usuario.Nombre} {src.Usuario.Apellido}" : null)));
 
         CreateMap<DetalleCompra, DetalleCompraDto>()
             .ForMember(dest => dest.ProductoNombre, opt => opt.MapFrom(src => src.Producto != null ? src.Producto.Nombre : null));

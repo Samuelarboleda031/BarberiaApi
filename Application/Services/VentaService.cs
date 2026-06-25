@@ -218,6 +218,8 @@ public class VentaService : IVentaService
                 return ServiceResult<object>.Fail("Se requiere BarberoId cuando la venta incluye servicios");
 
             int usuarioId = input.UsuarioId;
+            Usuario? usuario = null;
+            
             if (requiereBarbero)
             {
                 var barberoExistente = await _context.Barberos.FirstOrDefaultAsync(b => b.Id == input.BarberoId!.Value);
@@ -231,10 +233,11 @@ public class VentaService : IVentaService
                 if (barbero == null) return ServiceResult<object>.Fail("El barbero especificado no existe");
                 usuarioId = barbero.UsuarioId;
                 if (usuarioId == 0) return ServiceResult<object>.Fail("El barbero especificado no tiene usuario asociado valido");
+                usuario = await _context.Usuarios.FindAsync(usuarioId);
             }
             else
             {
-                var usuario = await _context.Usuarios.FindAsync(usuarioId);
+                usuario = await _context.Usuarios.FindAsync(usuarioId);
                 if (usuario == null) return ServiceResult<object>.Fail("El usuario especificado no existe");
             }
 
@@ -260,6 +263,9 @@ public class VentaService : IVentaService
                 MetodoPago = input.MetodoPago ?? "Efectivo",
                 TipoVenta = input.TipoVenta ?? (input.ClienteId.HasValue ? "Venta Cliente" : "Venta Invitado"),
                 ClienteNombre = input.ClienteNombre,
+                UsuarioNombre = usuario?.Nombre,
+                UsuarioApellido = usuario?.Apellido,
+                UsuarioCorreo = usuario?.Correo,
                 Descuento = input.Descuento ?? 0,
                 IVA = 0,
                 Estado = EstadosVenta.Completada
