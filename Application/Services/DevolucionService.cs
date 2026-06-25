@@ -86,7 +86,7 @@ public class DevolucionService : IDevolucionService
                         d.Fecha,
                         d.Estado,
                         ProductoNombre = d.Producto != null ? d.Producto.Nombre : "Producto",
-                        UsuarioNombre = (d.UsuarioNombre != null || d.UsuarioApellido != null) 
+                        UsuarioNombreCompleto = (d.UsuarioNombre != null || d.UsuarioApellido != null) 
                             ? $"{d.UsuarioNombre} {d.UsuarioApellido}".Trim() 
                             : (d.Usuario != null ? d.Usuario.Nombre + " " + d.Usuario.Apellido : "Sistema"),
                         d.UsuarioNombre,
@@ -128,7 +128,7 @@ public class DevolucionService : IDevolucionService
                 d.SaldoAFavor,
                 d.Fecha,
                 d.Estado,
-                UsuarioNombre = (d.UsuarioNombre != null || d.UsuarioApellido != null) 
+                UsuarioNombreCompleto = (d.UsuarioNombre != null || d.UsuarioApellido != null) 
                     ? $"{d.UsuarioNombre} {d.UsuarioApellido}".Trim() 
                     : (d.Usuario != null ? d.Usuario.Nombre + " " + d.Usuario.Apellido : "Sistema"),
                 d.UsuarioNombre,
