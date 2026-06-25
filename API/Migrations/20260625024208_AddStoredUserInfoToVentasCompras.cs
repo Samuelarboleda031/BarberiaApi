@@ -46,6 +46,24 @@ namespace BarberiaApi.Migrations
                 type: "nvarchar(max)",
                 nullable: true);
 
+            migrationBuilder.AddColumn<string>(
+                name: "UsuarioApellido",
+                table: "Devoluciones",
+                type: "nvarchar(max)",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "UsuarioCorreo",
+                table: "Devoluciones",
+                type: "nvarchar(max)",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "UsuarioNombre",
+                table: "Devoluciones",
+                type: "nvarchar(max)",
+                nullable: true);
+
             // Backfill existing Ventas with user info
             migrationBuilder.Sql(@"
                 UPDATE v
@@ -64,6 +82,16 @@ namespace BarberiaApi.Migrations
                     c.UsuarioCorreo = u.Correo
                 FROM Compras c
                 INNER JOIN Usuarios u ON c.UsuarioId = u.Id
+            ");
+
+            // Backfill existing Devoluciones with user info
+            migrationBuilder.Sql(@"
+                UPDATE d
+                SET d.UsuarioNombre = u.Nombre,
+                    d.UsuarioApellido = u.Apellido,
+                    d.UsuarioCorreo = u.Correo
+                FROM Devoluciones d
+                INNER JOIN Usuarios u ON d.UsuarioId = u.Id
             ");
         }
 
@@ -93,6 +121,18 @@ namespace BarberiaApi.Migrations
             migrationBuilder.DropColumn(
                 name: "UsuarioNombre",
                 table: "Compras");
+
+            migrationBuilder.DropColumn(
+                name: "UsuarioApellido",
+                table: "Devoluciones");
+
+            migrationBuilder.DropColumn(
+                name: "UsuarioCorreo",
+                table: "Devoluciones");
+
+            migrationBuilder.DropColumn(
+                name: "UsuarioNombre",
+                table: "Devoluciones");
         }
     }
 }

@@ -86,7 +86,9 @@ public class DevolucionService : IDevolucionService
                         d.Fecha,
                         d.Estado,
                         ProductoNombre = d.Producto != null ? d.Producto.Nombre : "Producto",
-                        UsuarioNombre = d.Usuario != null ? d.Usuario.Nombre : "Sistema",
+                        UsuarioNombre = (d.UsuarioNombre != null || d.UsuarioApellido != null) 
+                            ? $"{d.UsuarioNombre} {d.UsuarioApellido}".Trim() 
+                            : (d.Usuario != null ? d.Usuario.Nombre + " " + d.Usuario.Apellido : "Sistema"),
                         ClienteNombre = d.Cliente != null && d.Cliente.Usuario != null ? d.Cliente.Usuario.Nombre + " " + d.Cliente.Usuario.Apellido : null,
                         BarberoId = d.Venta != null ? d.Venta.BarberoId : null,
                         BarberoNombre = d.Venta != null && d.Venta.Barbero != null && d.Venta.Barbero.Usuario != null ? d.Venta.Barbero.Usuario.Nombre + " " + d.Venta.Barbero.Usuario.Apellido : null
@@ -121,8 +123,13 @@ public class DevolucionService : IDevolucionService
                 d.SaldoAFavor,
                 d.Fecha,
                 d.Estado,
+                UsuarioNombre = (d.UsuarioNombre != null || d.UsuarioApellido != null) 
+                    ? $"{d.UsuarioNombre} {d.UsuarioApellido}".Trim() 
+                    : (d.Usuario != null ? d.Usuario.Nombre + " " + d.Usuario.Apellido : "Sistema"),
                 Producto = d.ProductoId.HasValue ? new { d.Producto.Id, d.Producto.Nombre } : null,
-                Usuario = new { d.Usuario.Id, d.Usuario.Nombre },
+                Usuario = new { d.Usuario.Id, Nombre = (d.UsuarioNombre != null || d.UsuarioApellido != null) 
+                    ? $"{d.UsuarioNombre} {d.UsuarioApellido}".Trim() 
+                    : d.Usuario.Nombre },
                 Cliente = d.ClienteId.HasValue && d.Cliente != null && d.Cliente.Usuario != null
                     ? new { d.Cliente.Id, Nombre = d.Cliente.Usuario.Nombre }
                     : null
@@ -171,11 +178,16 @@ public class DevolucionService : IDevolucionService
 
             bool esErrorCompraVenta = IsErrorCompra(input.MotivoCategoria, input.MotivoDetalle);
 
+            var usuario = await _context.Usuarios.FindAsync(input.UsuarioId);
+            
             var devolucion = new Devolucion
             {
                 VentaId = input.VentaId,
                 ClienteId = input.ClienteId ?? venta.ClienteId,
                 UsuarioId = input.UsuarioId,
+                UsuarioNombre = usuario?.Nombre,
+                UsuarioApellido = usuario?.Apellido,
+                UsuarioCorreo = usuario?.Correo,
                 ProductoId = input.ProductoId,
                 Cantidad = input.Cantidad,
                 MotivoCategoria = input.MotivoCategoria,
@@ -219,6 +231,8 @@ public class DevolucionService : IDevolucionService
         {
             var venta = await _context.Ventas.FindAsync(input.VentaId);
             if (venta == null) return ServiceResult<object>.Fail("La venta no existe");
+
+            var usuario = await _context.Usuarios.FindAsync(input.UsuarioId);
 
             var clienteId = input.ClienteId ?? venta.ClienteId;
             var barberoId = input.BarberoId ?? venta.BarberoId;
@@ -280,6 +294,9 @@ public class DevolucionService : IDevolucionService
                     VentaId = input.VentaId,
                     ClienteId = clienteId,
                     UsuarioId = input.UsuarioId,
+                    UsuarioNombre = usuario?.Nombre,
+                    UsuarioApellido = usuario?.Apellido,
+                    UsuarioCorreo = usuario?.Correo,
                     ProductoId = it.ProductoId,
                     Cantidad = it.Cantidad,
                     MotivoCategoria = input.MotivoCategoria,
