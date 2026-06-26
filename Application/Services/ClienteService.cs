@@ -4,6 +4,7 @@ using BarberiaApi.Application.Interfaces;
 using BarberiaApi.Domain.Constants;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
+using BarberiaApi.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
@@ -15,12 +16,14 @@ public class ClienteService : IClienteService
     private readonly BarberiaContext _context;
     private readonly IMapper _mapper;
     private readonly IDateTimeProvider _dt;
+    private readonly IFirebaseAuthService _firebaseAuth;
 
-    public ClienteService(BarberiaContext context, IMapper mapper, IDateTimeProvider dt)
+    public ClienteService(BarberiaContext context, IMapper mapper, IDateTimeProvider dt, IFirebaseAuthService firebaseAuth)
     {
         _context = context;
         _mapper = mapper;
         _dt = dt;
+        _firebaseAuth = firebaseAuth;
     }
 
     public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q)
@@ -159,14 +162,25 @@ public class ClienteService : IClienteService
         clienteExistente.Estado = input.Estado;
 
         var usuario = clienteExistente.Usuario;
+        bool correoCambio = false;
+        string correoAntiguo = string.Empty;
         if (usuario != null)
         {
+            correoCambio = usuario.Correo != input.Correo;
+            correoAntiguo = usuario.Correo;
             usuario.Nombre = input.Nombre; usuario.Apellido = input.Apellido;
             usuario.Documento = input.Documento; usuario.Correo = input.Correo;
             if (input.FotoPerfil != null)
                 usuario.FotoPerfil = input.FotoPerfil;
         }
         await _context.SaveChangesAsync();
+
+        // Si el correo cambió, actualizar en Firebase Authentication
+        if (correoCambio)
+        {
+            await _firebaseAuth.UpdateUserEmailAsync(correoAntiguo, input.Correo);
+        }
+
         return ServiceResult<object>.Ok(new { message = "Cliente actualizado" });
     }
 

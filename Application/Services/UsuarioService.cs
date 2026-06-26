@@ -312,7 +312,11 @@ public class UsuarioService : IUsuarioService
         {
             usuarioExistente.Nombre = input.Nombre;
             usuarioExistente.Apellido = input.Apellido;
+            
+            bool correoCambio = usuarioExistente.Correo != input.Correo;
+            string correoAntiguo = usuarioExistente.Correo;
             usuarioExistente.Correo = input.Correo;
+            
             if (!string.IsNullOrWhiteSpace(input.Contrasena))
                 usuarioExistente.Contrasena = BCrypt.Net.BCrypt.HashPassword(input.Contrasena);
 
@@ -395,6 +399,13 @@ public class UsuarioService : IUsuarioService
             }
 
             await _context.SaveChangesAsync();
+
+            // Si el correo cambió, actualizar en Firebase Authentication
+            if (correoCambio)
+            {
+                await _firebaseAuth.UpdateUserEmailAsync(correoAntiguo, input.Correo);
+            }
+
             await transaction.CommitAsync();
             return ServiceResult<object>.Ok(new { success = true });
         }

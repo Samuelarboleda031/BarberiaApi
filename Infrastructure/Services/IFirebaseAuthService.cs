@@ -11,5 +11,14 @@ namespace BarberiaApi.Infrastructure.Services
         /// </summary>
         /// <returns>true si se borró un usuario en Firebase; false si no había nada que borrar.</returns>
         Task<bool> DeleteUserByEmailAsync(string email);
+
+        /// <summary>
+        /// Actualiza el correo electrónico de un usuario en Firebase Authentication.
+        /// Si el usuario antiguo no se encuentra en Firebase, no lanza excepción y retorna falso.
+        /// </summary>
+        /// <param name="oldEmail">Correo actual registrado en Firebase.</param>
+        /// <param name="newEmail">Nuevo correo que se asignará.</param>
+        /// <returns>true si se actualizó exitosamente, false de lo contrario.</returns>
+        Task<bool> UpdateUserEmailAsync(string oldEmail, string newEmail);
     }
 }

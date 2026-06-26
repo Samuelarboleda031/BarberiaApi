@@ -39,5 +39,42 @@ namespace BarberiaApi.Infrastructure.Services
                 return false;
             }
         }
+        public async Task<bool> UpdateUserEmailAsync(string oldEmail, string newEmail)
+        {
+            if (string.IsNullOrWhiteSpace(oldEmail) || string.IsNullOrWhiteSpace(newEmail) || oldEmail == newEmail)
+                return false;
+
+            if (FirebaseApp.DefaultInstance == null)
+            {
+                _logger.LogWarning("Firebase Admin no inicializado; se omite la actualización de correo en Firebase de {OldEmail} a {NewEmail}.", oldEmail, newEmail);
+                return false;
+            }
+
+            try
+            {
+                var userRecord = await FirebaseAuth.DefaultInstance.GetUserByEmailAsync(oldEmail);
+                
+                var args = new UserRecordArgs()
+                {
+                    Uid = userRecord.Uid,
+                    Email = newEmail,
+                    EmailVerified = false // Se requiere que verifique nuevamente si tu flujo lo exige
+                };
+
+                await FirebaseAuth.DefaultInstance.UpdateUserAsync(args);
+                _logger.LogInformation("Correo de usuario {Uid} actualizado en Firebase de {OldEmail} a {NewEmail}.", userRecord.Uid, oldEmail, newEmail);
+                return true;
+            }
+            catch (FirebaseAuthException ex) when (ex.AuthErrorCode == AuthErrorCode.UserNotFound)
+            {
+                _logger.LogWarning("El correo {OldEmail} no existe en Firebase; no se pudo actualizar a {NewEmail}.", oldEmail, newEmail);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error actualizando el correo en Firebase de {OldEmail} a {NewEmail}.", oldEmail, newEmail);
+                return false;
+            }
+        }
     }
 }
