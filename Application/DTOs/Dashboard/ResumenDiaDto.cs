@@ -5,7 +5,7 @@ namespace BarberiaApi.Application.DTOs;
 
 public class ResumenDiaDto
 {
-    public DateOnly Fecha { get; set; }
+    public string Fecha { get; set; } = string.Empty;
     public decimal IngresosVentas { get; set; }      // Ventas completadas
     public decimal IngresosAgendamientos { get; set; } // Agendamientos completados
     public decimal IngresosTotal { get; set; }        // Total de ingresos

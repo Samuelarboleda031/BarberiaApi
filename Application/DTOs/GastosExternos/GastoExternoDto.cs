@@ -8,7 +8,7 @@ public class GastoExternoDto
     public string Descripcion { get; set; } = null!;
     public decimal Monto { get; set; }
     public string Categoria { get; set; } = null!;
-    public DateOnly Fecha { get; set; }
+    public string Fecha { get; set; } = string.Empty;
     public int UsuarioId { get; set; }
     public string UsuarioNombre { get; set; } = null!;
     public string? Notas { get; set; }

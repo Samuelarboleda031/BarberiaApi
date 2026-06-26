@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using BarberiaApi.Application.Common;
@@ -37,12 +38,15 @@ public class GastoExternoService : IGastoExternoService
     {
         try
         {
+            if (!DateOnly.TryParseExact(input.Fecha, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha))
+                return ServiceResult<GastoExternoDto>.Fail("Fecha inválida. Formato esperado: yyyy-MM-dd");
+
             var gasto = new GastoExterno
             {
                 Descripcion = input.Descripcion,
                 Monto = input.Monto,
                 Categoria = input.Categoria,
-                Fecha = input.Fecha,
+                Fecha = fecha,
                 UsuarioId = usuarioId,
                 Notas = input.Notas,
                 CreatedAt = _dt.NowColombia,
@@ -73,6 +77,9 @@ public class GastoExternoService : IGastoExternoService
     {
         try
         {
+            if (!DateOnly.TryParseExact(input.Fecha, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha))
+                return ServiceResult<GastoExternoDto>.Fail("Fecha inválida. Formato esperado: yyyy-MM-dd");
+
             var gasto = await _context.GastosExternos.FirstOrDefaultAsync(g => g.Id == id && g.Estado);
             if (gasto == null || gasto.DeletedAt.HasValue)
                 return ServiceResult<GastoExternoDto>.NotFound();
@@ -80,7 +87,7 @@ public class GastoExternoService : IGastoExternoService
             gasto.Descripcion = input.Descripcion;
             gasto.Monto = input.Monto;
             gasto.Categoria = input.Categoria;
-            gasto.Fecha = input.Fecha;
+            gasto.Fecha = fecha;
             gasto.Notas = input.Notas;
             gasto.UpdatedAt = _dt.NowColombia;
 
@@ -241,7 +248,7 @@ public class GastoExternoService : IGastoExternoService
 
             var resumen = new ResumenDiaDto
             {
-                Fecha = fecha,
+                Fecha = fecha.ToString("yyyy-MM-dd"),
                 IngresosVentas = ingresosVentas,
                 IngresosAgendamientos = ingresosAgendamientos,
                 IngresosTotal = totalIngresos,
