@@ -6,6 +6,7 @@ using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using AutoMapper;
 
 namespace BarberiaApi.Application.Services;
@@ -14,15 +15,19 @@ public class AgendamientoService : IAgendamientoService
 {
     private readonly BarberiaContext _context;
     private readonly INotificacionCitasService _notificacionService;
+    private readonly IEmailProxyService _emailProxyService;
     private readonly IMapper _mapper;
     private readonly IDateTimeProvider _dt;
+    private readonly IConfiguration _configuration;
 
-    public AgendamientoService(BarberiaContext context, INotificacionCitasService notificacionService, IMapper mapper, IDateTimeProvider dt)
+    public AgendamientoService(BarberiaContext context, INotificacionCitasService notificacionService, IEmailProxyService emailProxyService, IMapper mapper, IDateTimeProvider dt, IConfiguration configuration)
     {
         _context = context;
         _notificacionService = notificacionService;
+        _emailProxyService = emailProxyService;
         _mapper = mapper;
         _dt = dt;
+        _configuration = configuration;
     }
 
     private List<int> BuildServicioIds(AgendamientoInput input)
@@ -119,6 +124,180 @@ public class AgendamientoService : IAgendamientoService
     private string BuildNotasWithMetadata(string? notasUsuario, List<int> servicioIds, List<int>? productoIds)
     {
         return CleanNotasFromMeta(notasUsuario);
+    }
+
+    private async Task EnviarEmailsCancelacionAsync(Agendamiento agendamiento, string motivo)
+    {
+        var appName = _configuration["Smtp:FromName"] ?? "Barbería App";
+        var fechaHoraFormateada = agendamiento.FechaHora.ToString("dddd, d 'de' MMMM, HH:mm", new System.Globalization.CultureInfo("es-ES"));
+        var clienteNombre = $"{agendamiento.Cliente?.Usuario?.Nombre} {agendamiento.Cliente?.Usuario?.Apellido}".Trim();
+        var barberoNombre = $"{agendamiento.Barbero?.Usuario?.Nombre} {agendamiento.Barbero?.Usuario?.Apellido}".Trim();
+        var servicioNombre = agendamiento.Servicio?.Nombre ?? agendamiento.Paquete?.Nombre ?? "Servicio";
+
+        // Enviar email al cliente (usamos el método existente)
+        var clienteEmail = agendamiento.Cliente?.Usuario?.Correo;
+        if (!string.IsNullOrWhiteSpace(clienteEmail))
+        {
+            var cancelacionRequest = new CancelacionEmailProxyRequest
+            {
+                ClienteNombre = clienteNombre,
+                ClienteEmail = clienteEmail,
+                BarberoNombre = barberoNombre,
+                FechaOriginal = agendamiento.FechaHora.ToString("o"),
+                Motivo = motivo
+            };
+            await _emailProxyService.EnviarCancelacionAsync(cancelacionRequest);
+        }
+
+        // Enviar email al barbero
+        var barberoEmail = agendamiento.Barbero?.Usuario?.Correo;
+        if (!string.IsNullOrWhiteSpace(barberoEmail))
+        {
+            var barberoHtml = BuildCancellationHtmlBarbero(barberoNombre, clienteNombre, servicioNombre, fechaHoraFormateada, motivo, appName);
+            await _emailProxyService.EnviarEmailAsync(barberoEmail, barberoNombre, $"{appName} - Cita Cancelada", barberoHtml);
+        }
+
+        // Enviar emails a los administradores
+        var administradores = await _context.Usuarios
+            .Include(u => u.Rol)
+            .Where(u => u.Estado && u.Rol != null && 
+                (u.Rol.Nombre.ToLower().Contains("admin") || u.Rol.Nombre.ToLower().Contains("administrador")))
+            .ToListAsync();
+
+        foreach (var admin in administradores)
+        {
+            if (!string.IsNullOrWhiteSpace(admin.Correo))
+            {
+                var adminNombre = $"{admin.Nombre} {admin.Apellido}".Trim();
+                var adminHtml = BuildCancellationHtmlAdmin(adminNombre, clienteNombre, barberoNombre, servicioNombre, fechaHoraFormateada, motivo, appName);
+                await _emailProxyService.EnviarEmailAsync(admin.Correo, adminNombre, $"{appName} - Cita Cancelada", adminHtml);
+            }
+        }
+    }
+
+    private static string BuildCancellationHtmlBarbero(string toName, string clienteNombre, string servicioNombre, string fechaHora, string motivo, string appName)
+    {
+        var safeToName = System.Net.WebUtility.HtmlEncode(toName);
+        var safeCliente = System.Net.WebUtility.HtmlEncode(clienteNombre);
+        var safeServicio = System.Net.WebUtility.HtmlEncode(servicioNombre);
+        var safeFecha = System.Net.WebUtility.HtmlEncode(fechaHora);
+        var safeMotivo = System.Net.WebUtility.HtmlEncode(motivo);
+        var safeAppName = System.Net.WebUtility.HtmlEncode(appName);
+
+        return $@"<div style=""font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0a0a0a; color: #ffffff; border: 1px solid #333; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);"">
+  <div style=""height: 6px; background-color: #d8b081;""></div>
+  <div style=""background-color: #111; padding: 40px 20px; text-align: center;"">
+    <div style=""display: inline-block; padding: 10px 20px; border: 1px solid #d8b081; border-radius: 4px; margin-bottom: 20px;"">
+      <span style=""font-size: 24px; font-weight: 900; letter-spacing: 4px; color: #ffffff; text-transform: uppercase;"">MANITO</span>
+      <span style=""font-size: 24px; font-weight: 300; letter-spacing: 4px; color: #d8b081; text-transform: uppercase;"">BARBERSHOP</span>
+    </div>
+    <h1 style=""color: #d8b081; margin: 10px 0 0 0; font-size: 32px; font-weight: 800; text-transform: uppercase; letter-spacing: -1px;"">🚫 Cita Cancelada</h1>
+  </div>
+  <div style=""padding: 40px 35px; background-color: #0a0a0a;"">
+    <p style=""font-size: 18px; color: #ffffff; margin-bottom: 25px;"">Hola <strong>{safeToName}</strong>,</p>
+    <p style=""color: #aaa; line-height: 1.8; font-size: 16px; margin-bottom: 30px;"">
+      Te informamos que la cita con el cliente <strong style=""color: #d8b081;"">{safeCliente}</strong> ha sido cancelada.
+    </p>
+    <div style=""background-color: #1a1a1a; border-left: 4px solid #d8b081; padding: 25px; margin: 30px 0; border-radius: 8px;"">
+      <span style=""color: #d8b081; text-transform: uppercase; font-size: 12px; font-weight: 800; letter-spacing: 2px; display: block; margin-bottom: 10px;"">Motivo:</span>
+      <p style=""margin: 0; color: #ffffff; font-size: 16px; font-style: italic; line-height: 1.5;"">""{safeMotivo}""</p>
+    </div>
+    <div style=""margin: 40px 0; border-top: 1px solid #222; padding-top: 30px;"">
+      <h3 style=""color: #d8b081; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; font-weight: 800;"">Detalles de la cita cancelada</h3>
+      <table style=""width: 100%; border-collapse: collapse;"">
+        <tr>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #888; font-size: 14px; width: 40%;"">Cliente:</td>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #fff; font-size: 15px; font-weight: 600;"">{safeCliente}</td>
+        </tr>
+        <tr>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #888; font-size: 14px;"">Servicio:</td>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #fff; font-size: 15px; font-weight: 600;"">{safeServicio}</td>
+        </tr>
+        <tr>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #888; font-size: 14px;"">Fecha y Hora:</td>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #fff; font-size: 15px; font-weight: 600;"">{safeFecha}</td>
+        </tr>
+      </table>
+    </div>
+    <p style=""margin-top: 40px; color: #666; font-size: 13px; text-align: center; line-height: 1.6;"">
+      Si tienes alguna duda, por favor contacta con la administración.
+    </p>
+  </div>
+  <div style=""background-color: #000; padding: 40px 20px; text-align: center; border-top: 1px solid #222;"">
+    <p style=""color: #555; font-size: 12px; margin-bottom: 15px; letter-spacing: 1px;"">
+      © 2026 <strong style=""color: #777;"">{safeAppName}</strong>. Todos los derechos reservados.
+    </p>
+    <div style=""color: #444; font-size: 11px;"">
+      <p style=""margin: 5px 0;"">Calle 79 #52-12, Barrio El Bosque, Medellín</p>
+      <p style=""margin: 5px 0;"">Este es un correo automático, por favor no respondas directamente.</p>
+    </div>
+  </div>
+</div>";
+    }
+
+    private static string BuildCancellationHtmlAdmin(string toName, string clienteNombre, string barberoNombre, string servicioNombre, string fechaHora, string motivo, string appName)
+    {
+        var safeToName = System.Net.WebUtility.HtmlEncode(toName);
+        var safeCliente = System.Net.WebUtility.HtmlEncode(clienteNombre);
+        var safeBarbero = System.Net.WebUtility.HtmlEncode(barberoNombre);
+        var safeServicio = System.Net.WebUtility.HtmlEncode(servicioNombre);
+        var safeFecha = System.Net.WebUtility.HtmlEncode(fechaHora);
+        var safeMotivo = System.Net.WebUtility.HtmlEncode(motivo);
+        var safeAppName = System.Net.WebUtility.HtmlEncode(appName);
+
+        return $@"<div style=""font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0a0a0a; color: #ffffff; border: 1px solid #333; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);"">
+  <div style=""height: 6px; background-color: #d8b081;""></div>
+  <div style=""background-color: #111; padding: 40px 20px; text-align: center;"">
+    <div style=""display: inline-block; padding: 10px 20px; border: 1px solid #d8b081; border-radius: 4px; margin-bottom: 20px;"">
+      <span style=""font-size: 24px; font-weight: 900; letter-spacing: 4px; color: #ffffff; text-transform: uppercase;"">MANITO</span>
+      <span style=""font-size: 24px; font-weight: 300; letter-spacing: 4px; color: #d8b081; text-transform: uppercase;"">BARBERSHOP</span>
+    </div>
+    <h1 style=""color: #d8b081; margin: 10px 0 0 0; font-size: 32px; font-weight: 800; text-transform: uppercase; letter-spacing: -1px;"">🚫 Cita Cancelada</h1>
+  </div>
+  <div style=""padding: 40px 35px; background-color: #0a0a0a;"">
+    <p style=""font-size: 18px; color: #ffffff; margin-bottom: 25px;"">Hola <strong>{safeToName}</strong>,</p>
+    <p style=""color: #aaa; line-height: 1.8; font-size: 16px; margin-bottom: 30px;"">
+      Te informamos que una cita ha sido cancelada en <strong style=""color: #d8b081;"">{safeAppName}</strong>.
+    </p>
+    <div style=""background-color: #1a1a1a; border-left: 4px solid #d8b081; padding: 25px; margin: 30px 0; border-radius: 8px;"">
+      <span style=""color: #d8b081; text-transform: uppercase; font-size: 12px; font-weight: 800; letter-spacing: 2px; display: block; margin-bottom: 10px;"">Motivo:</span>
+      <p style=""margin: 0; color: #ffffff; font-size: 16px; font-style: italic; line-height: 1.5;"">""{safeMotivo}""</p>
+    </div>
+    <div style=""margin: 40px 0; border-top: 1px solid #222; padding-top: 30px;"">
+      <h3 style=""color: #d8b081; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; font-weight: 800;"">Detalles de la cita cancelada</h3>
+      <table style=""width: 100%; border-collapse: collapse;"">
+        <tr>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #888; font-size: 14px; width: 40%;"">Cliente:</td>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #fff; font-size: 15px; font-weight: 600;"">{safeCliente}</td>
+        </tr>
+        <tr>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #888; font-size: 14px;"">Barbero:</td>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #fff; font-size: 15px; font-weight: 600;"">{safeBarbero}</td>
+        </tr>
+        <tr>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #888; font-size: 14px;"">Servicio:</td>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #fff; font-size: 15px; font-weight: 600;"">{safeServicio}</td>
+        </tr>
+        <tr>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #888; font-size: 14px;"">Fecha y Hora:</td>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #fff; font-size: 15px; font-weight: 600;"">{safeFecha}</td>
+        </tr>
+      </table>
+    </div>
+    <p style=""margin-top: 40px; color: #666; font-size: 13px; text-align: center; line-height: 1.6;"">
+      Si necesitas más información, revisa el sistema de gestión de citas.
+    </p>
+  </div>
+  <div style=""background-color: #000; padding: 40px 20px; text-align: center; border-top: 1px solid #222;"">
+    <p style=""color: #555; font-size: 12px; margin-bottom: 15px; letter-spacing: 1px;"">
+      © 2026 <strong style=""color: #777;"">{safeAppName}</strong>. Todos los derechos reservados.
+    </p>
+    <div style=""color: #444; font-size: 11px;"">
+      <p style=""margin: 5px 0;"">Calle 79 #52-12, Barrio El Bosque, Medellín</p>
+      <p style=""margin: 5px 0;"">Este es un correo automático, por favor no respondas directamente.</p>
+    </div>
+  </div>
+</div>";
     }
 
 
@@ -899,6 +1078,10 @@ public class AgendamientoService : IAgendamientoService
                 !string.Equals(estadoAnterior, EstadosAgendamiento.Cancelada, StringComparison.OrdinalIgnoreCase))
             {
                 ResultadoNotificacionCita? notificacionCancelacion = null;
+                var motivo = "Cita cancelada por el administrador o el barbero.";
+                
+                // Enviar emails a cliente, barbero y administradores
+                await EnviarEmailsCancelacionAsync(agendamiento, motivo);
 
                 var usuarioId = agendamiento.Barbero?.UsuarioId ?? 0;
                 var servicioIdsCitaCancel = ExtractServicioIds(agendamiento);
@@ -1209,6 +1392,10 @@ public class AgendamientoService : IAgendamientoService
         if (agendamiento == null) return ServiceResult<object>.NotFound();
 
         ResultadoNotificacionCita? notificacionCancelacion = null;
+        var motivo = "Cita cancelada y eliminada del sistema.";
+        
+        // Enviar emails a cliente, barbero y administradores
+        await EnviarEmailsCancelacionAsync(agendamiento, motivo);
 
         var infoRespuesta = new
         {
