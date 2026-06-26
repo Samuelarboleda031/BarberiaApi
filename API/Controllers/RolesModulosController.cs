@@ -48,6 +48,33 @@ namespace BarberiaApi.Controllers
             return Ok(new { items, totalCount, page, pageSize, totalPages });
         }
 
+        [AllowAnonymous]
+        [HttpGet("mis-modulos")]
+        public async Task<ActionResult<object>> GetMisModulos()
+        {
+            if (User.Identity == null || !User.Identity.IsAuthenticated)
+                return Unauthorized(new { error = "Se requiere autenticación." });
+
+            var email = User.FindFirst("email")?.Value
+                        ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+            if (string.IsNullOrWhiteSpace(email))
+                return Unauthorized(new { error = "No se pudo identificar al usuario." });
+
+            var usuario = await _context.Usuarios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Correo != null && u.Correo.ToLower() == email.ToLower());
+            if (usuario == null || usuario.RolId == null)
+                return Ok(new { items = new List<object>() });
+
+            var items = await _context.RolesModulos
+                .Include(rm => rm.Modulo)
+                .Where(rm => rm.RolId == usuario.RolId && rm.Modulo != null && rm.Modulo.Estado == true)
+                .AsNoTracking()
+                .ToListAsync();
+
+            return Ok(new { items });
+        }
+
         [HttpGet("role/{rolId}")]
         public async Task<ActionResult<object>> GetByRole(int rolId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
         {
