@@ -128,16 +128,26 @@ public class DashboardService : IDashboardService
     {
         var hoy = _dt.NowColombia.Date;
         
-        int dias = periodo.ToLower() switch
+        DateTime fechaInicio;
+        switch (periodo.ToLower())
         {
-            "hoy" => 1,
-            "semanal" => 7,
-            "mensual" => 30,
-            "anual" => 365,
-            _ => 1
-        };
-
-        var fechaInicio = hoy.AddDays(-(dias - 1));
+            case "hoy":
+                fechaInicio = hoy;
+                break;
+            case "semanal":
+                int diff = ((int)hoy.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+                fechaInicio = hoy.AddDays(-diff);
+                break;
+            case "mensual":
+                fechaInicio = new DateTime(hoy.Year, hoy.Month, 1);
+                break;
+            case "anual":
+                fechaInicio = new DateTime(hoy.Year, 1, 1);
+                break;
+            default:
+                fechaInicio = hoy;
+                break;
+        }
 
         var ventasQuery = await _context.Ventas.AsNoTracking()
             .Include(v => v.Barbero).ThenInclude(b => b.Usuario)

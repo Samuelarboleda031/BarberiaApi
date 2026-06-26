@@ -139,5 +139,12 @@ public class MappingProfile : Profile
                 src.Barbero != null && src.Barbero.Usuario != null 
                     ? $"{src.Barbero.Usuario.Nombre} {src.Barbero.Usuario.Apellido}" 
                     : string.Empty));
+
+        // ==========================
+        // GASTOS EXTERNOS
+        // ==========================
+        CreateMap<GastoExterno, GastoExternoDto>()
+            .ForMember(dest => dest.UsuarioNombre, opt => opt.MapFrom(src => 
+                src.Usuario != null ? $"{src.Usuario.Nombre} {src.Usuario.Apellido}".Trim() : string.Empty));
     }
 }

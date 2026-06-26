@@ -44,6 +44,7 @@ public partial class BarberiaContext : DbContext
     public virtual DbSet<AbonoCreditoBarbero> AbonosCreditoBarbero { get; set; }
     public virtual DbSet<HistorialEstadoCredito> HistorialEstadoCredito { get; set; }
     public virtual DbSet<DescuentoDia> DescuentosDia { get; set; }
+    public virtual DbSet<GastoExterno> GastosExternos { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -480,6 +481,29 @@ public partial class BarberiaContext : DbContext
             entity.Property(e => e.Fecha).HasColumnType("date");
             entity.Property(e => e.Porcentaje).HasPrecision(5, 2);
             entity.HasIndex(e => e.Fecha).IsUnique();
+        });
+
+        modelBuilder.Entity<GastoExterno>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("GastosExternos");
+
+            entity.Property(e => e.Descripcion).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Monto).HasPrecision(18, 2).IsRequired();
+            entity.Property(e => e.Categoria).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Fecha).HasColumnType("date").IsRequired();
+            entity.Property(e => e.Notas).HasMaxLength(1000);
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime").HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.Estado).HasDefaultValue(true);
+
+            entity.HasIndex(e => e.Fecha);
+            entity.HasIndex(e => e.UsuarioId);
+            entity.HasIndex(e => e.DeletedAt);
+
+            entity.HasOne(d => d.Usuario)
+                .WithMany(p => p.GastosExternos)
+                .HasForeignKey(d => d.UsuarioId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         OnModelCreatingPartial(modelBuilder);

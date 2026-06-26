@@ -37,6 +37,8 @@ public partial class Usuario
 
     public virtual ICollection<AbonoCreditoBarbero> AbonosCreditoBarbero { get; set; } = new List<AbonoCreditoBarbero>();
 
+    public virtual ICollection<GastoExterno> GastosExternos { get; set; } = new List<GastoExterno>();
+
     public virtual Cliente? Cliente { get; set; }
 
     public virtual Barbero? Barbero { get; set; }

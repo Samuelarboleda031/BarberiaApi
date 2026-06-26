@@ -65,6 +65,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IImageService, ImageService>();
         services.AddScoped<ICreditoBarberoService, CreditoBarberoService>();
         services.AddScoped<IDescuentoDiaService, DescuentoDiaService>();
+        services.AddScoped<IGastoExternoService, GastoExternoService>();
 
         return services;
     }

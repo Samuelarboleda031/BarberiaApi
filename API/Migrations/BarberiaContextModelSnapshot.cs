@@ -708,6 +708,65 @@ namespace BarberiaApi.Migrations
                     b.ToTable("Devoluciones", (string)null);
                 });
 
+            modelBuilder.Entity("BarberiaApi.Domain.Entities.GastoExterno", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Categoria")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Descripcion")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("Estado")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("Monto")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.HasIndex("Fecha");
+
+                    b.HasIndex("UsuarioId");
+
+                    b.ToTable("GastosExternos", (string)null);
+                });
+
             modelBuilder.Entity("BarberiaApi.Domain.Entities.HistorialEstadoCredito", b =>
                 {
                     b.Property<int>("Id")
@@ -1644,6 +1703,17 @@ namespace BarberiaApi.Migrations
                     b.Navigation("Venta");
                 });
 
+            modelBuilder.Entity("BarberiaApi.Domain.Entities.GastoExterno", b =>
+                {
+                    b.HasOne("BarberiaApi.Domain.Entities.Usuario", "Usuario")
+                        .WithMany("GastosExternos")
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
+                });
+
             modelBuilder.Entity("BarberiaApi.Domain.Entities.HistorialEstadoCredito", b =>
                 {
                     b.HasOne("BarberiaApi.Domain.Entities.CreditoBarbero", "CreditoBarbero")
@@ -1896,6 +1966,8 @@ namespace BarberiaApi.Migrations
                     b.Navigation("Compras");
 
                     b.Navigation("Devoluciones");
+
+                    b.Navigation("GastosExternos");
 
                     b.Navigation("Ventas");
                 });
