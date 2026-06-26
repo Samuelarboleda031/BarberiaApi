@@ -353,10 +353,10 @@ public class UsuarioService : IUsuarioService
                     usuarioExistente.Cliente.Direccion = input.Direccion;
                     usuarioExistente.Cliente.Barrio = input.Barrio;
                     usuarioExistente.Cliente.FechaNacimiento = input.FechaNacimiento;
+                    usuarioExistente.Cliente.Estado = true;
                 }
                 else
                 {
-                    // Crear el registro Cliente si faltaba (ej: usuario creado via Google sin sync completo)
                     _context.Clientes.Add(new Cliente
                     {
                         UsuarioId = id,
@@ -381,6 +381,7 @@ public class UsuarioService : IUsuarioService
                     usuarioExistente.Barbero.Direccion = input.Direccion;
                     usuarioExistente.Barbero.Barrio = input.Barrio;
                     usuarioExistente.Barbero.FechaNacimiento = input.FechaNacimiento;
+                    usuarioExistente.Barbero.Estado = true;
                 }
                 else
                 {
