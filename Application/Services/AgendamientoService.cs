@@ -954,6 +954,7 @@ public class AgendamientoService : IAgendamientoService
                                 _context.DetalleVentas.Add(detalleReactivado);
                             }
                         }
+                        agendamiento.VentaAsociadaId = ventaExistente.Id;
                         await _context.SaveChangesAsync();
                         await tx.CommitAsync();
                         return ServiceResult<object>.Ok(new
@@ -978,6 +979,8 @@ public class AgendamientoService : IAgendamientoService
                     }
                     else
                     {
+                        agendamiento.VentaAsociadaId = ventaExistente.Id;
+                        await _context.SaveChangesAsync();
                         await tx.CommitAsync();
                         return ServiceResult<object>.Ok(new
                         {
@@ -1022,6 +1025,7 @@ public class AgendamientoService : IAgendamientoService
                 _context.Ventas.Add(venta);
                 await _context.SaveChangesAsync();
 
+                agendamiento.VentaAsociadaId = venta.Id;
                 // El NumeroRecibo es igual al Id de la venta recién creada
                 venta.NumeroRecibo = venta.Id.ToString();
                 await _context.SaveChangesAsync();
