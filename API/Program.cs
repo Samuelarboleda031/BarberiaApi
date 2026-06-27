@@ -159,34 +159,40 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
                                     usuario?.Correo ?? "(no encontrado)",
                                     usuario?.Rol?.Nombre ?? "(sin rol)");
 
-                                if (usuario?.Rol != null)
+                                if (usuario != null)
                                 {
-                                    var nombreRol = usuario.Rol.Nombre?.ToLower().Trim() ?? "";
-                                    // Usar Contains para cubrir variantes: "Super Administrador", "super_admin", etc.
-                                    if (nombreRol.Contains("super") && (nombreRol.Contains("admin") || nombreRol.Contains("administrador")))
-                                    {
-                                        identity.AddClaim(new Claim(ClaimTypes.Role, "super_admin"));
-                                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
-                                        identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
-                                    }
-                                    else if (nombreRol.Contains("admin") || nombreRol.Contains("administrador") || nombreRol.Contains("gerente"))
-                                    {
-                                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
-                                        identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
-                                    }
-                                    else if (nombreRol.Contains("barbero"))
-                                    {
-                                        identity.AddClaim(new Claim(ClaimTypes.Role, "barbero"));
-                                    }
-                                    else
-                                    {
-                                        identity.AddClaim(new Claim(ClaimTypes.Role, "cliente"));
-                                    }
+                                    // Add NameIdentifier claim with the usuario's Id
+                                    identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
 
-                                    if (usuario.RolId.HasValue)
-                                        identity.AddClaim(new Claim("rolId", usuario.RolId.Value.ToString()));
+                                    if (usuario.Rol != null)
+                                    {
+                                        var nombreRol = usuario.Rol.Nombre?.ToLower().Trim() ?? "";
+                                        // Usar Contains para cubrir variantes: "Super Administrador", "super_admin", etc.
+                                        if (nombreRol.Contains("super") && (nombreRol.Contains("admin") || nombreRol.Contains("administrador")))
+                                        {
+                                            identity.AddClaim(new Claim(ClaimTypes.Role, "super_admin"));
+                                            identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                                            identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
+                                        }
+                                        else if (nombreRol.Contains("admin") || nombreRol.Contains("administrador") || nombreRol.Contains("gerente"))
+                                        {
+                                            identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                                            identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
+                                        }
+                                        else if (nombreRol.Contains("barbero"))
+                                        {
+                                            identity.AddClaim(new Claim(ClaimTypes.Role, "barbero"));
+                                        }
+                                        else
+                                        {
+                                            identity.AddClaim(new Claim(ClaimTypes.Role, "cliente"));
+                                        }
 
-                                    roleAssigned = true;
+                                        if (usuario.RolId.HasValue)
+                                            identity.AddClaim(new Claim("rolId", usuario.RolId.Value.ToString()));
+
+                                        roleAssigned = true;
+                                    }
                                 }
                             }
                             catch

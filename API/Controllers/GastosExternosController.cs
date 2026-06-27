@@ -20,7 +20,12 @@ namespace BarberiaApi.Controllers
         [Authorize(Roles = "Admin,admin,super_admin")]
         public async Task<ActionResult> Create([FromBody] GastoExternoInput input)
         {
-            var usuarioId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : 0;
+            var usuarioIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(usuarioIdStr, out var usuarioId) || usuarioId <= 0)
+            {
+                return Unauthorized("No se pudo identificar el usuario autenticado.");
+            }
+
             var r = await _service.CreateAsync(input, usuarioId);
             return r.Success ? CreatedAtAction(nameof(GetById), new { id = r.Data!.Id }, r.Data)
                              : StatusCode(r.StatusCode, r.Error);
@@ -70,7 +75,12 @@ namespace BarberiaApi.Controllers
         [Authorize(Roles = "Admin,admin,super_admin")]
         public async Task<ActionResult> Update(int id, [FromBody] GastoExternoInput input)
         {
-            var usuarioId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : 0;
+            var usuarioIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(usuarioIdStr, out var usuarioId) || usuarioId <= 0)
+            {
+                return Unauthorized("No se pudo identificar el usuario autenticado.");
+            }
+
             var r = await _service.UpdateAsync(id, input, usuarioId);
             return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error);
         }
