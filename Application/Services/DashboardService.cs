@@ -163,36 +163,10 @@ public class DashboardService : IDashboardService
             })
             .ToListAsync();
 
-        var agendamientosQuery = await _context.Agendamientos.AsNoTracking()
-            .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
-            .Where(a => a.FechaHora >= fechaInicio &&
-                        a.Estado != null && a.Estado.ToLower() == "completada" &&
-                        (a.ServicioId != null || a.PaqueteId != null))
-            .Select(a => new {
-                BarberoNombre = a.Barbero != null && a.Barbero.Usuario != null ? (a.Barbero.Usuario.Nombre + " " + a.Barbero.Usuario.Apellido) : "",
-                Precio = (decimal?)a.Precio ?? 0
-            })
-            .ToListAsync();
-
         if (barbero != "Todos")
-        {
             ventasQuery = ventasQuery.Where(v => MatchBarbero(v.BarberoNombre, barbero)).ToList();
-            agendamientosQuery = agendamientosQuery.Where(a => MatchBarbero(a.BarberoNombre, barbero)).ToList();
-        }
 
-        decimal totalVentas = ventasQuery.Sum(v => v.TotalServicios);
-        decimal totalAgendamientos = agendamientosQuery.Sum(a => a.Precio);
-
-        decimal totalServicios;
-        if (barbero != "Todos")
-        {
-            totalServicios = Math.Max(totalVentas, totalAgendamientos);
-        }
-        else
-        {
-            totalServicios = totalVentas > 0 ? totalVentas : totalAgendamientos;
-        }
-
+        decimal totalServicios = ventasQuery.Sum(v => v.TotalServicios);
         decimal gananciasBarberos = totalServicios * 0.60m;
         decimal gananciasBarberia = totalServicios * 0.40m;
 
@@ -201,8 +175,6 @@ public class DashboardService : IDashboardService
             totalServicios,
             gananciasBarberos,
             gananciasBarberia,
-            totalVentas,
-            totalAgendamientos,
             periodo,
             barbero
         });
