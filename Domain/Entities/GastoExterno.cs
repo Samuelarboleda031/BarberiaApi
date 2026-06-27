@@ -10,6 +10,11 @@ public partial class GastoExterno
     public string Categoria { get; set; } = null!;  // 'Servicios', 'Suministros', etc.
     public DateOnly Fecha { get; set; }
     public int UsuarioId { get; set; }
+    public string? UsuarioNombre { get; set; }
+    public string? UsuarioApellido { get; set; }
+    public string? UsuarioCorreo { get; set; }
+    public string? UsuarioDocumento { get; set; }
+    public string? UsuarioTipoDocumento { get; set; }
     public string? Notas { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }

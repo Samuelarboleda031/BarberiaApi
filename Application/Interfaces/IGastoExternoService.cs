@@ -8,8 +8,8 @@ namespace BarberiaApi.Application.Interfaces;
 
 public interface IGastoExternoService
 {
-    Task<ServiceResult<GastoExternoDto>> CreateAsync(GastoExternoInput input, int usuarioId);
-    Task<ServiceResult<GastoExternoDto>> UpdateAsync(int id, GastoExternoInput input, int usuarioId);
+    Task<ServiceResult<GastoExternoDto>> CreateAsync(GastoExternoInput input);
+    Task<ServiceResult<GastoExternoDto>> UpdateAsync(int id, GastoExternoInput input);
     Task<ServiceResult<bool>> DeleteAsync(int id);  // Soft delete
     Task<ServiceResult<GastoExternoDto>> GetByIdAsync(int id);
     Task<ServiceResult<IEnumerable<GastoExternoDto>>> GetByDateAsync(DateOnly fecha);

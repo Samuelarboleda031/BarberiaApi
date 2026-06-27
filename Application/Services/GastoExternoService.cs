@@ -34,12 +34,16 @@ public class GastoExternoService : IGastoExternoService
         _dt = dt;
     }
 
-    public async Task<ServiceResult<GastoExternoDto>> CreateAsync(GastoExternoInput input, int usuarioId)
+    public async Task<ServiceResult<GastoExternoDto>> CreateAsync(GastoExternoInput input)
     {
         try
         {
             if (!DateOnly.TryParseExact(input.Fecha, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha))
                 return ServiceResult<GastoExternoDto>.Fail("Fecha inválida. Formato esperado: yyyy-MM-dd");
+
+            var usuarioVal = await _context.Usuarios.FindAsync(input.UsuarioId);
+            if (usuarioVal == null)
+                return ServiceResult<GastoExternoDto>.Fail("El usuario no existe");
 
             var gasto = new GastoExterno
             {
@@ -47,7 +51,12 @@ public class GastoExternoService : IGastoExternoService
                 Monto = input.Monto,
                 Categoria = input.Categoria,
                 Fecha = fecha,
-                UsuarioId = usuarioId,
+                UsuarioId = input.UsuarioId,
+                UsuarioNombre = usuarioVal.Nombre,
+                UsuarioApellido = usuarioVal.Apellido,
+                UsuarioCorreo = usuarioVal.Correo,
+                UsuarioDocumento = usuarioVal.Documento,
+                UsuarioTipoDocumento = usuarioVal.TipoDocumento,
                 Notas = input.Notas,
                 CreatedAt = _dt.NowColombia,
                 Estado = true
@@ -59,7 +68,6 @@ public class GastoExternoService : IGastoExternoService
             _logger.LogInformation($"Gasto externo creado: {gasto.Id} de ${gasto.Monto} en {gasto.Categoria}");
             
             var dto = await _context.GastosExternos.AsNoTracking()
-                .Include(g => g.Usuario)
                 .Where(g => g.Id == gasto.Id)
                 .ProjectTo<GastoExternoDto>(_mapper.ConfigurationProvider)
                 .FirstOrDefaultAsync();
@@ -73,12 +81,16 @@ public class GastoExternoService : IGastoExternoService
         }
     }
 
-    public async Task<ServiceResult<GastoExternoDto>> UpdateAsync(int id, GastoExternoInput input, int usuarioId)
+    public async Task<ServiceResult<GastoExternoDto>> UpdateAsync(int id, GastoExternoInput input)
     {
         try
         {
             if (!DateOnly.TryParseExact(input.Fecha, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha))
                 return ServiceResult<GastoExternoDto>.Fail("Fecha inválida. Formato esperado: yyyy-MM-dd");
+
+            var usuarioVal = await _context.Usuarios.FindAsync(input.UsuarioId);
+            if (usuarioVal == null)
+                return ServiceResult<GastoExternoDto>.Fail("El usuario no existe");
 
             var gasto = await _context.GastosExternos.FirstOrDefaultAsync(g => g.Id == id && g.Estado);
             if (gasto == null || gasto.DeletedAt.HasValue)
@@ -88,13 +100,18 @@ public class GastoExternoService : IGastoExternoService
             gasto.Monto = input.Monto;
             gasto.Categoria = input.Categoria;
             gasto.Fecha = fecha;
+            gasto.UsuarioId = input.UsuarioId;
+            gasto.UsuarioNombre = usuarioVal.Nombre;
+            gasto.UsuarioApellido = usuarioVal.Apellido;
+            gasto.UsuarioCorreo = usuarioVal.Correo;
+            gasto.UsuarioDocumento = usuarioVal.Documento;
+            gasto.UsuarioTipoDocumento = usuarioVal.TipoDocumento;
             gasto.Notas = input.Notas;
             gasto.UpdatedAt = _dt.NowColombia;
 
             await _context.SaveChangesAsync();
 
             var dto = await _context.GastosExternos.AsNoTracking()
-                .Include(g => g.Usuario)
                 .Where(g => g.Id == id)
                 .ProjectTo<GastoExternoDto>(_mapper.ConfigurationProvider)
                 .FirstOrDefaultAsync();
@@ -134,7 +151,6 @@ public class GastoExternoService : IGastoExternoService
         try
         {
             var dto = await _context.GastosExternos.AsNoTracking()
-                .Include(g => g.Usuario)
                 .Where(g => g.Id == id && g.Estado && !g.DeletedAt.HasValue)
                 .ProjectTo<GastoExternoDto>(_mapper.ConfigurationProvider)
                 .FirstOrDefaultAsync();
@@ -156,7 +172,6 @@ public class GastoExternoService : IGastoExternoService
         try
         {
             var gastos = await _context.GastosExternos.AsNoTracking()
-                .Include(g => g.Usuario)
                 .Where(g => g.Fecha == fecha && g.Estado && !g.DeletedAt.HasValue)
                 .OrderByDescending(g => g.CreatedAt)
                 .ProjectTo<GastoExternoDto>(_mapper.ConfigurationProvider)
@@ -176,7 +191,6 @@ public class GastoExternoService : IGastoExternoService
         try
         {
             var gastos = await _context.GastosExternos.AsNoTracking()
-                .Include(g => g.Usuario)
                 .Where(g => g.Fecha >= from && g.Fecha <= to && g.Estado && !g.DeletedAt.HasValue)
                 .OrderByDescending(g => g.Fecha)
                 .ThenByDescending(g => g.CreatedAt)

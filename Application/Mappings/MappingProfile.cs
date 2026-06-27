@@ -146,6 +146,8 @@ public class MappingProfile : Profile
         CreateMap<GastoExterno, GastoExternoDto>()
             .ForMember(dest => dest.Fecha, opt => opt.MapFrom(src => src.Fecha.ToString("yyyy-MM-dd")))
             .ForMember(dest => dest.UsuarioNombre, opt => opt.MapFrom(src => 
-                src.Usuario != null ? $"{src.Usuario.Nombre} {src.Usuario.Apellido}".Trim() : string.Empty));
+                !string.IsNullOrEmpty(src.UsuarioNombre) || !string.IsNullOrEmpty(src.UsuarioApellido)
+                    ? $"{src.UsuarioNombre} {src.UsuarioApellido}".Trim()
+                    : (src.Usuario != null ? $"{src.Usuario.Nombre} {src.Usuario.Apellido}".Trim() : string.Empty)));
     }
 }

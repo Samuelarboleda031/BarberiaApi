@@ -10,4 +10,5 @@ public class GastoExternoInput
     public string Categoria { get; set; } = null!;
     public string Fecha { get; set; } = string.Empty;
     public string? Notas { get; set; }
+    public int UsuarioId { get; set; }
 }
