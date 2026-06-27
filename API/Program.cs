@@ -128,89 +128,86 @@ if (!string.IsNullOrWhiteSpace(firebaseProjectId))
                     if (!string.IsNullOrWhiteSpace(explicitRole))
                         identity.AddClaim(new Claim(ClaimTypes.Role, explicitRole));
 
-                    // 2. Si aún no tiene rol, buscar en la BD por email
-                    if (!identity.HasClaim(c => c.Type == ClaimTypes.Role))
+                    // 2. Siempre buscar en la BD por email para obtener el usuario ID y sincronizar rol
+                    var email = identity.FindFirst("email")?.Value
+                                ?? identity.FindFirst(ClaimTypes.Email)?.Value;
+
+                    // Log de diagnóstico — remover en producción
+                    var logger = context.HttpContext.RequestServices
+                        .GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("TokenValidated");
+                    logger.LogInformation("OnTokenValidated — email: {Email}, claims: {Claims}",
+                        email ?? "(null)",
+                        string.Join(", ", identity.Claims.Select(c => $"{c.Type}={c.Value}")));
+
+                    if (!string.IsNullOrWhiteSpace(email))
                     {
-                        var email = identity.FindFirst("email")?.Value
-                                    ?? identity.FindFirst(ClaimTypes.Email)?.Value;
-
-                        // Log de diagnóstico — remover en producción
-                        var logger = context.HttpContext.RequestServices
-                            .GetRequiredService<ILoggerFactory>()
-                            .CreateLogger("TokenValidated");
-                        logger.LogInformation("OnTokenValidated — email: {Email}, claims: {Claims}",
-                            email ?? "(null)",
-                            string.Join(", ", identity.Claims.Select(c => $"{c.Type}={c.Value}")));
-
-                        if (!string.IsNullOrWhiteSpace(email))
+                        var roleAssigned = false;
+                        try
                         {
-                            var roleAssigned = false;
-                            try
+                            var db = context.HttpContext.RequestServices
+                                .GetRequiredService<BarberiaApi.Infrastructure.Data.BarberiaContext>();
+
+                            var usuario = await db.Usuarios
+                                .AsNoTracking()
+                                .Include(u => u.Rol)
+                                .FirstOrDefaultAsync(u => u.Correo == email);
+
+                            logger.LogInformation("BD lookup — usuario: {Usuario}, rol: {Rol}",
+                                usuario?.Correo ?? "(no encontrado)",
+                                usuario?.Rol?.Nombre ?? "(sin rol)");
+
+                            if (usuario != null)
                             {
-                                var db = context.HttpContext.RequestServices
-                                    .GetRequiredService<BarberiaApi.Infrastructure.Data.BarberiaContext>();
+                                // Add NameIdentifier claim with the usuario's Id
+                                identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
 
-                                var usuario = await db.Usuarios
-                                    .AsNoTracking()
-                                    .Include(u => u.Rol)
-                                    .FirstOrDefaultAsync(u => u.Correo == email);
-
-                                logger.LogInformation("BD lookup — usuario: {Usuario}, rol: {Rol}",
-                                    usuario?.Correo ?? "(no encontrado)",
-                                    usuario?.Rol?.Nombre ?? "(sin rol)");
-
-                                if (usuario != null)
+                                if (usuario.Rol != null)
                                 {
-                                    // Add NameIdentifier claim with the usuario's Id
-                                    identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
-
-                                    if (usuario.Rol != null)
+                                    var nombreRol = usuario.Rol.Nombre?.ToLower().Trim() ?? "";
+                                    // Usar Contains para cubrir variantes: "Super Administrador", "super_admin", etc.
+                                    if (nombreRol.Contains("super") && (nombreRol.Contains("admin") || nombreRol.Contains("administrador")))
                                     {
-                                        var nombreRol = usuario.Rol.Nombre?.ToLower().Trim() ?? "";
-                                        // Usar Contains para cubrir variantes: "Super Administrador", "super_admin", etc.
-                                        if (nombreRol.Contains("super") && (nombreRol.Contains("admin") || nombreRol.Contains("administrador")))
-                                        {
-                                            identity.AddClaim(new Claim(ClaimTypes.Role, "super_admin"));
-                                            identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
-                                            identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
-                                        }
-                                        else if (nombreRol.Contains("admin") || nombreRol.Contains("administrador") || nombreRol.Contains("gerente"))
-                                        {
-                                            identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
-                                            identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
-                                        }
-                                        else if (nombreRol.Contains("barbero"))
-                                        {
-                                            identity.AddClaim(new Claim(ClaimTypes.Role, "barbero"));
-                                        }
-                                        else
-                                        {
-                                            identity.AddClaim(new Claim(ClaimTypes.Role, "cliente"));
-                                        }
-
-                                        if (usuario.RolId.HasValue)
-                                            identity.AddClaim(new Claim("rolId", usuario.RolId.Value.ToString()));
-
-                                        roleAssigned = true;
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "super_admin"));
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
                                     }
-                                }
-                            }
-                            catch
-                            {
-                                // BD no disponible — continuar con fallback
-                            }
+                                    else if (nombreRol.Contains("admin") || nombreRol.Contains("administrador") || nombreRol.Contains("gerente"))
+                                    {
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
+                                    }
+                                    else if (nombreRol.Contains("barbero"))
+                                    {
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "barbero"));
+                                    }
+                                    else
+                                    {
+                                        identity.AddClaim(new Claim(ClaimTypes.Role, "cliente"));
+                                    }
 
-                            // Fallback: si la BD no está disponible, usar el email del admin configurado
-                            if (!roleAssigned)
-                            {
-                                var adminEmail = builder.Configuration["AdminEmail"]
-                                    ?? Environment.GetEnvironmentVariable("ADMIN_EMAIL");
-                                if (!string.IsNullOrWhiteSpace(adminEmail)
-                                    && string.Equals(email, adminEmail, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
-                                    identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
+                                    if (usuario.RolId.HasValue)
+                                        identity.AddClaim(new Claim("rolId", usuario.RolId.Value.ToString()));
+
+                                    roleAssigned = true;
                                 }
+                            }
+                        }
+                        catch
+                        {
+                            // BD no disponible — continuar con fallback
+                        }
+
+                        // Fallback: si la BD no está disponible, usar el email del admin configurado
+                        if (!roleAssigned)
+                        {
+                            var adminEmail = builder.Configuration["AdminEmail"]
+                                ?? Environment.GetEnvironmentVariable("ADMIN_EMAIL");
+                            if (!string.IsNullOrWhiteSpace(adminEmail)
+                                && string.Equals(email, adminEmail, StringComparison.OrdinalIgnoreCase))
+                            {
+                                identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                                identity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
                             }
                         }
                     }

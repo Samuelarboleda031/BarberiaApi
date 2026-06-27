@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,11 +13,13 @@ namespace BarberiaApi.Controllers
     {
         private readonly IDashboardService _dashboardService;
         private readonly IGastoExternoService _gastoExternoService;
+        private readonly IDateTimeProvider _dateTimeProvider;
 
-        public DashboardController(IDashboardService dashboardService, IGastoExternoService gastoExternoService)
+        public DashboardController(IDashboardService dashboardService, IGastoExternoService gastoExternoService, IDateTimeProvider dateTimeProvider)
         {
             _dashboardService = dashboardService;
             _gastoExternoService = gastoExternoService;
+            _dateTimeProvider = dateTimeProvider;
         }
 
         [HttpGet] [OutputCache(PolicyName = "short")]
@@ -40,7 +43,7 @@ namespace BarberiaApi.Controllers
             }
             else
             {
-                targetDate = DateOnly.FromDateTime(DateTime.Today);
+                targetDate = DateOnly.FromDateTime(_dateTimeProvider.NowColombia);
             }
 
             var r = await _gastoExternoService.GetResumenDiaAsync(targetDate);

@@ -1,3 +1,4 @@
+using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -12,8 +13,13 @@ namespace BarberiaApi.Controllers
     public class GastosExternosController : ControllerBase
     {
         private readonly IGastoExternoService _service;
+        private readonly IDateTimeProvider _dateTimeProvider;
 
-        public GastosExternosController(IGastoExternoService service) => _service = service;
+        public GastosExternosController(IGastoExternoService service, IDateTimeProvider dateTimeProvider)
+        {
+            _service = service;
+            _dateTimeProvider = dateTimeProvider;
+        }
 
         // ── POST /api/GastosExternos ──────────────────────────────────────────
         [HttpPost]
@@ -50,11 +56,11 @@ namespace BarberiaApi.Controllers
             return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error);
         }
 
-        // ── GET /api/GastosExternos/dia/actual ───────────────────────────────
+        // ── GET /api/GastosExternos/dia/actual ─────────────────────────────────────
         [HttpGet("dia/actual")]
         public async Task<ActionResult> GetToday()
         {
-            var today = DateOnly.FromDateTime(DateTime.Today);
+            var today = DateOnly.FromDateTime(_dateTimeProvider.NowColombia);
             var r = await _service.GetByDateAsync(today);
             return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error);
         }
