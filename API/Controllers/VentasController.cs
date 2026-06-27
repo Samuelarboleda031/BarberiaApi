@@ -3,6 +3,7 @@ using BarberiaApi.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
+using System.Security.Claims;
 
 namespace BarberiaApi.Controllers
 {
@@ -19,12 +20,22 @@ namespace BarberiaApi.Controllers
         }
 
         [HttpGet]
-        [OutputCache(PolicyName = "short")]
-        public async Task<ActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
+    [OutputCache(PolicyName = "short")]
+    public async Task<ActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 5, [FromQuery] string? q = null)
+    {
+        int? usuarioId = null;
+        var nameIdentifierClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        var isBarbero = User.IsInRole("barbero");
+        
+        // Solo filtrar si el usuario es barbero
+        if (isBarbero && nameIdentifierClaim != null && int.TryParse(nameIdentifierClaim.Value, out int parsedUserId))
         {
-            var result = await _ventaService.GetAllAsync(page, pageSize, q);
-            return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
+            usuarioId = parsedUserId;
         }
+
+        var result = await _ventaService.GetAllAsync(page, pageSize, q, usuarioId);
+        return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
+    }
 
         [HttpGet("{id}")]
         [OutputCache(PolicyName = "short")]

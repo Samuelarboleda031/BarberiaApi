@@ -4,7 +4,7 @@ namespace BarberiaApi.Application.Interfaces;
 
 public interface IVentaService
 {
-    Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? searchTerm);
+    Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? searchTerm, int? usuarioId = null);
     Task<ServiceResult<object>> GetByIdAsync(int id);
     Task<ServiceResult<object>> GetByAgendamientoAsync(int agendamientoId);
     Task<ServiceResult<object>> GetByClienteAsync(int clienteId, int page, int pageSize);

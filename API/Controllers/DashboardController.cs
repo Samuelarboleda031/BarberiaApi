@@ -3,6 +3,7 @@ using BarberiaApi.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
+using System.Security.Claims;
 
 namespace BarberiaApi.Controllers
 {
@@ -24,12 +25,33 @@ namespace BarberiaApi.Controllers
 
         [HttpGet] [OutputCache(PolicyName = "short")]
         public async Task<ActionResult> Get()
-        { var r = await _dashboardService.GetDashboardAsync(); return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error); }
+        { 
+            int? usuarioId = null;
+            var nameIdentifierClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            var isBarbero = User.IsInRole("barbero");
+            
+            if (isBarbero && nameIdentifierClaim != null && int.TryParse(nameIdentifierClaim.Value, out int parsedUserId))
+            {
+                usuarioId = parsedUserId;
+            }
+            
+            var r = await _dashboardService.GetDashboardAsync(usuarioId); 
+            return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error); 
+        }
 
         [HttpGet("ganancias")]
         public async Task<ActionResult> GetGanancias([FromQuery] string periodo = "hoy", [FromQuery] string barbero = "Todos")
         {
-            var r = await _dashboardService.GetGananciasAsync(periodo, barbero);
+            int? usuarioId = null;
+            var nameIdentifierClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            var isBarbero = User.IsInRole("barbero");
+            
+            if (isBarbero && nameIdentifierClaim != null && int.TryParse(nameIdentifierClaim.Value, out int parsedUserId))
+            {
+                usuarioId = parsedUserId;
+            }
+            
+            var r = await _dashboardService.GetGananciasAsync(periodo, barbero, usuarioId);
             return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error);
         }
 

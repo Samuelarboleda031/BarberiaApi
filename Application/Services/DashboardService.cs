@@ -18,15 +18,36 @@ public class DashboardService : IDashboardService
         _dt = dt;
     }
 
-    public async Task<ServiceResult<object>> GetDashboardAsync()
+    public async Task<ServiceResult<object>> GetDashboardAsync(int? usuarioId = null)
     {
         var hoy = DateTime.Today;
         var desdeVentas = new DateTime(2025, 1, 1);
         var limiteAgendas = _dt.NowColombia.AddDays(-7);
 
+        // Preparar filtro por barbero/usuario
+        int? barberoId = null;
+        if (usuarioId.HasValue)
+        {
+            barberoId = await _context.Barberos
+                .Where(b => b.UsuarioId == usuarioId.Value)
+                .Select(b => b.Id)
+                .FirstOrDefaultAsync();
+        }
+
         // Obtener solo las ventas de los últimos 30 días activas
-        var ventasRecientes = await _context.Ventas.AsNoTracking().AsSplitQuery()
-            .Where(v => v.Fecha >= hoy.AddDays(-30) && v.Estado != EstadosVenta.Anulada && v.Estado != EstadosVenta.Cancelada)
+        var ventasQuery = _context.Ventas.AsNoTracking().AsSplitQuery()
+            .Where(v => v.Fecha >= hoy.AddDays(-30) && v.Estado != EstadosVenta.Anulada && v.Estado != EstadosVenta.Cancelada);
+
+        // Aplicar filtro si es barbero
+        if (usuarioId.HasValue)
+        {
+            ventasQuery = ventasQuery.Where(v =>
+                v.UsuarioId == usuarioId.Value ||
+                v.BarberoId == barberoId ||
+                v.BarberoPrestadorId == barberoId);
+        }
+
+        var ventasRecientes = await ventasQuery
             .Include(v => v.Cliente).ThenInclude(c => c.Usuario)
             .Include(v => v.Barbero).ThenInclude(b => b.Usuario)
             .Include(v => v.DetalleVenta).ThenInclude(d => d.Producto)
@@ -45,8 +66,18 @@ public class DashboardService : IDashboardService
             }).ToListAsync();
 
         // Para el histórico anual, enviamos totales desglosados solo de ventas activas
-        var ventasHistoricas = await _context.Ventas.AsNoTracking()
-            .Where(v => v.Fecha >= desdeVentas && v.Fecha < hoy.AddDays(-30) && v.Estado != EstadosVenta.Anulada && v.Estado != EstadosVenta.Cancelada)
+        var ventasHistoricasQuery = _context.Ventas.AsNoTracking()
+            .Where(v => v.Fecha >= desdeVentas && v.Fecha < hoy.AddDays(-30) && v.Estado != EstadosVenta.Anulada && v.Estado != EstadosVenta.Cancelada);
+
+        if (usuarioId.HasValue)
+        {
+            ventasHistoricasQuery = ventasHistoricasQuery.Where(v =>
+                v.UsuarioId == usuarioId.Value ||
+                v.BarberoId == barberoId ||
+                v.BarberoPrestadorId == barberoId);
+        }
+
+        var ventasHistoricas = await ventasHistoricasQuery
             .Include(v => v.Barbero).ThenInclude(b => b.Usuario)
             .Select(v => new { 
                 fecha = v.Fecha, 
@@ -59,8 +90,15 @@ public class DashboardService : IDashboardService
             })
             .ToListAsync();
 
-        var agendamientos = await _context.Agendamientos.AsNoTracking().AsSplitQuery()
-            .Where(a => a.FechaHora >= limiteAgendas)
+        var agendamientosQuery = _context.Agendamientos.AsNoTracking().AsSplitQuery()
+            .Where(a => a.FechaHora >= limiteAgendas);
+
+        if (usuarioId.HasValue && barberoId.HasValue)
+        {
+            agendamientosQuery = agendamientosQuery.Where(a => a.BarberoId == barberoId.Value);
+        }
+
+        var agendamientos = await agendamientosQuery
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
             .Include(a => a.Servicio).Include(a => a.Paquete)
@@ -124,7 +162,7 @@ public class DashboardService : IDashboardService
         });
     }
 
-    public async Task<ServiceResult<object>> GetGananciasAsync(string periodo, string barbero)
+    public async Task<ServiceResult<object>> GetGananciasAsync(string periodo, string barbero, int? usuarioId = null)
     {
         var hoy = _dt.NowColombia.Date;
         
@@ -149,12 +187,33 @@ public class DashboardService : IDashboardService
                 break;
         }
 
-        var ventasQuery = await _context.Ventas.AsNoTracking()
+        // Preparar filtro por barbero/usuario
+        int? barberoId = null;
+        if (usuarioId.HasValue)
+        {
+            barberoId = await _context.Barberos
+                .Where(b => b.UsuarioId == usuarioId.Value)
+                .Select(b => b.Id)
+                .FirstOrDefaultAsync();
+        }
+
+        var ventasQueryBase = _context.Ventas.AsNoTracking()
             .Include(v => v.Barbero).ThenInclude(b => b.Usuario)
             .Include(v => v.DetalleVenta)
             .Where(v => v.Fecha >= fechaInicio &&
                         v.Estado != "Anulada" &&
-                        v.Estado != "Cancelada")
+                        v.Estado != "Cancelada");
+
+        // Aplicar filtro por usuario/barbero
+        if (usuarioId.HasValue)
+        {
+            ventasQueryBase = ventasQueryBase.Where(v =>
+                v.UsuarioId == usuarioId.Value ||
+                v.BarberoId == barberoId ||
+                v.BarberoPrestadorId == barberoId);
+        }
+
+        var ventasQuery = await ventasQueryBase
             .Select(v => new {
                 BarberoNombre = v.Barbero != null && v.Barbero.Usuario != null ? (v.Barbero.Usuario.Nombre + " " + v.Barbero.Usuario.Apellido) : "",
                 TotalServicios = v.DetalleVenta

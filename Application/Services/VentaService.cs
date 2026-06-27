@@ -59,13 +59,32 @@ public class VentaService : IVentaService
         return true;
     }
 
-    public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? searchTerm)
+    public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? searchTerm, int? usuarioId = null)
     {
         try
         {
             PaginationHelper.Sanitize(ref page, ref pageSize);
 
             var baseQ = _context.Ventas.AsNoTracking().AsQueryable();
+
+            // Filtrar por usuario si es proporcionado (para rol barbero)
+            if (usuarioId.HasValue)
+            {
+                // Obtener el BarberoId asociado a este usuario (si existe)
+                var barberoId = await _context.Barberos
+                    .Where(b => b.UsuarioId == usuarioId.Value)
+                    .Select(b => b.Id)
+                    .FirstOrDefaultAsync();
+
+                // Filtrar ventas donde:
+                // 1. El usuario es el que registró la venta (UsuarioId)
+                // 2. O el usuario es el barbero asociado (BarberoId)
+                // 3. O el usuario es el barbero prestador (BarberoPrestadorId)
+                baseQ = baseQ.Where(v => 
+                    v.UsuarioId == usuarioId.Value || 
+                    v.BarberoId == barberoId || 
+                    v.BarberoPrestadorId == barberoId);
+            }
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
