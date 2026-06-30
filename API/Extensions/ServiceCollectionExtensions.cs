@@ -35,6 +35,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INotificacionCreditoService, NotificacionCreditoService>();
         services.AddHostedService<NotificacionCreditoJob>();
         services.AddHostedService<RecalcularCreditosJob>();
+        services.AddHostedService<RecordatorioCitasJob>();
 
         return services;
     }

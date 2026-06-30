@@ -173,6 +173,109 @@ public class AgendamientoService : IAgendamientoService
                 await _emailProxyService.EnviarEmailAsync(admin.Correo, adminNombre, $"{appName} - Cita Cancelada", adminHtml);
             }
         }
+
+        // Notificación WhatsApp a cliente, barbero y administrador (no duplica el correo enviado arriba)
+        await _notificacionService.NotificarCancelacionWhatsAppAsync(agendamiento, motivo);
+    }
+
+    private async Task EnviarEmailsCreacionAsync(Agendamiento agendamiento)
+    {
+        var appName = _configuration["Smtp:FromName"] ?? "Barbería App";
+        var fechaHoraFormateada = agendamiento.FechaHora.ToString("dddd, d 'de' MMMM, HH:mm", new System.Globalization.CultureInfo("es-ES"));
+        var clienteNombre = $"{agendamiento.Cliente?.Usuario?.Nombre} {agendamiento.Cliente?.Usuario?.Apellido}".Trim();
+        var barberoNombre = $"{agendamiento.Barbero?.Usuario?.Nombre} {agendamiento.Barbero?.Usuario?.Apellido}".Trim();
+        var servicioNombre = agendamiento.Servicio?.Nombre ?? agendamiento.Paquete?.Nombre ?? "Servicio";
+
+        // Email al cliente
+        var clienteEmail = agendamiento.Cliente?.Usuario?.Correo;
+        if (!string.IsNullOrWhiteSpace(clienteEmail))
+        {
+            var html = BuildConfirmationHtml(
+                clienteNombre,
+                $"Tu cita en <strong style=\"color: #d8b081;\">{System.Net.WebUtility.HtmlEncode(appName)}</strong> ha sido agendada con éxito. Te esperamos.",
+                new[] { ("Barbero", barberoNombre), ("Servicio", servicioNombre), ("Fecha y Hora", fechaHoraFormateada) },
+                appName);
+            await _emailProxyService.EnviarEmailAsync(clienteEmail, clienteNombre, $"{appName} - Cita Agendada", html);
+        }
+
+        // Email al barbero
+        var barberoEmail = agendamiento.Barbero?.Usuario?.Correo;
+        if (!string.IsNullOrWhiteSpace(barberoEmail))
+        {
+            var html = BuildConfirmationHtml(
+                barberoNombre,
+                $"Tienes una nueva cita asignada con el cliente <strong style=\"color: #d8b081;\">{System.Net.WebUtility.HtmlEncode(clienteNombre)}</strong>.",
+                new[] { ("Cliente", clienteNombre), ("Servicio", servicioNombre), ("Fecha y Hora", fechaHoraFormateada) },
+                appName);
+            await _emailProxyService.EnviarEmailAsync(barberoEmail, barberoNombre, $"{appName} - Nueva Cita Asignada", html);
+        }
+
+        // Emails a los administradores
+        var administradores = await _context.Usuarios
+            .Include(u => u.Rol)
+            .Where(u => u.Estado && u.Rol != null &&
+                (u.Rol.Nombre.ToLower().Contains("admin") || u.Rol.Nombre.ToLower().Contains("administrador")))
+            .ToListAsync();
+
+        foreach (var admin in administradores)
+        {
+            if (!string.IsNullOrWhiteSpace(admin.Correo))
+            {
+                var adminNombre = $"{admin.Nombre} {admin.Apellido}".Trim();
+                var html = BuildConfirmationHtml(
+                    adminNombre,
+                    $"Se ha registrado una nueva cita en <strong style=\"color: #d8b081;\">{System.Net.WebUtility.HtmlEncode(appName)}</strong>.",
+                    new[] { ("Cliente", clienteNombre), ("Barbero", barberoNombre), ("Servicio", servicioNombre), ("Fecha y Hora", fechaHoraFormateada) },
+                    appName);
+                await _emailProxyService.EnviarEmailAsync(admin.Correo, adminNombre, $"{appName} - Nueva Cita Registrada", html);
+            }
+        }
+    }
+
+    private static string BuildConfirmationHtml(string toName, string introHtml, (string Label, string Value)[] rows, string appName)
+    {
+        var safeToName = System.Net.WebUtility.HtmlEncode(toName);
+        var safeAppName = System.Net.WebUtility.HtmlEncode(appName);
+
+        var filas = string.Join("", rows.Select(r => $@"
+        <tr>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #888; font-size: 14px; width: 40%;"">{System.Net.WebUtility.HtmlEncode(r.Label)}:</td>
+          <td style=""padding: 12px 0; border-bottom: 1px solid #1a1a1a; color: #fff; font-size: 15px; font-weight: 600;"">{System.Net.WebUtility.HtmlEncode(r.Value)}</td>
+        </tr>"));
+
+        return $@"<div style=""font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0a0a0a; color: #ffffff; border: 1px solid #333; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.6);"">
+  <div style=""height: 6px; background-color: #d8b081;""></div>
+  <div style=""background-color: #111; padding: 40px 20px; text-align: center;"">
+    <div style=""display: inline-block; padding: 10px 20px; border: 1px solid #d8b081; border-radius: 4px; margin-bottom: 20px;"">
+      <span style=""font-size: 24px; font-weight: 900; letter-spacing: 4px; color: #ffffff; text-transform: uppercase;"">MANITO</span>
+      <span style=""font-size: 24px; font-weight: 300; letter-spacing: 4px; color: #d8b081; text-transform: uppercase;"">BARBERSHOP</span>
+    </div>
+    <h1 style=""color: #d8b081; margin: 10px 0 0 0; font-size: 32px; font-weight: 800; text-transform: uppercase; letter-spacing: -1px;"">✅ Cita Agendada</h1>
+  </div>
+  <div style=""padding: 40px 35px; background-color: #0a0a0a;"">
+    <p style=""font-size: 18px; color: #ffffff; margin-bottom: 25px;"">Hola <strong>{safeToName}</strong>,</p>
+    <p style=""color: #aaa; line-height: 1.8; font-size: 16px; margin-bottom: 30px;"">
+      {introHtml}
+    </p>
+    <div style=""margin: 40px 0; border-top: 1px solid #222; padding-top: 30px;"">
+      <h3 style=""color: #d8b081; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; font-weight: 800;"">Detalles de la cita</h3>
+      <table style=""width: 100%; border-collapse: collapse;"">{filas}
+      </table>
+    </div>
+    <p style=""margin-top: 40px; color: #666; font-size: 13px; text-align: center; line-height: 1.6;"">
+      Si tienes alguna duda, por favor contacta con la administración.
+    </p>
+  </div>
+  <div style=""background-color: #000; padding: 40px 20px; text-align: center; border-top: 1px solid #222;"">
+    <p style=""color: #555; font-size: 12px; margin-bottom: 15px; letter-spacing: 1px;"">
+      © 2026 <strong style=""color: #777;"">{safeAppName}</strong>. Todos los derechos reservados.
+    </p>
+    <div style=""color: #444; font-size: 11px;"">
+      <p style=""margin: 5px 0;"">Calle 79 #52-12, Barrio El Bosque, Medellín</p>
+      <p style=""margin: 5px 0;"">Este es un correo automático, por favor no respondas directamente.</p>
+    </div>
+  </div>
+</div>";
     }
 
     private static string BuildCancellationHtmlBarbero(string toName, string clienteNombre, string servicioNombre, string fechaHora, string motivo, string appName)
@@ -708,6 +811,11 @@ public class AgendamientoService : IAgendamientoService
             .FirstOrDefaultAsync(a => a.Id == agendamiento.Id);
         var serviciosMap = await LoadServiciosMapAsync(new[] { created! });
         var productosMap = await LoadProductosMapAsync(new[] { created! });
+
+        // Notificación de confirmación a cliente, barbero y administrador (correo + WhatsApp)
+        await EnviarEmailsCreacionAsync(created!);
+        await _notificacionService.NotificarCreacionAsync(created!);
+
         return ServiceResult<object>.Ok(MapToDto(created!, serviciosMap, productosMap));
     }
 
