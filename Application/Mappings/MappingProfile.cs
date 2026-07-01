@@ -99,7 +99,7 @@ public class MappingProfile : Profile
         // ==========================
         CreateMap<Usuario, UsuarioDto>()
             .ForMember(dest => dest.RolNombre, opt => opt.MapFrom(src => src.Rol != null ? src.Rol.Nombre : null))
-            .ForMember(dest => dest.Telefono, opt => opt.MapFrom(src => src.Cliente != null ? src.Cliente.Telefono : (src.Barbero != null ? src.Barbero.Telefono : null)))
+            .ForMember(dest => dest.Telefono, opt => opt.MapFrom(src => src.Cliente != null ? src.Cliente.Telefono : (src.Barbero != null ? src.Barbero.Telefono : src.Telefono)))
             .ForMember(dest => dest.Direccion, opt => opt.MapFrom(src => src.Cliente != null ? src.Cliente.Direccion : (src.Barbero != null ? src.Barbero.Direccion : null)))
             .ForMember(dest => dest.Barrio, opt => opt.MapFrom(src => src.Cliente != null ? src.Cliente.Barrio : (src.Barbero != null ? src.Barbero.Barrio : null)))
             .ForMember(dest => dest.FechaNacimiento, opt => opt.MapFrom(src => src.Cliente != null ? src.Cliente.FechaNacimiento : (src.Barbero != null ? src.Barbero.FechaNacimiento : null)));

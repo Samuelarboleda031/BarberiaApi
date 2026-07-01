@@ -205,6 +205,7 @@ public class UsuarioService : IUsuarioService
                 Nombre = input.Nombre,
                 Apellido = input.Apellido,
                 Correo = input.Correo,
+                Telefono = input.Telefono,
                 Contrasena = contrasenaHasheada,
                 RolId = input.RolId,
                 TipoDocumento = input.TipoDocumento,
@@ -326,6 +327,7 @@ public class UsuarioService : IUsuarioService
 
             usuarioExistente.TipoDocumento = input.TipoDocumento;
             usuarioExistente.Documento = input.Documento;
+            usuarioExistente.Telefono = input.Telefono;
             if (input.FotoPerfil != null)
                 usuarioExistente.FotoPerfil = input.FotoPerfil;
 

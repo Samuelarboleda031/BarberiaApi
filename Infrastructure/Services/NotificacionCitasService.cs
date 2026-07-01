@@ -1,4 +1,6 @@
 using BarberiaApi.Domain.Entities;
+using BarberiaApi.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -10,17 +12,20 @@ public class NotificacionCitasService : INotificacionCitasService
     private readonly IWhatsAppService _whatsApp;
     private readonly IConfiguration _configuration;
     private readonly ILogger<NotificacionCitasService> _logger;
+    private readonly BarberiaContext _context;
 
     public NotificacionCitasService(
         IEmailProxyService emailProxy,
         IWhatsAppService whatsApp,
         IConfiguration configuration,
-        ILogger<NotificacionCitasService> logger)
+        ILogger<NotificacionCitasService> logger,
+        BarberiaContext context)
     {
         _emailProxy = emailProxy;
         _whatsApp = whatsApp;
         _configuration = configuration;
         _logger = logger;
+        _context = context;
     }
 
     public async Task<ResultadoNotificacionCita> NotificarCancelacionPorDesactivacionAsync(
@@ -145,8 +150,25 @@ public class NotificacionCitasService : INotificacionCitasService
     private Task EnviarABarbero(Agendamiento agendamiento, string mensaje, string contexto)
         => EnviarA(agendamiento.Barbero?.Telefono, mensaje, contexto, "barbero");
 
-    private Task EnviarAAdmin(string mensaje, string contexto)
-        => EnviarA(_configuration["WhatsApp:AdminTelefono"], mensaje, contexto, "admin");
+    private async Task EnviarAAdmin(string mensaje, string contexto)
+    {
+        // Teléfonos de los administradores activos registrados en Usuarios.
+        var telefonosAdmin = await _context.Usuarios
+            .Include(u => u.Rol)
+            .Where(u => u.Estado && u.Rol != null &&
+                (u.Rol.Nombre.ToLower().Contains("admin") || u.Rol.Nombre.ToLower().Contains("administrador")))
+            .Where(u => u.Telefono != null && u.Telefono != "")
+            .Select(u => u.Telefono!)
+            .ToListAsync();
+
+        // Respaldo: número admin del config si ningún administrador tiene teléfono.
+        var fallback = _configuration["WhatsApp:AdminTelefono"];
+        if (telefonosAdmin.Count == 0 && !string.IsNullOrWhiteSpace(fallback))
+            telefonosAdmin.Add(fallback);
+
+        foreach (var tel in telefonosAdmin.Distinct())
+            await EnviarA(tel, mensaje, contexto, "admin");
+    }
 
     private async Task EnviarA(string? telefono, string mensaje, string contexto, string destinatario)
     {

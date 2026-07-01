@@ -86,20 +86,19 @@ public sealed class WhatsAppService : IWhatsAppService
     }
 
     // ─── Normaliza a formato internacional sin el '+' (E.164 sin signo).
-    // Soporta números colombianos: 10 dígitos que empiezan por 3 → 57XXXXXXXXXX
+    // Si el número no trae el código de país de Colombia (57), se lo antepone.
     private static string? NormalizarTelefono(string? telefono)
     {
         if (string.IsNullOrWhiteSpace(telefono)) return null;
 
         var digitos = new string(telefono.Where(char.IsDigit).ToArray());
+        if (digitos.Length == 0) return null;
 
-        return digitos.Length switch
-        {
-            12 when digitos.StartsWith("57") => digitos,        // ya tiene código país
-            10 when digitos.StartsWith("3")  => "57" + digitos, // número local colombiano
-            _ when digitos.Length > 10       => digitos,        // otro país, usar como viene
-            _                                => null
-        };
+        // Ya trae el código de país de Colombia → usar tal cual.
+        if (digitos.StartsWith("57") && digitos.Length >= 12) return digitos;
+
+        // Cualquier otro caso (ej. 10 dígitos locales) → anteponer 57.
+        return "57" + digitos;
     }
 
     private static WhatsAppResult Fail(string msg) =>
