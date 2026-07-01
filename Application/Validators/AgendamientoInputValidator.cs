@@ -10,8 +10,10 @@ public class AgendamientoInputValidator : AbstractValidator<AgendamientoInput>
 {
     public AgendamientoInputValidator()
     {
-        RuleFor(x => x.ClienteId)
-            .GreaterThan(0).WithMessage("El ClienteId es requerido");
+        // Se acepta un cliente registrado (ClienteId > 0) O un invitado (ClienteNombre no vacío).
+        RuleFor(x => x)
+            .Must(x => x.ClienteId > 0 || !string.IsNullOrWhiteSpace(x.ClienteNombre))
+            .WithMessage("Debe indicar un cliente registrado o el nombre de un invitado");
 
         RuleFor(x => x.BarberoId)
             .GreaterThan(0).WithMessage("El BarberoId es requerido");

@@ -7,7 +7,17 @@ public partial class Agendamiento
 {
     public int Id { get; set; }
 
-    public int ClienteId { get; set; }
+    /// <summary>
+    /// Cliente registrado. Null cuando la cita es de un invitado (walk-in sin registro);
+    /// en ese caso el nombre se guarda en <see cref="ClienteNombre"/>.
+    /// </summary>
+    public int? ClienteId { get; set; }
+
+    /// <summary>
+    /// Nombre libre del invitado cuando no hay <see cref="ClienteId"/>. Para clientes
+    /// registrados queda null (el nombre se resuelve por la navegación Cliente.Usuario).
+    /// </summary>
+    public string? ClienteNombre { get; set; }
 
     public int BarberoId { get; set; }
 
@@ -27,7 +37,7 @@ public partial class Agendamiento
 
     public virtual Barbero Barbero { get; set; } = null!;
 
-    public virtual Cliente Cliente { get; set; } = null!;
+    public virtual Cliente? Cliente { get; set; }
 
     public virtual Servicio? Servicio { get; set; }
 

@@ -20,7 +20,7 @@ public static class AgendamientoMapper
         a.Notas,
         ClienteNombre = a.Cliente?.Usuario != null
             ? $"{a.Cliente.Usuario.Nombre} {a.Cliente.Usuario.Apellido}"
-            : string.Empty,
+            : (a.ClienteNombre ?? string.Empty),
         BarberoNombre = a.Barbero?.Usuario != null
             ? $"{a.Barbero.Usuario.Nombre} {a.Barbero.Usuario.Apellido}"
             : string.Empty

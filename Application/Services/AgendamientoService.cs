@@ -601,7 +601,9 @@ public class AgendamientoService : IAgendamientoService
             Productos = productosDetalle,
             Servicios = serviciosDetalle,
             PaqueteId = agendamiento.PaqueteId,
-            ClienteNombre = agendamiento.Cliente?.Usuario?.Nombre + " " + agendamiento.Cliente?.Usuario?.Apellido,
+            ClienteNombre = agendamiento.Cliente?.Usuario != null
+                ? $"{agendamiento.Cliente.Usuario.Nombre} {agendamiento.Cliente.Usuario.Apellido}".Trim()
+                : (agendamiento.ClienteNombre ?? "Invitado"),
             ClienteEmail = agendamiento.Cliente?.Usuario?.Correo,
             BarberoNombre = agendamiento.Barbero?.Usuario?.Nombre + " " + agendamiento.Barbero?.Usuario?.Apellido,
             ServicioNombre = servicioNombre,
@@ -863,9 +865,20 @@ public class AgendamientoService : IAgendamientoService
         if (existeTraslape)
             return ServiceResult<object>.Fail("El barbero ya tiene una cita programada en ese horario.");
 
+        // Invitado: sin ClienteId, guardamos el nombre libre. Cliente registrado: ClienteId y nombre null.
+        var esInvitado = input.ClienteId <= 0;
+        if (esInvitado && string.IsNullOrWhiteSpace(input.ClienteNombre))
+            return ServiceResult<object>.Fail("Debe indicar el nombre del invitado.");
+        if (!esInvitado)
+        {
+            var clienteExiste = await _context.Clientes.AnyAsync(c => c.Id == input.ClienteId);
+            if (!clienteExiste) return ServiceResult<object>.Fail("Cliente no encontrado.");
+        }
+
         var agendamiento = new Agendamiento
         {
-            ClienteId = input.ClienteId,
+            ClienteId = esInvitado ? (int?)null : input.ClienteId,
+            ClienteNombre = esInvitado ? input.ClienteNombre!.Trim() : null,
             BarberoId = input.BarberoId,
             ServicioId = servicioIds.FirstOrDefault() > 0 ? servicioIds.FirstOrDefault() : null,
             PaqueteId = input.PaqueteId,
@@ -998,7 +1011,12 @@ public class AgendamientoService : IAgendamientoService
         if (existeTraslape)
             return ServiceResult<object>.Fail("El barbero ya tiene una cita programada en ese horario.");
 
-        agendamientoExistente.ClienteId = input.ClienteId;
+        // Invitado vs cliente registrado (mismo criterio que en la creación).
+        var esInvitadoUpd = input.ClienteId <= 0;
+        if (esInvitadoUpd && string.IsNullOrWhiteSpace(input.ClienteNombre))
+            return ServiceResult<object>.Fail("Debe indicar el nombre del invitado.");
+        agendamientoExistente.ClienteId = esInvitadoUpd ? (int?)null : input.ClienteId;
+        agendamientoExistente.ClienteNombre = esInvitadoUpd ? input.ClienteNombre!.Trim() : null;
         agendamientoExistente.BarberoId = input.BarberoId;
         agendamientoExistente.ServicioId = servicioIds.FirstOrDefault() > 0 ? servicioIds.FirstOrDefault() : null;
         agendamientoExistente.PaqueteId = input.PaqueteId;
@@ -1093,16 +1111,20 @@ public class AgendamientoService : IAgendamientoService
                     subtotalCompletarNormal = agendamiento.Precio.Value;
                 decimal precio = subtotalCompletarNormal;
 
-                var ventaExistente = await _context.Ventas
-                    .Include(v => v.DetalleVenta)
-                    .Where(v => v.ClienteId == agendamiento.ClienteId
-                                && v.UsuarioId == usuarioId)
-                    .Where(v => v.DetalleVenta.Any(d =>
-                        (servicioIdsCita.Count > 0 && d.ServicioId.HasValue && servicioIdsCita.Contains(d.ServicioId.Value)) ||
-                        (productoIdsCita.Count > 0 && d.ProductoId.HasValue && productoIdsCita.Contains(d.ProductoId.Value)) ||
-                        (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
-                    .OrderByDescending(v => v.Id)
-                    .FirstOrDefaultAsync();
+                // La deduplicación por ClienteId solo aplica a clientes registrados. Para
+                // invitados (ClienteId null) siempre se genera una venta nueva.
+                var ventaExistente = agendamiento.ClienteId.HasValue
+                    ? await _context.Ventas
+                        .Include(v => v.DetalleVenta)
+                        .Where(v => v.ClienteId == agendamiento.ClienteId
+                                    && v.UsuarioId == usuarioId)
+                        .Where(v => v.DetalleVenta.Any(d =>
+                            (servicioIdsCita.Count > 0 && d.ServicioId.HasValue && servicioIdsCita.Contains(d.ServicioId.Value)) ||
+                            (productoIdsCita.Count > 0 && d.ProductoId.HasValue && productoIdsCita.Contains(d.ProductoId.Value)) ||
+                            (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
+                        .OrderByDescending(v => v.Id)
+                        .FirstOrDefaultAsync()
+                    : null;
                 if (ventaExistente != null)
                 {
                     if (string.Equals(ventaExistente.Estado, EstadosVenta.Anulada, StringComparison.OrdinalIgnoreCase))
@@ -1211,10 +1233,13 @@ public class AgendamientoService : IAgendamientoService
                 decimal descuentoMontoCN = precio * ((input.porcentajeDescuento ?? 0m) / 100m);
                 decimal totalConDescuentoCN = precio - descuentoMontoCN;
 
+                var esInvitadoCita = !agendamiento.ClienteId.HasValue;
                 var venta = new Venta
                 {
                     UsuarioId = usuarioId,
                     ClienteId = agendamiento.ClienteId,
+                    ClienteNombre = esInvitadoCita ? agendamiento.ClienteNombre : null,
+                    TipoVenta = esInvitadoCita ? "Venta Invitado" : null,
                     BarberoId = agendamiento.BarberoId,
                     Fecha = agendamiento.FechaHora,
                     Subtotal = precio,
@@ -1299,17 +1324,26 @@ public class AgendamientoService : IAgendamientoService
                 var usuarioId = agendamiento.Barbero?.UsuarioId ?? 0;
                 var servicioIdsCitaCancel = ExtractServicioIds(agendamiento);
                 var productoIdsCitaCancel = ExtractProductoIds(agendamiento);
-                var ventaRelacionada = await _context.Ventas
-                    .Include(v => v.DetalleVenta)
-                    .Where(v => v.ClienteId == agendamiento.ClienteId
-                                && v.UsuarioId == usuarioId
-                                && v.Estado != EstadosVenta.Anulada)
-                    .Where(v => v.DetalleVenta.Any(d =>
-                        (servicioIdsCitaCancel.Count > 0 && d.ServicioId.HasValue && servicioIdsCitaCancel.Contains(d.ServicioId.Value)) ||
-                        (productoIdsCitaCancel.Count > 0 && d.ProductoId.HasValue && productoIdsCitaCancel.Contains(d.ProductoId.Value)) ||
-                        (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
-                    .OrderByDescending(v => v.Id)
-                    .FirstOrDefaultAsync();
+                // Para invitados (ClienteId null) no se puede cruzar por ClienteId: usar la venta
+                // asociada directamente. Para clientes registrados se mantiene la heurística.
+                var ventaRelacionada = !agendamiento.ClienteId.HasValue
+                    ? (agendamiento.VentaAsociadaId.HasValue
+                        ? await _context.Ventas
+                            .Include(v => v.DetalleVenta)
+                            .FirstOrDefaultAsync(v => v.Id == agendamiento.VentaAsociadaId.Value
+                                                      && v.Estado != EstadosVenta.Anulada)
+                        : null)
+                    : await _context.Ventas
+                        .Include(v => v.DetalleVenta)
+                        .Where(v => v.ClienteId == agendamiento.ClienteId
+                                    && v.UsuarioId == usuarioId
+                                    && v.Estado != EstadosVenta.Anulada)
+                        .Where(v => v.DetalleVenta.Any(d =>
+                            (servicioIdsCitaCancel.Count > 0 && d.ServicioId.HasValue && servicioIdsCitaCancel.Contains(d.ServicioId.Value)) ||
+                            (productoIdsCitaCancel.Count > 0 && d.ProductoId.HasValue && productoIdsCitaCancel.Contains(d.ProductoId.Value)) ||
+                            (agendamiento.PaqueteId.HasValue && d.PaqueteId == agendamiento.PaqueteId)))
+                        .OrderByDescending(v => v.Id)
+                        .FirstOrDefaultAsync();
                 if (ventaRelacionada != null)
                 {
                     ventaRelacionada.Estado = EstadosVenta.Anulada;
@@ -1450,9 +1484,11 @@ public class AgendamientoService : IAgendamientoService
         using var tx = await _context.Database.BeginTransactionAsync();
         try
         {
+            var esInvitadoCita = !cita.ClienteId.HasValue;
             var venta = new Venta
             {
                 ClienteId = cita.ClienteId,
+                ClienteNombre = esInvitadoCita ? cita.ClienteNombre : null,
                 BarberoId = cita.BarberoId,
                 UsuarioId = usuarioId,
                 Fecha = _dt.NowColombia,
@@ -1462,7 +1498,7 @@ public class AgendamientoService : IAgendamientoService
                 Total = total,
                 Estado = EstadosAgendamiento.Completada,
                 MetodoPago = "Efectivo",
-                TipoVenta = "Servicios y Productos",
+                TipoVenta = esInvitadoCita ? "Venta Invitado" : "Servicios y Productos",
                 SaldoAFavorUsado = 0m
             };
 

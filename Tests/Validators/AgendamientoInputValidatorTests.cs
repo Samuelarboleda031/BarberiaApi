@@ -58,11 +58,12 @@ public class AgendamientoInputValidatorTests
     }
 
     [Fact]
-    public void ClienteId_cero_genera_error()
+    public void Sin_cliente_ni_nombre_invitado_genera_error()
     {
         var input = new AgendamientoInput
         {
             ClienteId = 0,
+            ClienteNombre = null,
             BarberoId = 2,
             ServicioId = 3,
             FechaHora = DateTime.UtcNow.AddDays(1)
@@ -70,8 +71,25 @@ public class AgendamientoInputValidatorTests
 
         var result = _validator.TestValidate(input);
 
-        result.ShouldHaveValidationErrorFor(x => x.ClienteId)
-            .WithErrorMessage("El ClienteId es requerido");
+        result.ShouldHaveAnyValidationError()
+            .WithErrorMessage("Debe indicar un cliente registrado o el nombre de un invitado");
+    }
+
+    [Fact]
+    public void Agendamiento_invitado_sin_clienteId_pero_con_nombre_es_valido()
+    {
+        var input = new AgendamientoInput
+        {
+            ClienteId = 0,
+            ClienteNombre = "Juan Invitado",
+            BarberoId = 2,
+            ServicioId = 3,
+            FechaHora = DateTime.UtcNow.AddDays(1)
+        };
+
+        var result = _validator.TestValidate(input);
+
+        result.ShouldNotHaveAnyValidationErrors();
     }
 
     [Fact]

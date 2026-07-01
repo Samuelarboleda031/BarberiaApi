@@ -3,7 +3,12 @@ namespace BarberiaApi.Application.DTOs;
 // DTOs para Agendamientos
 public class AgendamientoInput
 {
+    /// <summary>Cliente registrado. Enviar 0 (o null) cuando es un invitado.</summary>
     public int ClienteId { get; set; }
+
+    /// <summary>Nombre del invitado cuando no hay ClienteId (walk-in sin registro).</summary>
+    public string? ClienteNombre { get; set; }
+
     public int BarberoId { get; set; }
     public int? ServicioId { get; set; }
     public List<int>? ServicioIds { get; set; }
@@ -35,7 +40,8 @@ public class AgendamientoProductoInput
 public class AgendamientoDTO
 {
     public int Id { get; set; }
-    public int ClienteId { get; set; }
+    /// <summary>Null cuando la cita es de un invitado (ver ClienteNombre).</summary>
+    public int? ClienteId { get; set; }
     public int BarberoId { get; set; }
     public int? ServicioId { get; set; }
     public List<int> ServicioIds { get; set; } = new();
