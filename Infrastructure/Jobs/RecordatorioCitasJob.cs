@@ -75,6 +75,8 @@ public sealed class RecordatorioCitasJob : BackgroundService
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
             .Include(a => a.Servicio)
+            .Include(a => a.AgendamientoServicios)
+            .Include(a => a.AgendamientoProductos)
             .Include(a => a.Paquete)
             .Where(a =>
                 (a.Estado == EstadosAgendamiento.Pendiente || a.Estado == EstadosAgendamiento.Confirmada) &&

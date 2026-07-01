@@ -7,6 +7,7 @@ using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Services;
 using BarberiaApi.Infrastructure.BackgroundTasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using AutoMapper;
 
@@ -82,6 +83,63 @@ public class AgendamientoService : IAgendamientoService
         return ids.Distinct().ToList();
     }
     
+    /// <summary>
+    /// Nombres de TODOS los servicios de la cita (o el nombre del paquete), separados por coma.
+    /// Usado en los correos de creación y cancelación.
+    /// </summary>
+    private async Task<string> ObtenerServiciosNombreAsync(Agendamiento agendamiento)
+    {
+        var ids = new List<int>();
+        if (agendamiento.ServicioId is int sid && sid > 0) ids.Add(sid);
+        if (agendamiento.AgendamientoServicios != null)
+            ids.AddRange(agendamiento.AgendamientoServicios.Select(s => s.ServicioId));
+        ids = ids.Where(i => i > 0).Distinct().ToList();
+
+        if (ids.Count > 0)
+        {
+            var nombres = await _context.Servicios
+                .Where(s => ids.Contains(s.Id))
+                .Select(s => s.Nombre)
+                .ToListAsync();
+            if (nombres.Count > 0) return string.Join(", ", nombres);
+        }
+
+        return agendamiento.Paquete?.Nombre ?? "Servicio";
+    }
+
+    /// <summary>
+    /// Nombres de productos agrupados por cantidad (ej. "Cadena (x3), Cera"). "" si no hay productos.
+    /// </summary>
+    private async Task<string> ObtenerProductosNombreAsync(Agendamiento agendamiento)
+    {
+        if (agendamiento.AgendamientoProductos == null || agendamiento.AgendamientoProductos.Count == 0)
+            return string.Empty;
+
+        var grupos = agendamiento.AgendamientoProductos
+            .GroupBy(p => p.ProductoId)
+            .Select(g => new { ProductoId = g.Key, Cantidad = g.Sum(x => x.Cantidad) })
+            .ToList();
+
+        var ids = grupos.Select(g => g.ProductoId).ToList();
+        var nombres = await _context.Productos
+            .Where(p => ids.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.Nombre);
+
+        var partes = grupos.Select(g =>
+        {
+            var nombre = nombres.TryGetValue(g.ProductoId, out var n) ? n : "Producto";
+            return g.Cantidad > 1 ? $"{nombre} (x{g.Cantidad})" : nombre;
+        });
+
+        return string.Join(", ", partes);
+    }
+
+    private static string FormatoPrecio(Agendamiento a)
+    {
+        var precio = a.PrecioFinal ?? a.Precio ?? 0m;
+        return precio.ToString("C0", new System.Globalization.CultureInfo("es-CO"));
+    }
+
     private List<int> ExtractProductoIds(Agendamiento agendamiento)
     {
         if (agendamiento.AgendamientoProductos == null) return new List<int>();
@@ -151,7 +209,7 @@ public class AgendamientoService : IAgendamientoService
         var fechaHoraFormateada = agendamiento.FechaHora.ToString("dddd, d 'de' MMMM, HH:mm", new System.Globalization.CultureInfo("es-ES"));
         var clienteNombre = $"{agendamiento.Cliente?.Usuario?.Nombre} {agendamiento.Cliente?.Usuario?.Apellido}".Trim();
         var barberoNombre = $"{agendamiento.Barbero?.Usuario?.Nombre} {agendamiento.Barbero?.Usuario?.Apellido}".Trim();
-        var servicioNombre = agendamiento.Servicio?.Nombre ?? agendamiento.Paquete?.Nombre ?? "Servicio";
+        var servicioNombre = await ObtenerServiciosNombreAsync(agendamiento);
 
         // Enviar email al cliente (usamos el método existente)
         var clienteEmail = agendamiento.Cliente?.Usuario?.Correo;
@@ -203,7 +261,22 @@ public class AgendamientoService : IAgendamientoService
         var fechaHoraFormateada = agendamiento.FechaHora.ToString("dddd, d 'de' MMMM, HH:mm", new System.Globalization.CultureInfo("es-ES"));
         var clienteNombre = $"{agendamiento.Cliente?.Usuario?.Nombre} {agendamiento.Cliente?.Usuario?.Apellido}".Trim();
         var barberoNombre = $"{agendamiento.Barbero?.Usuario?.Nombre} {agendamiento.Barbero?.Usuario?.Apellido}".Trim();
-        var servicioNombre = agendamiento.Servicio?.Nombre ?? agendamiento.Paquete?.Nombre ?? "Servicio";
+        var servicioNombre = await ObtenerServiciosNombreAsync(agendamiento);
+        var productosNombre = await ObtenerProductosNombreAsync(agendamiento);
+        var totalFormateado = FormatoPrecio(agendamiento);
+
+        // Filas comunes de detalle; agrega Productos solo si la cita tiene productos.
+        List<(string, string)> Detalle(params (string, string)[] previas)
+        {
+            var filas = new List<(string, string)>(previas)
+            {
+                ("Servicio", servicioNombre)
+            };
+            if (!string.IsNullOrEmpty(productosNombre)) filas.Add(("Productos", productosNombre));
+            filas.Add(("Fecha y Hora", fechaHoraFormateada));
+            filas.Add(("Total", totalFormateado));
+            return filas;
+        }
 
         // Email al cliente
         var clienteEmail = agendamiento.Cliente?.Usuario?.Correo;
@@ -212,7 +285,7 @@ public class AgendamientoService : IAgendamientoService
             var html = BuildConfirmationHtml(
                 clienteNombre,
                 $"Tu cita en <strong style=\"color: #d8b081;\">{System.Net.WebUtility.HtmlEncode(appName)}</strong> ha sido agendada con éxito. Te esperamos.",
-                new[] { ("Barbero", barberoNombre), ("Servicio", servicioNombre), ("Fecha y Hora", fechaHoraFormateada) },
+                Detalle(("Barbero", barberoNombre)).ToArray(),
                 appName);
             await _emailProxyService.EnviarEmailAsync(clienteEmail, clienteNombre, $"{appName} - Cita Agendada", html);
         }
@@ -224,7 +297,7 @@ public class AgendamientoService : IAgendamientoService
             var html = BuildConfirmationHtml(
                 barberoNombre,
                 $"Tienes una nueva cita asignada con el cliente <strong style=\"color: #d8b081;\">{System.Net.WebUtility.HtmlEncode(clienteNombre)}</strong>.",
-                new[] { ("Cliente", clienteNombre), ("Servicio", servicioNombre), ("Fecha y Hora", fechaHoraFormateada) },
+                Detalle(("Cliente", clienteNombre)).ToArray(),
                 appName);
             await _emailProxyService.EnviarEmailAsync(barberoEmail, barberoNombre, $"{appName} - Nueva Cita Asignada", html);
         }
@@ -244,7 +317,7 @@ public class AgendamientoService : IAgendamientoService
                 var html = BuildConfirmationHtml(
                     adminNombre,
                     $"Se ha registrado una nueva cita en <strong style=\"color: #d8b081;\">{System.Net.WebUtility.HtmlEncode(appName)}</strong>.",
-                    new[] { ("Cliente", clienteNombre), ("Barbero", barberoNombre), ("Servicio", servicioNombre), ("Fecha y Hora", fechaHoraFormateada) },
+                    Detalle(("Cliente", clienteNombre), ("Barbero", barberoNombre)).ToArray(),
                     appName);
                 await _emailProxyService.EnviarEmailAsync(admin.Correo, adminNombre, $"{appName} - Nueva Cita Registrada", html);
             }
@@ -1533,15 +1606,8 @@ public class AgendamientoService : IAgendamientoService
 
         ResultadoNotificacionCita? notificacionCancelacion = null;
         var motivo = "Cita cancelada y eliminada del sistema.";
-
-        // Notificación de cancelación (correo + WhatsApp) en segundo plano — respuesta inmediata.
-        // La entidad ya tiene sus datos cargados en memoria; se usan aunque luego se elimine.
+        // La entidad conserva sus datos en memoria aunque luego se elimine de la BD.
         var citaEliminada = agendamiento;
-        _taskQueue.Enqueue(async (sp, ct) =>
-        {
-            var svc = sp.GetRequiredService<IAgendamientoService>();
-            await svc.EnviarNotificacionesCancelacionAsync(citaEliminada, motivo);
-        });
 
         var infoRespuesta = new
         {
@@ -1562,6 +1628,13 @@ public class AgendamientoService : IAgendamientoService
 
         _context.Agendamientos.Remove(agendamiento);
         await _context.SaveChangesAsync();
+
+        // Notificación de cancelación (correo + WhatsApp) en segundo plano — tras confirmar el borrado.
+        _taskQueue.Enqueue(async (sp, ct) =>
+        {
+            var svc = sp.GetRequiredService<IAgendamientoService>();
+            await svc.EnviarNotificacionesCancelacionAsync(citaEliminada, motivo);
+        });
 
         return ServiceResult<object>.Ok(infoRespuesta);
     }

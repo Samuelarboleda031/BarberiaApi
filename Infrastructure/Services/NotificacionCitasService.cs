@@ -82,17 +82,19 @@ public class NotificacionCitasService : INotificacionCitasService
         var cliente = NombreCliente(agendamiento);
         var barbero = NombreBarbero(agendamiento);
         var fecha = FechaHora(agendamiento);
-        var servicio = Servicio(agendamiento);
+        var servicio = await ServiciosNombresAsync(agendamiento);
+        var lineaProductos = await LineaProductosAsync(agendamiento);
+        var total = FormatoPrecio(agendamiento);
 
         var msgCliente =
             $"✂️ *{AppName}*\n\nHola {cliente}, tu cita quedó agendada ✅\n\n" +
-            $"👤 Barbero: {barbero}\n💈 Servicio: {servicio}\n📅 {fecha}\n\n¡Te esperamos!";
+            $"👤 Barbero: {barbero}\n💈 Servicio: {servicio}\n{lineaProductos}📅 {fecha}\n💵 Total: {total}\n\n¡Te esperamos!";
         var msgBarbero =
             $"✂️ *{AppName}*\n\nHola {barbero}, tienes una nueva cita asignada 📅\n\n" +
-            $"👤 Cliente: {cliente}\n💈 Servicio: {servicio}\n📅 {fecha}";
+            $"👤 Cliente: {cliente}\n💈 Servicio: {servicio}\n{lineaProductos}📅 {fecha}\n💵 Total: {total}";
         var msgAdmin =
             $"✂️ *{AppName}*\n\nNueva cita registrada 📅\n\n" +
-            $"👤 Cliente: {cliente}\n👤 Barbero: {barbero}\n💈 Servicio: {servicio}\n📅 {fecha}";
+            $"👤 Cliente: {cliente}\n👤 Barbero: {barbero}\n💈 Servicio: {servicio}\n{lineaProductos}📅 {fecha}\n💵 Total: {total}";
 
         await EnviarACliente(agendamiento, msgCliente, "creación cita");
         await EnviarABarbero(agendamiento, msgBarbero, "creación cita");
@@ -106,14 +108,16 @@ public class NotificacionCitasService : INotificacionCitasService
         var cliente = NombreCliente(agendamiento);
         var barbero = NombreBarbero(agendamiento);
         var fecha = FechaHora(agendamiento);
-        var servicio = Servicio(agendamiento);
+        var servicio = await ServiciosNombresAsync(agendamiento);
+        var lineaProductos = await LineaProductosAsync(agendamiento);
+        var total = FormatoPrecio(agendamiento);
 
         var msgCliente =
             $"⏰ *{AppName}*\n\nHola {cliente}, te recordamos tu cita próxima ⏰\n\n" +
-            $"👤 Barbero: {barbero}\n💈 Servicio: {servicio}\n📅 {fecha}\n\n¡Te esperamos pronto!";
+            $"👤 Barbero: {barbero}\n💈 Servicio: {servicio}\n{lineaProductos}📅 {fecha}\n💵 Total: {total}\n\n¡Te esperamos pronto!";
         var msgBarbero =
             $"⏰ *{AppName}*\n\nHola {barbero}, recordatorio de cita próxima ⏰\n\n" +
-            $"👤 Cliente: {cliente}\n💈 Servicio: {servicio}\n📅 {fecha}";
+            $"👤 Cliente: {cliente}\n💈 Servicio: {servicio}\n{lineaProductos}📅 {fecha}\n💵 Total: {total}";
 
         await EnviarACliente(agendamiento, msgCliente, "recordatorio cita");
         await EnviarABarbero(agendamiento, msgBarbero, "recordatorio cita");
@@ -199,6 +203,61 @@ public class NotificacionCitasService : INotificacionCitasService
     private static string FechaHora(Agendamiento a)
         => a.FechaHora.ToString("dd/MM/yyyy HH:mm");
 
-    private static string Servicio(Agendamiento a)
-        => a.Servicio?.Nombre ?? a.Paquete?.Nombre ?? "Servicio";
+    /// <summary>
+    /// Devuelve los nombres de TODOS los servicios de la cita (o el nombre del paquete),
+    /// separados por coma. Consulta la tabla Servicios por los IDs cargados en la entidad.
+    /// </summary>
+    private async Task<string> ServiciosNombresAsync(Agendamiento a)
+    {
+        var ids = new List<int>();
+        if (a.ServicioId is int sid && sid > 0) ids.Add(sid);
+        if (a.AgendamientoServicios != null)
+            ids.AddRange(a.AgendamientoServicios.Select(s => s.ServicioId));
+        ids = ids.Where(i => i > 0).Distinct().ToList();
+
+        if (ids.Count > 0)
+        {
+            var nombres = await _context.Servicios
+                .Where(s => ids.Contains(s.Id))
+                .Select(s => s.Nombre)
+                .ToListAsync();
+            if (nombres.Count > 0) return string.Join(", ", nombres);
+        }
+
+        return a.Paquete?.Nombre ?? "Servicio";
+    }
+
+    /// <summary>
+    /// Línea de productos agrupados por cantidad (ej. "Cadena (x3), Cera").
+    /// Devuelve "" si la cita no tiene productos (para omitir la línea en el mensaje).
+    /// </summary>
+    private async Task<string> LineaProductosAsync(Agendamiento a)
+    {
+        if (a.AgendamientoProductos == null || a.AgendamientoProductos.Count == 0)
+            return string.Empty;
+
+        var grupos = a.AgendamientoProductos
+            .GroupBy(p => p.ProductoId)
+            .Select(g => new { ProductoId = g.Key, Cantidad = g.Sum(x => x.Cantidad) })
+            .ToList();
+
+        var ids = grupos.Select(g => g.ProductoId).ToList();
+        var nombres = await _context.Productos
+            .Where(p => ids.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.Nombre);
+
+        var partes = grupos.Select(g =>
+        {
+            var nombre = nombres.TryGetValue(g.ProductoId, out var n) ? n : "Producto";
+            return g.Cantidad > 1 ? $"{nombre} (x{g.Cantidad})" : nombre;
+        });
+
+        return $"🛍️ Productos: {string.Join(", ", partes)}\n";
+    }
+
+    private static string FormatoPrecio(Agendamiento a)
+    {
+        var precio = a.PrecioFinal ?? a.Precio ?? 0m;
+        return precio.ToString("C0", new System.Globalization.CultureInfo("es-CO"));
+    }
 }
