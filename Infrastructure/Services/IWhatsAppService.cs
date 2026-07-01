@@ -5,7 +5,7 @@ public interface IWhatsAppService
     bool EstaHabilitado { get; }
 
     /// <summary>
-    /// Envía un mensaje de texto libre por WhatsApp a través de Evolution API.
+    /// Envía un mensaje de texto libre por WhatsApp a través de la API de Twilio.
     /// </summary>
     Task<WhatsAppResult> EnviarTextoAsync(
         string? telefono,

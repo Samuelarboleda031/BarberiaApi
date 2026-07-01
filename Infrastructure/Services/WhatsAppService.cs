@@ -1,12 +1,14 @@
-using System.Text.Json;
+using System.Net.Http.Headers;
+using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace BarberiaApi.Infrastructure.Services;
 
 /// <summary>
-/// Envío de mensajes de WhatsApp a través de Evolution API (texto libre, sin plantillas).
-/// Endpoint: POST {BaseUrl}/message/sendText/{Instance} con header apikey.
+/// Envío de mensajes de WhatsApp a través de la API de Twilio (texto libre).
+/// Endpoint: POST https://api.twilio.com/2010-04-01/Accounts/{AccountSid}/Messages.json
+/// con autenticación Basic (AccountSid:AuthToken) y cuerpo form-urlencoded.
 /// </summary>
 public sealed class WhatsAppService : IWhatsAppService
 {
@@ -21,9 +23,9 @@ public sealed class WhatsAppService : IWhatsAppService
 
     public bool EstaHabilitado =>
         bool.TryParse(_config["WhatsApp:Habilitado"], out var v) && v
-        && !string.IsNullOrWhiteSpace(_config["WhatsApp:Evolution:BaseUrl"])
-        && !string.IsNullOrWhiteSpace(_config["WhatsApp:Evolution:Instance"])
-        && !string.IsNullOrWhiteSpace(_config["WhatsApp:Evolution:ApiKey"]);
+        && !string.IsNullOrWhiteSpace(_config["WhatsApp:Twilio:AccountSid"])
+        && !string.IsNullOrWhiteSpace(_config["WhatsApp:Twilio:AuthToken"])
+        && !string.IsNullOrWhiteSpace(_config["WhatsApp:Twilio:FromNumber"]);
 
     public async Task<WhatsAppResult> EnviarTextoAsync(
         string? telefono,
@@ -37,15 +39,16 @@ public sealed class WhatsAppService : IWhatsAppService
         if (numero is null)
             return Fail($"Número de teléfono inválido o vacío: '{telefono}'.");
 
-        var baseUrl  = _config["WhatsApp:Evolution:BaseUrl"]!.TrimEnd('/');
-        var instance = _config["WhatsApp:Evolution:Instance"]!;
-        var apiKey   = _config["WhatsApp:Evolution:ApiKey"]!;
-        var url      = $"{baseUrl}/message/sendText/{instance}";
+        var accountSid = _config["WhatsApp:Twilio:AccountSid"]!;
+        var authToken  = _config["WhatsApp:Twilio:AuthToken"]!;
+        var from       = NormalizarRemitente(_config["WhatsApp:Twilio:FromNumber"]!);
+        var url        = $"https://api.twilio.com/2010-04-01/Accounts/{accountSid}/Messages.json";
 
-        var payload = new
+        var form = new Dictionary<string, string>
         {
-            number = numero,
-            text   = mensaje
+            ["From"] = from,
+            ["To"]   = $"whatsapp:+{numero}",
+            ["Body"] = mensaje
         };
 
         try
@@ -54,25 +57,25 @@ public sealed class WhatsAppService : IWhatsAppService
 
             using var http    = new HttpClient();
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Headers.Add("apikey", apiKey);
-            request.Content = new StringContent(
-                JsonSerializer.Serialize(payload),
-                System.Text.Encoding.UTF8,
-                "application/json");
+
+            var credenciales = Convert.ToBase64String(
+                Encoding.ASCII.GetBytes($"{accountSid}:{authToken}"));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credenciales);
+            request.Content = new FormUrlEncodedContent(form);
 
             var response = await http.SendAsync(request, ct);
             var body     = await response.Content.ReadAsStringAsync(ct);
 
             if (response.IsSuccessStatusCode)
             {
-                _logger.LogInformation("WhatsApp enviado a {Numero} vía Evolution (instancia '{Instance}').", numero, instance);
+                _logger.LogInformation("WhatsApp enviado a {Numero} vía Twilio (remitente '{From}').", numero, from);
                 return new WhatsAppResult { Enviado = true, Mensaje = "Mensaje WhatsApp enviado correctamente." };
             }
 
             _logger.LogWarning(
-                "Evolution API devolvió {Status} para {Numero} (instancia='{Instance}'): {Body}",
-                (int)response.StatusCode, numero, instance, body);
-            return Fail($"Evolution API error {(int)response.StatusCode}: {body}");
+                "Twilio devolvió {Status} para {Numero} (remitente='{From}'): {Body}",
+                (int)response.StatusCode, numero, from, body);
+            return Fail($"Twilio error {(int)response.StatusCode}: {body}");
         }
         catch (OperationCanceledException)
         {
@@ -80,7 +83,7 @@ public sealed class WhatsAppService : IWhatsAppService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Excepción al enviar WhatsApp a {Numero} vía Evolution.", numero);
+            _logger.LogError(ex, "Excepción al enviar WhatsApp a {Numero} vía Twilio.", numero);
             return Fail(ex.Message);
         }
     }
@@ -99,6 +102,18 @@ public sealed class WhatsAppService : IWhatsAppService
 
         // Cualquier otro caso (ej. 10 dígitos locales) → anteponer 57.
         return "57" + digitos;
+    }
+
+    // ─── El remitente de Twilio debe llevar el prefijo 'whatsapp:'.
+    // Acepta tanto "whatsapp:+14155238886" como "+14155238886" o "14155238886".
+    private static string NormalizarRemitente(string from)
+    {
+        var valor = from.Trim();
+        if (valor.StartsWith("whatsapp:", StringComparison.OrdinalIgnoreCase))
+            return valor;
+        if (!valor.StartsWith('+'))
+            valor = "+" + valor;
+        return $"whatsapp:{valor}";
     }
 
     private static WhatsAppResult Fail(string msg) =>
