@@ -56,12 +56,11 @@ public sealed class NotificacionCreditoService : INotificacionCreditoService
 
         if (_whatsApp.EstaHabilitado && !string.IsNullOrWhiteSpace(telefono))
         {
-            var template = _configuration["WhatsApp:Templates:CreditoBloqueado"] ?? "credito_bloqueado";
-            var wa = await _whatsApp.EnviarTemplateAsync(
-                telefono,
-                template,
-                new[] { barberoNombre, saldoDeuda.ToString("C0"), cupoMaximo.ToString("C0") },
-                cancellationToken);
+            var mensaje =
+                $"🔴 *{appName}*\n\nHola {barberoNombre}, tu crédito fue bloqueado.\n\n" +
+                $"💰 Deuda: {saldoDeuda:C0}\n📊 Cupo máximo: {cupoMaximo:C0}\n\n" +
+                $"Realiza un abono para desbloquearlo. Comunícate con el administrador.";
+            var wa = await _whatsApp.EnviarTextoAsync(telefono, mensaje, cancellationToken);
             if (wa.Enviado)
                 _logger.LogInformation("WhatsApp crédito bloqueado enviado a {Tel} (barberoId={Id}).", telefono, barberoId);
             else
@@ -158,12 +157,10 @@ public sealed class NotificacionCreditoService : INotificacionCreditoService
             var adminTel = _configuration["WhatsApp:AdminTelefono"];
             if (!string.IsNullOrWhiteSpace(adminTel))
             {
-                var template = _configuration["WhatsApp:Templates:ResumenSemanal"] ?? "resumen_semanal_credito";
-                var wa = await _whatsApp.EnviarTemplateAsync(
-                    adminTel,
-                    template,
-                    new[] { bloqueados.Count.ToString(), activos.ToString(), deudaTotal.ToString("C0") },
-                    cancellationToken);
+                var mensaje =
+                    $"📊 *{appName}*\n\nResumen semanal de créditos:\n\n" +
+                    $"🔴 Bloqueados: {bloqueados.Count}\n🟢 Activos: {activos}\n💰 Deuda total: {deudaTotal:C0}";
+                var wa = await _whatsApp.EnviarTextoAsync(adminTel, mensaje, cancellationToken);
                 if (wa.Enviado)
                     _logger.LogInformation("WhatsApp resumen semanal enviado a admin {Tel}.", adminTel);
                 else

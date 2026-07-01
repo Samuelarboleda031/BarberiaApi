@@ -5,13 +5,11 @@ public interface IWhatsAppService
     bool EstaHabilitado { get; }
 
     /// <summary>
-    /// Envía un mensaje de plantilla aprobada por Meta.
-    /// parametrosCuerpo corresponden a los {{1}}, {{2}}... del body del template.
+    /// Envía un mensaje de texto libre por WhatsApp a través de Evolution API.
     /// </summary>
-    Task<WhatsAppResult> EnviarTemplateAsync(
+    Task<WhatsAppResult> EnviarTextoAsync(
         string? telefono,
-        string templateName,
-        IReadOnlyList<string> parametrosCuerpo,
+        string mensaje,
         CancellationToken ct = default);
 }
 

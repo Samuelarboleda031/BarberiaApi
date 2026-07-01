@@ -39,9 +39,9 @@ public class NotificacionCitasService : INotificacionCitasService
         {
             var request = new CancelacionEmailProxyRequest
             {
-                ClienteNombre = $"{agendamiento.Cliente?.Usuario?.Nombre} {agendamiento.Cliente?.Usuario?.Apellido}".Trim(),
+                ClienteNombre = NombreCliente(agendamiento),
                 ClienteEmail = correo,
-                BarberoNombre = $"{agendamiento.Barbero?.Usuario?.Nombre} {agendamiento.Barbero?.Usuario?.Apellido}".Trim(),
+                BarberoNombre = NombreBarbero(agendamiento),
                 FechaOriginal = agendamiento.FechaHora.ToString("o"),
                 Motivo = motivo,
                 SugerenciasReprogramacion = sugerenciasReprogramacion.Select(s => s.ToString("o")).ToList()
@@ -74,23 +74,44 @@ public class NotificacionCitasService : INotificacionCitasService
     {
         if (!_whatsApp.EstaHabilitado) return;
 
-        var template = _configuration["WhatsApp:Templates:ConfirmacionCita"] ?? "confirmacion_cita";
-        var parametros = ConstruirParametrosCita(agendamiento);
+        var cliente = NombreCliente(agendamiento);
+        var barbero = NombreBarbero(agendamiento);
+        var fecha = FechaHora(agendamiento);
+        var servicio = Servicio(agendamiento);
 
-        await EnviarACliente(agendamiento, template, parametros, "creación cita");
-        await EnviarABarbero(agendamiento, template, parametros, "creación cita");
-        await EnviarAAdmin(template, parametros, "creación cita");
+        var msgCliente =
+            $"✂️ *{AppName}*\n\nHola {cliente}, tu cita quedó agendada ✅\n\n" +
+            $"👤 Barbero: {barbero}\n💈 Servicio: {servicio}\n📅 {fecha}\n\n¡Te esperamos!";
+        var msgBarbero =
+            $"✂️ *{AppName}*\n\nHola {barbero}, tienes una nueva cita asignada 📅\n\n" +
+            $"👤 Cliente: {cliente}\n💈 Servicio: {servicio}\n📅 {fecha}";
+        var msgAdmin =
+            $"✂️ *{AppName}*\n\nNueva cita registrada 📅\n\n" +
+            $"👤 Cliente: {cliente}\n👤 Barbero: {barbero}\n💈 Servicio: {servicio}\n📅 {fecha}";
+
+        await EnviarACliente(agendamiento, msgCliente, "creación cita");
+        await EnviarABarbero(agendamiento, msgBarbero, "creación cita");
+        await EnviarAAdmin(msgAdmin, "creación cita");
     }
 
     public async Task NotificarRecordatorioAsync(Agendamiento agendamiento)
     {
         if (!_whatsApp.EstaHabilitado) return;
 
-        var template = _configuration["WhatsApp:Templates:RecordatorioCita"] ?? "recordatorio_cita";
-        var parametros = ConstruirParametrosCita(agendamiento);
+        var cliente = NombreCliente(agendamiento);
+        var barbero = NombreBarbero(agendamiento);
+        var fecha = FechaHora(agendamiento);
+        var servicio = Servicio(agendamiento);
 
-        await EnviarACliente(agendamiento, template, parametros, "recordatorio cita");
-        await EnviarABarbero(agendamiento, template, parametros, "recordatorio cita");
+        var msgCliente =
+            $"⏰ *{AppName}*\n\nHola {cliente}, te recordamos tu cita próxima ⏰\n\n" +
+            $"👤 Barbero: {barbero}\n💈 Servicio: {servicio}\n📅 {fecha}\n\n¡Te esperamos pronto!";
+        var msgBarbero =
+            $"⏰ *{AppName}*\n\nHola {barbero}, recordatorio de cita próxima ⏰\n\n" +
+            $"👤 Cliente: {cliente}\n💈 Servicio: {servicio}\n📅 {fecha}";
+
+        await EnviarACliente(agendamiento, msgCliente, "recordatorio cita");
+        await EnviarABarbero(agendamiento, msgBarbero, "recordatorio cita");
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────
@@ -99,47 +120,41 @@ public class NotificacionCitasService : INotificacionCitasService
     {
         if (!_whatsApp.EstaHabilitado) return;
 
-        var template = _configuration["WhatsApp:Templates:CancelacionCita"] ?? "cancelacion_cita";
-        var clienteNombre = NombreCliente(agendamiento);
-        var barberoNombre = NombreBarbero(agendamiento);
-        var fechaHora = agendamiento.FechaHora.ToString("dd/MM/yyyy HH:mm");
-        var parametros = new[] { clienteNombre, barberoNombre, fechaHora, motivo };
+        var cliente = NombreCliente(agendamiento);
+        var barbero = NombreBarbero(agendamiento);
+        var fecha = FechaHora(agendamiento);
 
-        await EnviarACliente(agendamiento, template, parametros, "cancelación cita");
-        await EnviarABarbero(agendamiento, template, parametros, "cancelación cita");
-        await EnviarAAdmin(template, parametros, "cancelación cita");
+        var msgCliente =
+            $"❌ *{AppName}*\n\nHola {cliente}, tu cita fue cancelada ❌\n\n" +
+            $"👤 Barbero: {barbero}\n📅 {fecha}\n📝 Motivo: {motivo}";
+        var msgBarbero =
+            $"❌ *{AppName}*\n\nHola {barbero}, se canceló una cita ❌\n\n" +
+            $"👤 Cliente: {cliente}\n📅 {fecha}\n📝 Motivo: {motivo}";
+        var msgAdmin =
+            $"❌ *{AppName}*\n\nCita cancelada ❌\n\n" +
+            $"👤 Cliente: {cliente}\n👤 Barbero: {barbero}\n📅 {fecha}\n📝 Motivo: {motivo}";
+
+        await EnviarACliente(agendamiento, msgCliente, "cancelación cita");
+        await EnviarABarbero(agendamiento, msgBarbero, "cancelación cita");
+        await EnviarAAdmin(msgAdmin, "cancelación cita");
     }
 
-    private string[] ConstruirParametrosCita(Agendamiento agendamiento)
-    {
-        var clienteNombre = NombreCliente(agendamiento);
-        var barberoNombre = NombreBarbero(agendamiento);
-        var fechaHora = agendamiento.FechaHora.ToString("dd/MM/yyyy HH:mm");
-        var servicioNombre = agendamiento.Servicio?.Nombre ?? agendamiento.Paquete?.Nombre ?? "Servicio";
-        return new[] { clienteNombre, barberoNombre, fechaHora, servicioNombre };
-    }
+    private Task EnviarACliente(Agendamiento agendamiento, string mensaje, string contexto)
+        => EnviarA(agendamiento.Cliente?.Telefono, mensaje, contexto, "cliente");
 
-    private Task EnviarACliente(Agendamiento agendamiento, string template, IReadOnlyList<string> parametros, string contexto)
-        => EnviarA(agendamiento.Cliente?.Telefono, template, parametros, contexto, "cliente");
+    private Task EnviarABarbero(Agendamiento agendamiento, string mensaje, string contexto)
+        => EnviarA(agendamiento.Barbero?.Telefono, mensaje, contexto, "barbero");
 
-    private Task EnviarABarbero(Agendamiento agendamiento, string template, IReadOnlyList<string> parametros, string contexto)
-        => EnviarA(agendamiento.Barbero?.Telefono, template, parametros, contexto, "barbero");
+    private Task EnviarAAdmin(string mensaje, string contexto)
+        => EnviarA(_configuration["WhatsApp:AdminTelefono"], mensaje, contexto, "admin");
 
-    private Task EnviarAAdmin(string template, IReadOnlyList<string> parametros, string contexto)
-        => EnviarA(_configuration["WhatsApp:AdminTelefono"], template, parametros, contexto, "admin");
-
-    private async Task EnviarA(
-        string? telefono,
-        string template,
-        IReadOnlyList<string> parametros,
-        string contexto,
-        string destinatario)
+    private async Task EnviarA(string? telefono, string mensaje, string contexto, string destinatario)
     {
         if (string.IsNullOrWhiteSpace(telefono)) return;
 
         try
         {
-            var wa = await _whatsApp.EnviarTemplateAsync(telefono, template, parametros);
+            var wa = await _whatsApp.EnviarTextoAsync(telefono, mensaje);
             if (wa.Enviado)
                 _logger.LogInformation("WhatsApp {Contexto} enviado a {Destinatario} ({Tel}).", contexto, destinatario, telefono);
             else
@@ -151,9 +166,17 @@ public class NotificacionCitasService : INotificacionCitasService
         }
     }
 
+    private string AppName => _configuration["Smtp:FromName"] ?? "Manito Barbershop";
+
     private static string NombreCliente(Agendamiento a)
         => $"{a.Cliente?.Usuario?.Nombre} {a.Cliente?.Usuario?.Apellido}".Trim();
 
     private static string NombreBarbero(Agendamiento a)
         => $"{a.Barbero?.Usuario?.Nombre} {a.Barbero?.Usuario?.Apellido}".Trim();
+
+    private static string FechaHora(Agendamiento a)
+        => a.FechaHora.ToString("dd/MM/yyyy HH:mm");
+
+    private static string Servicio(Agendamiento a)
+        => a.Servicio?.Nombre ?? a.Paquete?.Nombre ?? "Servicio";
 }

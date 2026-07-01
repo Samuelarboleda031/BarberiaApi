@@ -1,10 +1,13 @@
-using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace BarberiaApi.Infrastructure.Services;
 
+/// <summary>
+/// Envío de mensajes de WhatsApp a través de Evolution API (texto libre, sin plantillas).
+/// Endpoint: POST {BaseUrl}/message/sendText/{Instance} con header apikey.
+/// </summary>
 public sealed class WhatsAppService : IWhatsAppService
 {
     private readonly IConfiguration _config;
@@ -18,13 +21,13 @@ public sealed class WhatsAppService : IWhatsAppService
 
     public bool EstaHabilitado =>
         bool.TryParse(_config["WhatsApp:Habilitado"], out var v) && v
-        && !string.IsNullOrWhiteSpace(_config["WhatsApp:PhoneNumberId"])
-        && !string.IsNullOrWhiteSpace(_config["WhatsApp:AccessToken"]);
+        && !string.IsNullOrWhiteSpace(_config["WhatsApp:Evolution:BaseUrl"])
+        && !string.IsNullOrWhiteSpace(_config["WhatsApp:Evolution:Instance"])
+        && !string.IsNullOrWhiteSpace(_config["WhatsApp:Evolution:ApiKey"]);
 
-    public async Task<WhatsAppResult> EnviarTemplateAsync(
+    public async Task<WhatsAppResult> EnviarTextoAsync(
         string? telefono,
-        string templateName,
-        IReadOnlyList<string> parametrosCuerpo,
+        string mensaje,
         CancellationToken ct = default)
     {
         if (!EstaHabilitado)
@@ -34,36 +37,15 @@ public sealed class WhatsAppService : IWhatsAppService
         if (numero is null)
             return Fail($"Número de teléfono inválido o vacío: '{telefono}'.");
 
-        var phoneNumberId = _config["WhatsApp:PhoneNumberId"]!;
-        var accessToken   = _config["WhatsApp:AccessToken"]!;
-        var version       = _config["WhatsApp:ApiVersion"] ?? "v20.0";
-        var language      = _config["WhatsApp:LanguageCode"] ?? "es";
-        var url           = $"https://graph.facebook.com/{version}/{phoneNumberId}/messages";
-
-        var componentes = parametrosCuerpo.Count == 0
-            ? Array.Empty<object>()
-            : new object[]
-            {
-                new
-                {
-                    type       = "body",
-                    parameters = parametrosCuerpo
-                        .Select(p => new { type = "text", text = p })
-                        .ToArray()
-                }
-            };
+        var baseUrl  = _config["WhatsApp:Evolution:BaseUrl"]!.TrimEnd('/');
+        var instance = _config["WhatsApp:Evolution:Instance"]!;
+        var apiKey   = _config["WhatsApp:Evolution:ApiKey"]!;
+        var url      = $"{baseUrl}/message/sendText/{instance}";
 
         var payload = new
         {
-            messaging_product = "whatsapp",
-            to                = numero,
-            type              = "template",
-            template          = new
-            {
-                name       = templateName,
-                language   = new { code = language },
-                components = componentes
-            }
+            number = numero,
+            text   = mensaje
         };
 
         try
@@ -72,7 +54,7 @@ public sealed class WhatsAppService : IWhatsAppService
 
             using var http    = new HttpClient();
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            request.Headers.Add("apikey", apiKey);
             request.Content = new StringContent(
                 JsonSerializer.Serialize(payload),
                 System.Text.Encoding.UTF8,
@@ -83,15 +65,14 @@ public sealed class WhatsAppService : IWhatsAppService
 
             if (response.IsSuccessStatusCode)
             {
-                _logger.LogInformation(
-                    "WhatsApp enviado a {Numero} con template '{Template}'.", numero, templateName);
+                _logger.LogInformation("WhatsApp enviado a {Numero} vía Evolution (instancia '{Instance}').", numero, instance);
                 return new WhatsAppResult { Enviado = true, Mensaje = "Mensaje WhatsApp enviado correctamente." };
             }
 
             _logger.LogWarning(
-                "WhatsApp API devolvió {Status} para {Numero} (template='{Template}'): {Body}",
-                (int)response.StatusCode, numero, templateName, body);
-            return Fail($"WhatsApp API error {(int)response.StatusCode}: {body}");
+                "Evolution API devolvió {Status} para {Numero} (instancia='{Instance}'): {Body}",
+                (int)response.StatusCode, numero, instance, body);
+            return Fail($"Evolution API error {(int)response.StatusCode}: {body}");
         }
         catch (OperationCanceledException)
         {
@@ -99,12 +80,12 @@ public sealed class WhatsAppService : IWhatsAppService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Excepción al enviar WhatsApp a {Numero}.", numero);
+            _logger.LogError(ex, "Excepción al enviar WhatsApp a {Numero} vía Evolution.", numero);
             return Fail(ex.Message);
         }
     }
 
-    // ─── Normaliza a formato E.164 sin el '+' (exigido por la API de Meta)
+    // ─── Normaliza a formato internacional sin el '+' (E.164 sin signo).
     // Soporta números colombianos: 10 dígitos que empiezan por 3 → 57XXXXXXXXXX
     private static string? NormalizarTelefono(string? telefono)
     {
@@ -114,7 +95,7 @@ public sealed class WhatsAppService : IWhatsAppService
 
         return digitos.Length switch
         {
-            12 when digitos.StartsWith("57") => digitos,       // ya tiene código país
+            12 when digitos.StartsWith("57") => digitos,        // ya tiene código país
             10 when digitos.StartsWith("3")  => "57" + digitos, // número local colombiano
             _ when digitos.Length > 10       => digitos,        // otro país, usar como viene
             _                                => null
