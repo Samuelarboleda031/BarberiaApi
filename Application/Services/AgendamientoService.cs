@@ -5,6 +5,7 @@ using BarberiaApi.Domain.Constants;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Services;
+using BarberiaApi.Infrastructure.BackgroundTasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using AutoMapper;
@@ -19,8 +20,9 @@ public class AgendamientoService : IAgendamientoService
     private readonly IMapper _mapper;
     private readonly IDateTimeProvider _dt;
     private readonly IConfiguration _configuration;
+    private readonly IBackgroundTaskQueue _taskQueue;
 
-    public AgendamientoService(BarberiaContext context, INotificacionCitasService notificacionService, IEmailProxyService emailProxyService, IMapper mapper, IDateTimeProvider dt, IConfiguration configuration)
+    public AgendamientoService(BarberiaContext context, INotificacionCitasService notificacionService, IEmailProxyService emailProxyService, IMapper mapper, IDateTimeProvider dt, IConfiguration configuration, IBackgroundTaskQueue taskQueue)
     {
         _context = context;
         _notificacionService = notificacionService;
@@ -28,6 +30,23 @@ public class AgendamientoService : IAgendamientoService
         _mapper = mapper;
         _dt = dt;
         _configuration = configuration;
+        _taskQueue = taskQueue;
+    }
+
+    // ── Notificaciones en segundo plano ─────────────────────────────────────
+    // Se ejecutan desde la cola (QueuedHostedService) con un scope propio, para que
+    // crear/cancelar/eliminar respondan de inmediato sin esperar correos ni WhatsApp.
+
+    public async Task EnviarNotificacionesCreacionAsync(Agendamiento agendamiento)
+    {
+        await EnviarEmailsCreacionAsync(agendamiento);
+        await _notificacionService.NotificarCreacionAsync(agendamiento);
+    }
+
+    public async Task EnviarNotificacionesCancelacionAsync(Agendamiento agendamiento, string motivo)
+    {
+        // EnviarEmailsCancelacionAsync ya dispara además el WhatsApp de cancelación.
+        await EnviarEmailsCancelacionAsync(agendamiento, motivo);
     }
 
     private List<int> BuildServicioIds(AgendamientoInput input)
@@ -812,9 +831,13 @@ public class AgendamientoService : IAgendamientoService
         var serviciosMap = await LoadServiciosMapAsync(new[] { created! });
         var productosMap = await LoadProductosMapAsync(new[] { created! });
 
-        // Notificación de confirmación a cliente, barbero y administrador (correo + WhatsApp)
-        await EnviarEmailsCreacionAsync(created!);
-        await _notificacionService.NotificarCreacionAsync(created!);
+        // Notificación de confirmación (correo + WhatsApp) en segundo plano — respuesta inmediata.
+        var citaCreada = created!;
+        _taskQueue.Enqueue(async (sp, ct) =>
+        {
+            var svc = sp.GetRequiredService<IAgendamientoService>();
+            await svc.EnviarNotificacionesCreacionAsync(citaCreada);
+        });
 
         return ServiceResult<object>.Ok(MapToDto(created!, serviciosMap, productosMap));
     }
@@ -1191,9 +1214,14 @@ public class AgendamientoService : IAgendamientoService
             {
                 ResultadoNotificacionCita? notificacionCancelacion = null;
                 var motivo = "Cita cancelada por el administrador o el barbero.";
-                
-                // Enviar emails a cliente, barbero y administradores
-                await EnviarEmailsCancelacionAsync(agendamiento, motivo);
+
+                // Notificación de cancelación (correo + WhatsApp) en segundo plano — respuesta inmediata.
+                var citaCancelada = agendamiento;
+                _taskQueue.Enqueue(async (sp, ct) =>
+                {
+                    var svc = sp.GetRequiredService<IAgendamientoService>();
+                    await svc.EnviarNotificacionesCancelacionAsync(citaCancelada, motivo);
+                });
 
                 var usuarioId = agendamiento.Barbero?.UsuarioId ?? 0;
                 var servicioIdsCitaCancel = ExtractServicioIds(agendamiento);
@@ -1505,9 +1533,15 @@ public class AgendamientoService : IAgendamientoService
 
         ResultadoNotificacionCita? notificacionCancelacion = null;
         var motivo = "Cita cancelada y eliminada del sistema.";
-        
-        // Enviar emails a cliente, barbero y administradores
-        await EnviarEmailsCancelacionAsync(agendamiento, motivo);
+
+        // Notificación de cancelación (correo + WhatsApp) en segundo plano — respuesta inmediata.
+        // La entidad ya tiene sus datos cargados en memoria; se usan aunque luego se elimine.
+        var citaEliminada = agendamiento;
+        _taskQueue.Enqueue(async (sp, ct) =>
+        {
+            var svc = sp.GetRequiredService<IAgendamientoService>();
+            await svc.EnviarNotificacionesCancelacionAsync(citaEliminada, motivo);
+        });
 
         var infoRespuesta = new
         {

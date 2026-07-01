@@ -1,9 +1,12 @@
 using BarberiaApi.Application.DTOs;
+using BarberiaApi.Domain.Entities;
 
 namespace BarberiaApi.Application.Interfaces;
 
 public interface IAgendamientoService
 {
+    Task EnviarNotificacionesCreacionAsync(Agendamiento agendamiento);
+    Task EnviarNotificacionesCancelacionAsync(Agendamiento agendamiento, string motivo);
     Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q, bool? estaSemana);
     Task<ServiceResult<object>> GetByIdAsync(int id);
     Task<ServiceResult<object>> GetByBarberoYFechaAsync(int barberoId, DateTime fecha);

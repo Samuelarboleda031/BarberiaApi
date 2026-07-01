@@ -6,6 +6,7 @@ using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Helpers;
 using BarberiaApi.Infrastructure.Services;
 using BarberiaApi.Infrastructure.Jobs;
+using BarberiaApi.Infrastructure.BackgroundTasks;
 using BarberiaApi.Jobs;
 
 namespace BarberiaApi.Extensions;
@@ -36,6 +37,10 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<NotificacionCreditoJob>();
         services.AddHostedService<RecalcularCreditosJob>();
         services.AddHostedService<RecordatorioCitasJob>();
+
+        // Cola de tareas en segundo plano (notificaciones no bloqueantes)
+        services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
+        services.AddHostedService<QueuedHostedService>();
 
         return services;
     }
