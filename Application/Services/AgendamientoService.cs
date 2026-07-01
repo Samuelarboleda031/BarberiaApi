@@ -618,10 +618,10 @@ public class AgendamientoService : IAgendamientoService
         };
     }
 
-    public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q, bool? estaSemana)
+    public async Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q, bool? estaSemana, int? barberoId = null)
     {
         PaginationHelper.Sanitize(ref page, ref pageSize, maxPageSize: 300);
-        
+
         var baseQ = _context.Agendamientos
             .Include(a => a.Cliente).ThenInclude(c => c.Usuario)
             .Include(a => a.Barbero).ThenInclude(b => b.Usuario)
@@ -632,6 +632,9 @@ public class AgendamientoService : IAgendamientoService
             .AsNoTracking()
             .AsSplitQuery()
             .AsQueryable();
+
+        if (barberoId.HasValue)
+            baseQ = baseQ.Where(a => a.BarberoId == barberoId.Value);
 
         if (estaSemana == true)
         {

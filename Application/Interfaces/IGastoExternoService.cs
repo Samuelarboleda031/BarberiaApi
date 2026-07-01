@@ -16,4 +16,5 @@ public interface IGastoExternoService
     Task<ServiceResult<IEnumerable<GastoExternoDto>>> GetByDateRangeAsync(DateOnly from, DateOnly to);
     Task<ServiceResult<decimal>> GetTotalByDateAsync(DateOnly fecha);
     Task<ServiceResult<ResumenDiaDto>> GetResumenDiaAsync(DateOnly fecha);
+    Task<ServiceResult<ResumenRangoDto>> GetResumenRangoAsync(DateOnly from, DateOnly to);
 }

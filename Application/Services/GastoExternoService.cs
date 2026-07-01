@@ -223,6 +223,60 @@ public class GastoExternoService : IGastoExternoService
         }
     }
 
+    public async Task<ServiceResult<ResumenRangoDto>> GetResumenRangoAsync(DateOnly from, DateOnly to)
+    {
+        try
+        {
+            var startOfRange = from.ToDateTime(TimeOnly.MinValue);
+            var endOfRange = to.ToDateTime(TimeOnly.MaxValue);
+
+            var gastosRes = await GetByDateRangeAsync(from, to);
+            if (!gastosRes.Success)
+                return ServiceResult<ResumenRangoDto>.Fail(gastosRes.Error ?? "Error al obtener gastos", gastosRes.StatusCode);
+
+            var gastosList = (gastosRes.Data ?? Array.Empty<GastoExternoDto>()).ToList();
+            var totalGastos = gastosList.Sum(g => g.Monto);
+
+            var linkedVentaIds = await _context.Agendamientos.AsNoTracking()
+                .Where(a => a.FechaHora >= startOfRange && a.FechaHora <= endOfRange && a.VentaAsociadaId != null)
+                .Select(a => a.VentaAsociadaId!.Value)
+                .ToListAsync();
+
+            var ingresosVentas = await _context.Ventas.AsNoTracking()
+                .Where(v => v.Fecha >= startOfRange && v.Fecha <= endOfRange &&
+                            v.Estado != "Anulada" && v.Estado != "Cancelada" &&
+                            !linkedVentaIds.Contains(v.Id))
+                .SumAsync(v => (decimal?)v.Total) ?? 0m;
+
+            var ingresosAgendamientos = await _context.Agendamientos.AsNoTracking()
+                .Where(a => a.FechaHora >= startOfRange && a.FechaHora <= endOfRange &&
+                            a.Estado != null && a.Estado.ToLower() == "completada")
+                .SumAsync(a => (decimal?)a.Precio) ?? 0m;
+
+            var totalIngresos = ingresosVentas + ingresosAgendamientos;
+
+            var resumen = new ResumenRangoDto
+            {
+                Desde = from.ToString("yyyy-MM-dd"),
+                Hasta = to.ToString("yyyy-MM-dd"),
+                IngresosVentas = ingresosVentas,
+                IngresosAgendamientos = ingresosAgendamientos,
+                IngresosTotal = totalIngresos,
+                GastosExternos = totalGastos,
+                GananciaNeta = totalIngresos - totalGastos,
+                CantidadGastos = gastosList.Count,
+                Gastos = gastosList
+            };
+
+            return ServiceResult<ResumenRangoDto>.Ok(resumen);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Error al generar resumen de rango {from} a {to}");
+            return ServiceResult<ResumenRangoDto>.Fail("Error al generar el resumen por rango", 500);
+        }
+    }
+
     public async Task<ServiceResult<ResumenDiaDto>> GetResumenDiaAsync(DateOnly fecha)
     {
         try

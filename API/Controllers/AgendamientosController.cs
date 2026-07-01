@@ -20,9 +20,9 @@ namespace BarberiaApi.Controllers
 
         [HttpGet]
         [OutputCache(PolicyName = "short")]
-        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 100, [FromQuery] string? q = null, [FromQuery] bool? estaSemana = null)
+        public async Task<ActionResult<object>> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 100, [FromQuery] string? q = null, [FromQuery] bool? estaSemana = null, [FromQuery] int? barberoId = null)
         {
-            var result = await _agendamientoService.GetAllAsync(page, pageSize, q, estaSemana);
+            var result = await _agendamientoService.GetAllAsync(page, pageSize, q, estaSemana, barberoId);
             return result.Success ? Ok(result.Data) : StatusCode(result.StatusCode, result.Error);
         }
 

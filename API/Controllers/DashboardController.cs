@@ -71,5 +71,18 @@ namespace BarberiaApi.Controllers
             var r = await _gastoExternoService.GetResumenDiaAsync(targetDate);
             return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error);
         }
+
+        [HttpGet("resumen-rango")]
+        public async Task<ActionResult> GetResumenRango([FromQuery] string from, [FromQuery] string to)
+        {
+            if (!DateOnly.TryParse(from, out var fromDate) || !DateOnly.TryParse(to, out var toDate))
+                return BadRequest("Fechas inválidas. Formato esperado: yyyy-MM-dd");
+
+            if (fromDate > toDate)
+                return BadRequest("La fecha 'from' no puede ser posterior a 'to'.");
+
+            var r = await _gastoExternoService.GetResumenRangoAsync(fromDate, toDate);
+            return r.Success ? Ok(r.Data) : StatusCode(r.StatusCode, r.Error);
+        }
     }
 }

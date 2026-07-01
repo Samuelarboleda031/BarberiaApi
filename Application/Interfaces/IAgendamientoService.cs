@@ -7,7 +7,7 @@ public interface IAgendamientoService
 {
     Task EnviarNotificacionesCreacionAsync(Agendamiento agendamiento);
     Task EnviarNotificacionesCancelacionAsync(Agendamiento agendamiento, string motivo);
-    Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q, bool? estaSemana);
+    Task<ServiceResult<object>> GetAllAsync(int page, int pageSize, string? q, bool? estaSemana, int? barberoId = null);
     Task<ServiceResult<object>> GetByIdAsync(int id);
     Task<ServiceResult<object>> GetByBarberoYFechaAsync(int barberoId, DateTime fecha);
     Task<ServiceResult<object>> GetByClienteAsync(int clienteId, int page, int pageSize, string? q, bool? estaSemana);
