@@ -1,6 +1,7 @@
 using BarberiaApi.Application.Common;
 using BarberiaApi.Application.DTOs;
 using BarberiaApi.Application.Interfaces;
+using BarberiaApi.Domain.Constants;
 using BarberiaApi.Domain.Entities;
 using BarberiaApi.Infrastructure.Data;
 using BarberiaApi.Infrastructure.Services;
@@ -187,6 +188,10 @@ public class HorarioService : IHorarioService
             .Include(h => h.Detalles)
             .Include(h => h.Barbero).ThenInclude(b => b.Usuario)
             .AsNoTracking()
+            // Ocultar horarios de barberos anonimizados por baja logica (correo eliminado_{id}@baja.local).
+            .Where(h => h.Barbero == null || h.Barbero.Usuario == null
+                || h.Barbero.Usuario.Correo == null
+                || !h.Barbero.Usuario.Correo.EndsWith(UsuarioAnonimizado.DominioBaja))
             .AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))
         {

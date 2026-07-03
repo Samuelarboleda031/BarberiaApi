@@ -35,7 +35,9 @@ public class ClienteService : IClienteService
             .Select(r => (int?)r.Id)
             .FirstOrDefaultAsync();
         var baseQ = _context.Clientes.AsNoTracking()
-            .Where(c => c.Usuario != null && c.Usuario.RolId == clienteRoleId)
+            .Where(c => c.Usuario != null && c.Usuario.RolId == clienteRoleId
+                // Ocultar clientes anonimizados por baja logica (correo eliminado_{id}@baja.local).
+                && (c.Usuario.Correo == null || !c.Usuario.Correo.EndsWith(UsuarioAnonimizado.DominioBaja)))
             .AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))
         {

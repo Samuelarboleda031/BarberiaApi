@@ -128,6 +128,10 @@ public class CreditoBarberoService : ICreditoBarberoService
         var baseQ = _context.CreditosBarbero
             .Include(c => c.Barbero).ThenInclude(b => b.Usuario)
             .AsNoTracking()
+            // Ocultar creditos de barberos anonimizados por baja logica (correo eliminado_{id}@baja.local).
+            .Where(c => c.Barbero == null || c.Barbero.Usuario == null
+                || c.Barbero.Usuario.Correo == null
+                || !c.Barbero.Usuario.Correo.EndsWith(UsuarioAnonimizado.DominioBaja))
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(q))

@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/out/
+**/.vs/
+**/.vscode/
+**/.idea/
+**/node_modules/
+.git
+.gitignore
+.dockerignore
+**/*.md
+**/Tests/
+.claude/

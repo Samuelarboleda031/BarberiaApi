@@ -35,7 +35,9 @@ public class BarberoService : IBarberoService
             .Select(r => (int?)r.Id)
             .FirstOrDefaultAsync();
         var baseQ = _context.Barberos.AsNoTracking()
-            .Where(b => b.Usuario != null && b.Usuario.RolId == barberoRoleId)
+            .Where(b => b.Usuario != null && b.Usuario.RolId == barberoRoleId
+                // Ocultar barberos anonimizados por baja logica (correo eliminado_{id}@baja.local).
+                && (b.Usuario.Correo == null || !b.Usuario.Correo.EndsWith(UsuarioAnonimizado.DominioBaja)))
             .AsQueryable();
         if (!string.IsNullOrWhiteSpace(q))
         {

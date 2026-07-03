@@ -105,7 +105,10 @@ public class UsuarioService : IUsuarioService
     {
         PaginationHelper.Sanitize(ref page, ref pageSize);
 
-        var baseQ = _context.Usuarios.AsNoTracking().AsQueryable();
+        // Ocultar cuentas anonimizadas por baja logica (correo eliminado_{id}@baja.local).
+        var baseQ = _context.Usuarios.AsNoTracking()
+            .Where(u => u.Correo == null || !u.Correo.EndsWith(UsuarioAnonimizado.DominioBaja))
+            .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -469,7 +472,7 @@ public class UsuarioService : IUsuarioService
 
             usuario.Nombre = "Usuario";
             usuario.Apellido = "Eliminado";
-            usuario.Correo = $"eliminado_{id}@baja.local";
+            usuario.Correo = $"eliminado_{id}{UsuarioAnonimizado.DominioBaja}";
             usuario.Contrasena = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString());
             usuario.Documento = null;
             usuario.TipoDocumento = null;
